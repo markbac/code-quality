@@ -1,0 +1,219 @@
+# fwlens configuration
+# Copy this file to config.yaml and edit for your project.
+
+# Tool settings
+tool:
+  # Full path to libclang.dll (Windows).
+  # Install LLVM from https://github.com/llvm/llvm-project/releases
+  # then point this at the DLL in the LLVM bin directory.
+  libclang_path: C:\LLVM\bin\libclang.dll
+
+# Project settings
+project:
+  # Path to the IAR .ewp file (absolute or relative to this config file).
+  ewp: ..\iar\Project.ewp
+
+  # IAR build configuration to analyse (must match a <configuration><name> in the .ewp).
+  configuration: Debug
+
+  # Absolute path to the project root ($PROJ_DIR$ in the .ewp).
+  # Usually the directory containing the .ewp file.
+  proj_dir: C:\Projects\Project\iar
+
+  # Path to your IAR Embedded Workbench installation ($TOOLKIT_DIR$).
+  # Used to resolve $TOOLKIT_DIR$\inc\... paths in the .ewp.
+  toolkit_dir: C:\Program Files\IAR Systems\Embedded Workbench 9.6\arm
+
+  # --- Directory mode (no .ewp) ---
+  # Set project.source_dir instead of project.ewp to analyse a plain folder of
+  # .c/.h files with no IAR project -- fwlens will recursively glob *.c under
+  # this directory and use every directory containing a header as an include
+  # path for every file. ewp/proj_dir/toolkit_dir are ignored in this mode.
+  # project.ewp and project.source_dir are mutually exclusive.
+  #
+  # source_dir: C:\Projects\some-library
+
+# Boundary classification
+# Files under these paths (relative to proj_dir) are classified as first_party.
+# Everything else found in the .ewp is third_party_lib or sdk.
+scope:
+  first_party:
+    - Src
+    - Inc
+  sdk:
+    - sdk
+  third_party_lib:
+    - Lib
+
+  # Analysis runs on first_party only by default.
+  # Set to [first_party, third_party_lib, sdk] to analyse everything.
+  analyse: [first_party]
+
+# IAR compatibility defines injected into every libclang translation unit.
+# These prevent parse failures on IAR-specific syntax.
+iar_compat_defines:
+  - __ICCARM__=1
+  - __arm__=1
+  - __ARM_ARCH=7
+  - __ARM_ARCH_7EM__=1
+  - __CORE__=7
+  - __intrinsic=
+  - __root=
+  - __ramfunc=
+  - __interrupt=
+  - __irq=
+  - __fiq=
+  - __swi=
+  - __nested=
+  - __monitor=
+  - __nounwind=
+  - __noreturn=
+  - __task=
+  - __weak=
+  - __stackless=
+  - __cmse_nonsecure_entry=
+  - __cmse_nonsecure_call=
+  - "__packed="
+  - "__aligned(x)="
+  - "__section(x)="
+  - "__no_init="
+  # IAR's compiler treats `static_assert` as always available, without needing
+  # <assert.h> included first (C11's static_assert is a macro from that header, not a
+  # keyword, until C23) -- clang doesn't, so any header that uses static_assert without
+  # including assert.h itself parses fine under IAR but fails under fwlens's clang-based
+  # parse. This makes it globally available the same way IAR does, regardless of which
+  # (if any) translation unit happens to include assert.h. See the guide's Project-wide
+  # auto-stub section for the full story -- this was the actual fix for a cascade of
+  # "unknown type name" / "expected ')'" errors that looked unrelated to static_assert
+  # at first glance, in files that never mentioned it directly.
+  - "static_assert=_Static_assert"
+
+# Function names treated as assertion calls for assert-coverage metrics. Optional --
+# defaults to assert/ASSERT/PSP_ASSERT/STATIC_ASSERT/_Static_assert/static_assert
+# (plus OS_Error automatically when rtos.kind is "embos" -- see the RTOS section
+# below: embOS's OS_ASSERT is a macro that expands to `if (!cond) OS_Error(code)`,
+# so it never appears as its own call in the AST; detecting the call it expands
+# into is the only way to see it). Add your own project's assert/error macro name
+# here if it's neither of those.
+# assert_names: [assert, ASSERT, MyProjectAssert]
+
+# Architecture layers
+# Each layer has a name and a list of IAR group names or path fragments that belong to it.
+# The first matching rule wins. Files that match no rule are placed in 'Unknown'.
+layers:
+  - name: SDK
+    paths: [sdk]
+  - name: ThirdParty
+    paths: [Lib]
+  - name: BSP
+    groups: [drivers, emdrv, rtc, uart, isr]
+  - name: RTOS
+    groups: [rtos, os, tick, sched, idle]
+  - name: Middleware
+    groups: [LwM2MClient, ModemMgr, ModemStates, internicheStack, internichedtls, slip, lwM2MStack]
+  - name: Services
+    groups: [Prepayment, ValveControl, OptoComms, batteryLife, FWUpgrade]
+  - name: Application
+    groups: [BaseMeter, UiFSM, Autotest, e2emulation]
+
+# Metric thresholds
+# Breaches are flagged in console output and highlighted in the HTML report.
+thresholds:
+  cyclomatic_complexity: 15
+  cognitive_complexity: 20
+  halstead_effort: 1000000
+  halstead_volume: 8000
+  block_depth: 5
+  function_loc: 100
+  parameter_count: 6
+  return_path_count: 5
+  magic_number_density: 0.15
+  fan_out: 10
+  instability_zone_of_pain: 0.3      # I < this AND A < 0.3 = zone of pain
+  instability_zone_of_uselessness: 0.7  # I > this AND A > 0.7 = zone of uselessness
+  main_sequence_distance: 0.5        # |A + I - 1| > this = flagged
+
+# Known entry points -- excluded from dead code detection
+entry_points:
+  - main
+  # Add task entry function names here, e.g.:
+  # - AppTask
+  # - ModemTask
+  # - PrepaymentTask
+
+# Output
+output:
+  # All paths relative to this config file's directory.
+  reports_dir: output/reports
+  exports_dir: output/exports
+  cache_dir: output/.cache
+  db_path: output/fwlens.db
+
+  # Formats to produce on 'report' command. Add 'plots' for standalone PNG charts,
+  # 'diagrams' for Mermaid architecture + dependency SVG.
+  formats: [html, csv, json]
+
+  # Number of top offenders to show in console summary.
+  top_n: 20
+
+# Git-based hotspot analysis (churn x structural debt). Optional -- if proj_dir/source_dir
+# isn't inside a git repository, or git isn't on PATH, hotspot analysis is skipped.
+# git:
+#   since: "180 days ago"   # default: full history
+#   heatmap_bin: "month"    # or "week" -- bin size for churn_heatmap.png
+#   # Commit-message keywords (case-insensitive) that classify a commit as a "fix" --
+#   # used by reliability growth, defect correlation/root-cause, and bug-fix-weighted
+#   # hotspots. Override if your commit conventions differ from English fix/bug/defect/...
+#   # (e.g. a ticket-only convention, or a non-English team).
+#   fix_keywords: [fix, bug, defect, issue, resolve, patch, hotfix]
+
+# COCOMO effort/schedule estimate. Optional -- defaults to "embedded" mode.
+# estimation:
+#   cocomo_mode: embedded   # organic | semidetached | embedded
+
+# RTOS task/synchronisation analysis. Optional -- disabled by default (kind: none).
+# Only embOS is implemented, verified against the real embOS V5.18.3.0 RTOS.h --
+# the defaults below need no overrides for a standard embOS install. If your project
+# uses a different embOS version, spot-check the extracted priorities/stacks once
+# after enabling this (via `report`'s RTOS tab or `rtos_tasks.csv`) before trusting it.
+# rtos:
+#   kind: embos
+#   # Only needed if your code calls task-creation functions under different names,
+#   # or the argument order genuinely differs from OS_TASK_Create/OS_TASK_CreateEx:
+#   # task_functions:
+#   #   OS_TASK_Create:   {tcb: 0, name: 1, priority: 2, routine: 3, stack: 4, stack_size: 5}
+#   #   OS_TASK_CreateEx: {tcb: 0, name: 1, priority: 2, routine: 3, stack: 4, stack_size: 5}
+#   # semaphore_functions: [OS_SEMAPHORE_Create]
+#   # mutex_functions: [OS_MUTEX_Create]
+#   # mailbox_functions: [OS_MAILBOX_Create]
+#   # queue_functions: [OS_QUEUE_Create]
+#   # event_functions: [OS_EVENT_Create, OS_EVENT_CreateEx]
+#   # rwlock_functions: [OS_RWLOCK_Create]
+#   # usage_functions: [OS_SEMAPHORE_TakeBlocked, OS_SEMAPHORE_Give, OS_MUTEX_LockBlocked, ...]
+#   #
+#   # If tasks are defined as a static const array of descriptor structs and created
+#   # generically in a loop (common pattern -- one OS_TASK_Create call site with
+#   # pTask->field arguments, not one literal call per task), task_functions alone
+#   # can't recover per-task data (name/priority/entry fn all vary at runtime, not
+#   # at the call site). Add the struct type name and its member-name mapping here
+#   # instead -- fwlens reads the array's initializer directly:
+#   # task_table_types:
+#   #   YourTaskEntryStructName:
+#   #     tcb: tcb                  # struct member holding the OS_TASK* / TCB
+#   #     name: name                # struct member holding the task name string
+#   #     priority: priority        # struct member holding the OS_PRIO
+#   #     routine: taskFn           # struct member holding the entry function pointer
+#   #     stack: stack               # struct member holding the stack array pointer
+#   #     stack_size: stackSize     # struct member holding the stack size
+#   #
+#   # For an RTOS whose creation functions return the handle via RETURN VALUE
+#   # instead of an output-pointer argument (FreeRTOS: `q = xQueueCreate(...)`,
+#   # as opposed to embOS's `OS_MUTEX_Create(&mutex, ...)`), list those function
+#   # names here so fwlens reads the assignment target instead of args[0] --
+#   # example for FreeRTOS (kind: freertos has no built-in defaults yet, so all
+#   # of the lists above need to be set explicitly too):
+#   # queue_functions: [xQueueCreate]
+#   # semaphore_functions: [xSemaphoreCreateBinary]
+#   # mutex_functions: [xSemaphoreCreateMutex]
+#   # usage_functions: [xQueueSend, xQueueReceive, xSemaphoreTake, xSemaphoreGive]
+#   # return_value_functions: [xQueueCreate, xSemaphoreCreateBinary, xSemaphoreCreateMutex]

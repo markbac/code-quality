@@ -1,0 +1,209 @@
+# fwlens configuration for Firmware_Project
+# Lives at: C:\Work\WorkRepos\Firmware_Project\App\fwlens_config.yaml
+# Run from App with:  C:\Work\tmp\fwlens\Run-FwLens.ps1 report
+# (matches Run-FwLens.ps1's default filename, so no -Config flag needed)
+
+# Tool settings
+tool:
+  # Full path to libclang.dll. Install LLVM from
+  # https://github.com/llvm/llvm-project/releases if you don't have it, then
+  # point this at the DLL in the LLVM bin directory. EDIT THIS.
+  libclang_path: C:\Program Files\LLVM\bin\libclang.dll
+
+# Project settings
+project:
+  # Relative to this config file (App\fwlens_config.yaml) -> App\EWARM\Project.ewp
+  ewp: EWARM\Project.ewp
+
+  # IAR build configuration to analyse -- must match a <configuration><name>
+  # in the .ewp exactly (open the .ewp in a text editor to check if unsure).
+  configuration: Release
+
+  # $PROJ_DIR$ in the .ewp -- left unset here, which defaults to the .ewp's
+  # own folder (App\EWARM). That's almost always correct; only set this
+  # explicitly if your .ewp's $PROJ_DIR$-relative paths resolve from
+  # somewhere else.
+  # proj_dir: C:\Work\WorkRepos\Firmware_Project\App\EWARM
+
+  # Path to your IAR Embedded Workbench installation ($TOOLKIT_DIR$).
+  # Used to resolve $TOOLKIT_DIR$\inc\... paths in the .ewp. EDIT THIS.
+  toolkit_dir: C:\iar\ewarm-9.70.4\arm
+
+# Boundary classification
+# Files under these paths (relative to proj_dir) are classified as first_party.
+# Everything else found in the .ewp is third_party_lib or sdk.
+# VERIFY THESE against your actual folder/group names -- run
+# `Run-FwLens.ps1 debug` first to see how files get classified before
+# trusting a full report.
+scope:
+  first_party:
+    - Src
+    - Inc
+  sdk:
+    - sdk
+  third_party_lib:
+    - Lib
+
+  # Analysis runs on first_party only by default.
+  # Set to [first_party, third_party_lib, sdk] to analyse everything.
+  analyse: [first_party]
+
+# IAR compatibility defines injected into every libclang translation unit.
+# These prevent parse failures on IAR-specific syntax.
+iar_compat_defines:
+  - "static_assert=_Static_assert"
+  - __ARM7EM__=7  # must equal __CORE__ (7) below -- RTOS.h checks (__CORE__ == __ARM7EM__), not just defined()
+                  # This is the ONLY one of the six __ARMxxM__/__ARMxxEM__ candidates actually
+                  # needed: RTOS.h's own check is an #elif chain (one true branch wins), and
+                  # Cortex-M4F on the EFM32GG12B confirmed this is the right one (see the
+                  # DataItemId static_assert investigation). The other five were originally
+                  # shotgunned in by --auto-stub before that was known, defining every
+                  # candidate "just in case". Leaving all six defined is likely why
+                  # SEGGER_RTT_LOCK/SEGGER_RTT_UNLOCK/TRUE/FALSE show up as "macro redefined"
+                  # elsewhere: headers that check core type with a plain #ifdef (no value
+                  # comparison, unlike RTOS.h) see MULTIPLE cores as simultaneously "defined"
+                  # and can take more than one branch that each define the same macro.
+  - __ICCARM__=1
+  - __arm__=1
+  - __ARM_ARCH=7
+  - __ARM_ARCH_7EM__=1
+  - __CORE__=7
+  - __VER__=9070004  # IAR compiler version (9.70.4, matches toolkit_dir below) --
+                     # cmsis_iccarm.h gates its real __ALIGNED(x) implementation on
+                     # this; undefined evaluates to 0 in its #if, always falling to
+                     # the "#warning ... __ALIGNED is ignored" no-op branch instead
+  - -U__GNUC__
+  - __intrinsic=
+  - __root=
+  - __ramfunc=
+  - __interrupt=
+  - __irq=
+  - __fiq=
+  - __swi=
+  - __nested=
+  - __monitor=
+  - __nounwind=
+  - __noreturn=
+  - __task=
+  - __weak=
+  - __stackless=
+  - __cmse_nonsecure_entry=
+  - __cmse_nonsecure_call=
+  - "__packed="
+  - "__aligned(x)="
+  - "__section(x)="
+  - "__no_init="
+  
+
+# Function names treated as assertion calls for the assert-coverage metric.
+# CustomAssert.h is included by Rtos_Config.c and used via ASSERT(...) throughout --
+# add its real macro name here if it's not a plain wrapper around the C assert().
+# If CustomAssert's ASSERT ultimately expands to something other than a literal call
+# to a function/macro named "ASSERT" (e.g. it expands inline like embOS's
+# OS_ASSERT does), list whatever it actually expands into instead -- see the
+# rtos.kind: embos note below for why that distinction matters.
+assert_names: [assert, ASSERT, PSP_ASSERT, STATIC_ASSERT, _Static_assert, static_assert]
+
+# Architecture layers
+# Each layer has a name and a list of IAR group names or path fragments that
+# belong to it. First matching rule wins. Files matching no rule -> 'Unknown'.
+# EDIT to match your actual IAR group tree (check via `debug` command).
+layers:
+  - name: SDK
+    paths: [sdk]
+  - name: ThirdParty
+    paths: [Lib]
+  - name: BSP
+    groups: [drivers, emdrv, rtc, uart, isr]
+  - name: RTOS
+    groups: [rtos, os, tick, sched, idle]
+  - name: Middleware
+    groups: [LwM2MClient, ModemMgr, ModemStates, internicheStack, internichedtls, slip, lwM2MStack]
+  - name: Services
+    groups: [Prepayment, ValveControl, OptoComms, batteryLife, FWUpgrade]
+  - name: Application
+    groups: [BaseMeter, UiFSM, Autotest, e2emulation]
+
+# Metric thresholds
+# Breaches are flagged in console output and highlighted in the HTML report.
+thresholds:
+  cyclomatic_complexity: 15
+  cognitive_complexity: 20
+  halstead_effort: 1000000
+  halstead_volume: 8000
+  block_depth: 5
+  function_loc: 100
+  parameter_count: 6
+  return_path_count: 5
+  magic_number_density: 0.15
+  fan_out: 10
+  instability_zone_of_pain: 0.3      # I < this AND A < 0.3 = zone of pain
+  instability_zone_of_uselessness: 0.7  # I > this AND A > 0.7 = zone of uselessness
+  main_sequence_distance: 0.5        # |A + I - 1| > this = flagged
+
+# Known entry points -- excluded from dead code detection.
+# Add every RTOS task entry function so they aren't reported as dead. From
+# Rtos_Config.c's CommonTaskList/CustomisationTaskList/AppsTaskList tables:
+entry_points:
+  - main
+  - bmTask                # BaseMeter
+  - UI_Task
+  - TimedEvents_Task
+  - MSER_Task              # Modem Serial
+  - MMGR_Task               # Modem Manager
+  - DTLS_Task
+  - OptoPortTask            # GalvanicPort
+  - lwm2mClientTask
+  - PhysicalWakeup_Task     # only present when PROTOV1 is defined
+  - DebugTask               # only present when DEBUG_CONSOLE or AUTOTEST is defined
+
+# Output
+output:
+  # All paths relative to this config file's directory (App\output\...).
+  reports_dir: output/reports
+  exports_dir: output/exports
+  cache_dir: output/.cache
+  db_path: output/fwlens.db
+
+  # Formats to produce on 'report' command. Add 'plots' for standalone PNG
+  # charts, 'diagrams' for Mermaid architecture + dependency SVG.
+  formats: [html, csv, json]
+
+  # Number of top offenders to show in console summary.
+  top_n: 20
+
+# Git-based hotspot analysis (churn x structural debt). Optional -- if
+# proj_dir isn't inside a git repository, or git isn't on PATH, this is
+# skipped automatically.
+git:
+  since: "180 days ago"
+  heatmap_bin: "week"    # or "month" -- bin size for churn_heatmap.png
+
+# COCOMO effort/schedule estimate. Optional -- defaults to "embedded" mode.
+estimation:
+  cocomo_mode: embedded   # organic | semidetached | embedded
+
+# RTOS task/synchronisation analysis.
+# kind: embos gets you the verified-against-real-RTOS.h defaults for free --
+# task_functions (OS_TASK_Create/OS_TASK_CreateEx), semaphore/mutex/mailbox/
+# queue/event/rwlock creation and usage functions all need no overrides.
+#
+# task_table_types is the one addition needed for THIS codebase specifically:
+# Rtos_Config.c defines tasks as a static const TaskEntry_t[] array (designated
+# initializers) created generically in a loop -- OS_TASK_Create(pTask->tcb,
+# pTask->name, pTask->priority, pTask->taskFn, pTask->stack, pTask->stackSize,
+# DEFAULT_TIMESLICE_TICKS) -- so the call site alone has no per-task data to
+# extract (every argument is a runtime struct-field dereference). fwlens reads
+# CommonTaskList/CustomisationTaskList/AppsTaskList's initializer data directly
+# instead, via this struct-member-name mapping (field names copied straight
+# from your TaskEntry_t definition in Rtos_Config.c):
+rtos:
+  kind: embos
+  task_table_types:
+    TaskEntry_t:
+      tcb: tcb
+      name: name
+      priority: priority
+      routine: taskFn
+      stack: stack
+      stack_size: stackSize

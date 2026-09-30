@@ -1,0 +1,315 @@
+architecture:
+
+  application:
+    name: MeterApplicationFirmware
+    description: >
+      Complete embedded meter firmware image built by EWARM.
+      Contains all runtime layers from Product down to SDK/BSP.
+
+    build:
+      system: EWARM
+      paths:
+        - EWARM/
+
+  layers:
+
+    - name: Product
+      level: 7
+      type: conceptual
+      responsibility:
+        - top-level orchestration
+        - workflows
+        - product behaviour
+        - FSM coordination
+        - feature composition
+
+      modules:
+
+        - name: BaseMeter
+          paths:
+            - APP/BaseMeter/
+          patterns:
+            - "BaseMeter*"
+
+        - name: UiFSM
+          paths:
+            - APP/UiFSM/
+          patterns:
+            - "UiFSM*"
+
+        - name: Autotest
+          paths:
+            - APP/Autotest/
+          patterns:
+            - "Autotest*"
+
+        - name: e2emulation
+          paths:
+            - APP/e2emulation/
+          patterns:
+            - "e2emulation*"
+
+    - name: Services
+      level: 6
+      type: conceptual
+      responsibility:
+        - business logic
+        - domain services
+        - reusable functional capabilities
+
+      modules:
+
+        - name: Prepayment
+          paths:
+            - APP/Prepayment/
+          patterns:
+            - "pp_*"
+            - "*prepay*"
+
+        - name: ValveControl
+          paths:
+            - APP/ValveControl/
+          patterns:
+            - "valve*"
+            - "vc_*"
+
+        - name: batteryLife
+          paths:
+            - APP/batteryLife/
+          patterns:
+            - "battery*"
+            - "batt*"
+
+        - name: FWUpgrade
+          paths:
+            - APP/FWUpgrade/
+          patterns:
+            - "fwupgrade*"
+            - "dfu*"
+
+        - name: OptoComms
+          paths:
+            - APP/OptoComms/
+          patterns:
+            - "opto*"
+
+    - name: Connectivity
+      level: 5
+      type: conceptual
+      responsibility:
+        - modem management
+        - connectivity orchestration
+        - communications coordination
+
+      modules:
+
+        - name: ModemMgr
+          paths:
+            - APP/ModemMgr/
+          patterns:
+            - "modem_mgr*"
+            - "modem*"
+
+        - name: ModemStates
+          paths:
+            - APP/ModemStates/
+          patterns:
+            - "modem_state*"
+
+        - name: LwM2MClient
+          paths:
+            - APP/LwM2MClient/
+          patterns:
+            - "lwm2m_client*"
+
+    - name: Middleware
+      level: 4
+      type: conceptual
+      responsibility:
+        - protocol stacks
+        - transport middleware
+        - third-party networking components
+
+      modules:
+
+        - name: internicheStack
+          paths:
+            - APP/internicheStack/
+          provenance: third_party
+
+        - name: internichedtls
+          paths:
+            - APP/internichedtls/
+          provenance: third_party
+
+        - name: lwM2MStack
+          paths:
+            - APP/lwM2MStack/
+          provenance: third_party
+
+        - name: slip
+          paths:
+            - APP/slip/
+          provenance: third_party
+
+    - name: Platform
+      level: 3
+      type: conceptual
+      responsibility:
+        - shared infrastructure
+        - platform abstractions
+        - diagnostics
+        - utilities
+
+      modules:
+
+        - name: uart
+          paths:
+            - APP/uart/
+
+        - name: rtc
+          paths:
+            - APP/rtc/
+
+        - name: logging
+          paths:
+            - APP/logging/
+            - APP/common/logging/
+
+        - name: diagnostics
+          paths:
+            - APP/diagnostics/
+
+        - name: utilities
+          paths:
+            - APP/utilities/
+            - APP/common/
+
+        - name: memory
+          paths:
+            - APP/memory/
+
+        - name: watchdog
+          paths:
+            - APP/watchdog/
+
+    - name: RTOS
+      level: 2
+      type: conceptual
+      responsibility:
+        - scheduling
+        - task management
+        - RTOS abstractions
+        - timing infrastructure
+
+      modules:
+
+        - name: rtos
+          paths:
+            - APP/rtos/
+
+        - name: os
+          paths:
+            - APP/os/
+
+        - name: sched
+          paths:
+            - APP/sched/
+
+        - name: tick
+          paths:
+            - APP/tick/
+
+        - name: idle
+          paths:
+            - APP/idle/
+
+    - name: SDK_BSP
+      level: 1
+      type: mixed
+      responsibility:
+        - silicon vendor SDK
+        - BSP
+        - startup
+        - hardware abstraction
+        - CMSIS/device support
+
+      modules:
+
+        - name: emdrv
+          paths:
+            - sdk/emdrv/
+            - APP/emdrv/
+          provenance: vendor
+
+        - name: cmsis
+          paths:
+            - sdk/cmsis/
+            - APP/cmsis/
+          provenance: vendor
+
+        - name: device
+          paths:
+            - sdk/device/
+            - APP/device/
+          provenance: vendor
+
+        - name: startup
+          paths:
+            - sdk/startup/
+            - APP/startup/
+          provenance: vendor
+
+        - name: bsp
+          paths:
+            - sdk/bsp/
+            - APP/bsp/
+          provenance: vendor
+
+        - name: isr
+          paths:
+            - APP/isr/
+          provenance: mixed
+
+  dependency_rules:
+
+    - from: Product
+      to:
+        - Services
+        - Connectivity
+
+    - from: Services
+      to:
+        - Connectivity
+        - Platform
+
+    - from: Connectivity
+      to:
+        - Middleware
+        - Platform
+
+    - from: Middleware
+      to:
+        - RTOS
+        - Platform
+
+    - from: Platform
+      to:
+        - RTOS
+        - SDK_BSP
+
+    - from: RTOS
+      to:
+        - SDK_BSP
+
+    - from: SDK_BSP
+      to: []
+
+  notes:
+
+    - Layers are conceptual architecture layers, not strict directory structures.
+    - Paths provide physical mappings into the source tree.
+    - Patterns allow mapping of legacy flat-file structures.
+    - Some modules may span multiple directories.
+    - Third-party provenance is tracked separately from architectural layer.
+    - Physical structure and conceptual architecture are intentionally decoupled.
