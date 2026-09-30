@@ -3,7 +3,7 @@ Tests for GitHub Actions inline annotations output and breach processing.
 """
 
 from fwlens.baseline import Breach
-from main import emit_github_annotations
+from fwlens.cli.commands import emit_github_annotations
 
 
 def test_emit_github_annotations(capsys):
