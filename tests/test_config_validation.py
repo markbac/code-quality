@@ -4,14 +4,13 @@ Tests for configuration schema validation and pre-flight diagnostics.
 
 import tempfile
 from pathlib import Path
-import pytest
 
 from fwlens.config import load_config
 
 
 def test_load_config_valid():
     with tempfile.TemporaryDirectory() as tmp_dir:
-        tmp_path = Path(tmp_dir)
+        tmp_path = Path(tmp_dir).resolve()
         cfg_file = tmp_path / "config.yaml"
         cfg_file.write_text("""
 tool:
