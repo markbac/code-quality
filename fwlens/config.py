@@ -25,8 +25,9 @@ class ProjectConfig:
     configuration: str
     proj_dir: Path
     toolkit_dir: Optional[Path]
-    mode: str = "ewp"                    # "ewp" | "directory"
+    mode: str = "ewp"                    # "ewp" | "directory" | "compile_commands" | "cmake" | "make"
     source_dir: Optional[Path] = None    # directory-mode root, glob'd for *.c
+    compile_commands: Optional[Path] = None  # path to compile_commands.json (CMake/Make)
 
 
 @dataclass
@@ -281,29 +282,48 @@ def load_config(config_path: Path) -> FwLensConfig:
     proj_raw = raw.get("project", {})
     ewp_raw = proj_raw.get("ewp")
     source_dir_raw = proj_raw.get("source_dir")
+    compile_commands_raw = proj_raw.get("compile_commands")
+    mode_raw = proj_raw.get("mode")
 
-    if not ewp_raw and not source_dir_raw:
-        print("[fwlens] ERROR: project.ewp or project.source_dir must be set in config.yaml",
+    if not ewp_raw and not source_dir_raw and not compile_commands_raw and not mode_raw:
+        print("[fwlens] ERROR: project.ewp, project.source_dir, or project.compile_commands must be set in config.yaml",
               file=sys.stderr)
         sys.exit(1)
-    if ewp_raw and source_dir_raw:
-        print("[fwlens] ERROR: project.ewp and project.source_dir are mutually exclusive "
-              "-- set one or the other", file=sys.stderr)
-        sys.exit(1)
 
-    mode = "directory" if source_dir_raw else "ewp"
+    if mode_raw:
+        mode = mode_raw.lower()
+    elif compile_commands_raw:
+        mode = "compile_commands"
+    elif source_dir_raw:
+        mode = "directory"
+    else:
+        mode = "ewp"
+
     ewp_path = resolve(ewp_raw) if ewp_raw else None
     source_dir_path = resolve(source_dir_raw) if source_dir_raw else None
+    compile_commands_path = resolve(compile_commands_raw) if compile_commands_raw else None
 
     proj_dir_raw = proj_raw.get("proj_dir")
     toolkit_dir_raw = proj_raw.get("toolkit_dir")
-    default_proj_dir = source_dir_path if mode == "directory" else ewp_path.parent
+    
+    if proj_dir_raw:
+        default_proj_dir = Path(proj_dir_raw)
+    elif source_dir_path:
+        default_proj_dir = source_dir_path
+    elif compile_commands_path:
+        default_proj_dir = compile_commands_path.parent
+    elif ewp_path:
+        default_proj_dir = ewp_path.parent
+    else:
+        default_proj_dir = base
+
     project = ProjectConfig(
         ewp=ewp_path,
         mode=mode,
         source_dir=source_dir_path,
+        compile_commands=compile_commands_path,
         configuration=proj_raw.get("configuration", "Debug"),
-        proj_dir=Path(proj_dir_raw) if proj_dir_raw else default_proj_dir,
+        proj_dir=default_proj_dir,
         toolkit_dir=Path(toolkit_dir_raw) if toolkit_dir_raw else None,
     )
 

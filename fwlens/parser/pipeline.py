@@ -28,8 +28,8 @@ console = Console()
 
 
 def _project_path(config: FwLensConfig) -> Path:
-    """The .ewp path in EWP mode, or the scanned source_dir in directory mode."""
-    return config.project.ewp or config.project.source_dir
+    """The .ewp path, compile_commands.json, or scanned source_dir/proj_dir."""
+    return config.project.ewp or config.project.compile_commands or config.project.source_dir or config.project.proj_dir
 
 
 # ---------------------------------------------------------------------------
@@ -107,7 +107,7 @@ def _worker(args: tuple) -> tuple:
 def run_pipeline(config: FwLensConfig) -> ProjectModel:
     """
     Full parse pipeline:
-    1.  Parse EWP, or scan a directory in directory mode -- get all TUs
+    1.  Parse EWP, compile_commands.json (CMake/Make), or scan directory -- get all TUs
     2.  Classify in-scope vs out-of-scope
     3.  Parse in-scope TUs in parallel with libclang
     4.  Register out-of-scope files as stub modules (no functions)
@@ -118,6 +118,10 @@ def run_pipeline(config: FwLensConfig) -> ProjectModel:
         console.print(f"[cyan][fwlens][/cyan] Scanning directory (no .ewp): "
                       f"[bold]{config.project.source_dir}[/bold]")
         ewp_result = scan_directory(config)
+    elif config.project.mode in ("compile_commands", "cmake", "make"):
+        from fwlens.parser.compile_commands import parse_compile_commands
+        console.print(f"[cyan][fwlens][/cyan] Parsing compilation database ([bold]{config.project.mode}[/bold])...")
+        ewp_result = parse_compile_commands(config)
     else:
         console.print("[cyan][fwlens][/cyan] Parsing EWP...")
         # Confirm which ast_walker is loaded -- catches stale .pyc issues
