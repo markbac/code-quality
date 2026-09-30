@@ -101,6 +101,33 @@ def cli():
     pass
 
 
+@cli.command()
+@click.option("--output", "-o", default="config.yaml", help="Output file path (default: config.yaml)")
+@click.option("--type", "-t", "project_type", type=click.Choice(["cmake", "make", "ewp", "directory", "auto"]), default="auto", help="Project type template")
+def init(output: str, project_type: str):
+    """Generate a starter config.yaml template for your project."""
+    from fwlens.cli.commands import _CONFIG_TEMPLATES
+    target_path = Path(output)
+    if target_path.exists():
+        console.print(f"[yellow][fwlens] WARNING: '{output}' already exists. Overwrite? (y/n)[/yellow]")
+        return
+
+    if project_type == "auto":
+        cwd = Path.cwd()
+        if (cwd / "CMakeLists.txt").exists() or (cwd / "build" / "compile_commands.json").exists():
+            project_type = "cmake"
+        elif (cwd / "Makefile").exists() or (cwd / "compile_commands.json").exists():
+            project_type = "make"
+        elif list(cwd.glob("*.ewp")):
+            project_type = "ewp"
+        else:
+            project_type = "directory"
+
+    template = _CONFIG_TEMPLATES.get(project_type, _CONFIG_TEMPLATES["directory"])
+    target_path.write_text(template, encoding="utf-8")
+    console.print(f"[cyan][fwlens][/cyan] Created starter configuration template ([bold]{project_type}[/bold] mode): [bold]{target_path.resolve()}[/bold]")
+
+
 @cli.result_callback()
 def _post_group(*args, **kwargs):
     pass
