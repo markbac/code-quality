@@ -115,6 +115,8 @@ def _print_header(command: str, config_path: str):
 
 # Shared --baseline / --fail-on-breach / --update-baseline options for `analyze` and `report`.
 def _baseline_options(f):
+    f = click.option("--github-annotations", is_flag=True, default=False,
+                      help="Emit GitHub Actions workflow commands (::warning file=...::) for PR diff annotations.")(f)
     f = click.option("--accept-id", "accept_ids", multiple=True,
                       help="With --update-baseline, accept only this breach id "
                            "(repeatable). Omit to use --accept-all instead.")(f)
@@ -130,19 +132,34 @@ def _baseline_options(f):
     return f
 
 
-def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
-                      update_baseline_flag, accept_all, accept_ids):
-    """Compute breaches and either update the baseline or gate on it. Returns True to fail the run."""
-    if not baseline_path:
-        return False
+def emit_github_annotations(breaches):
+    """Output GitHub Actions workflow commands so breaches appear inline on PR code diffs."""
+    for b in breaches:
+        file_part = f"file={b.file}"
+        line_part = ""
+        parts = b.id.split(":")
+        if len(parts) >= 4 and parts[1].isdigit():
+            line_part = f",line={parts[1]}"
+        print(f"::warning {file_part}{line_part},title=FWLens Breach [{b.metric}]::{b.metric} is {b.value} (threshold {b.threshold})")
 
+
+def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
+                      update_baseline_flag, accept_all, accept_ids, github_annotations=False):
+    """Compute breaches and either update the baseline or gate on it. Returns True to fail the run."""
     from fwlens.baseline import (
         compute_breaches, diff_against_baseline, load_baseline, update_baseline,
     )
     from fwlens.output.console import print_baseline_summary
 
-    path = Path(baseline_path)
     breaches = compute_breaches(model, config)
+
+    if github_annotations:
+        emit_github_annotations(breaches)
+
+    if not baseline_path:
+        return False
+
+    path = Path(baseline_path)
 
     if update_baseline_flag:
         accepted = update_baseline(path, breaches, accept_all=accept_all, accept_ids=list(accept_ids))
