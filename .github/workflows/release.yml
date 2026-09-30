@@ -1,0 +1,53 @@
+name: FWLens Automated Release Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    name: Build Distribution & Publish GitHub Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Build Tooling & Test Dependencies
+        run: |
+          python -m pip install --upgrade pip build pytest
+          pip install -e .[dev]
+
+      - name: Run Test Suite Verification
+        run: |
+          pytest --verbose
+
+      - name: Build Python Package Distributions (Wheel & Source)
+        run: |
+          python -m build
+
+      - name: Verify Wheel Installation
+        run: |
+          pip install dist/*.whl
+          fwlens --help
+
+      - name: Create GitHub Release with Dist Artifacts
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
