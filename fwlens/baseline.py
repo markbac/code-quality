@@ -129,6 +129,35 @@ def load_baseline(path: Path) -> dict[str, dict]:
     return {entry["id"]: entry for entry in raw.get("accepted", [])}
 
 
+def load_baselines_from_paths(paths: list[Path]) -> dict[str, dict[str, dict]]:
+    """
+    Load multiple named baseline JSON files into a map of baseline_label -> (breach_id -> breach_dict).
+    Enables comparing current build metrics against multiple historical baselines (e.g. v1.0, v2.0, last-release).
+    """
+    result = {}
+    for p in paths:
+        label = p.stem.replace("baseline-", "").replace("baseline_", "") or p.name
+        result[label] = load_baseline(p)
+    return result
+
+
+def compare_historical_baselines(
+    breaches: list[Breach], baselines_map: dict[str, dict[str, dict]]
+) -> dict[str, dict[str, list[Breach]]]:
+    """
+    Compare current breaches against multiple named baselines.
+    Returns: label -> {"new_or_worsened": [...], "accepted_unchanged": [...]}
+    """
+    comparison = {}
+    for label, bdict in baselines_map.items():
+        new_worsened, accepted = diff_against_baseline(breaches, bdict)
+        comparison[label] = {
+            "new_or_worsened": new_worsened,
+            "accepted_unchanged": accepted,
+        }
+    return comparison
+
+
 def save_baseline(path: Path, accepted: dict[str, dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {"accepted": sorted(accepted.values(), key=lambda e: e["id"])}

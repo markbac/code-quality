@@ -423,6 +423,49 @@ _TEMPLATE = r"""<!DOCTYPE html>
           </p>
         </div>
 
+      </div>
+
+      <!-- Quick Metrics Deciphering Cheat Sheet -->
+      <div style="margin-top:20px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:16px">
+        <div style="font-size:13px;font-weight:600;color:var(--accent);margin-bottom:10px">&#128161; How to Decipher &amp; Act on Report Data (Quick Cheat-Sheet)</div>
+        <table style="width:100%;font-size:12px">
+          <thead>
+            <tr>
+              <th style="width:22%">Metric / Indicator</th>
+              <th style="width:18%">Healthy Threshold</th>
+              <th style="width:30%">What It Means</th>
+              <th style="width:30%">Recommended Action on Breach</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Cyclomatic Complexity</strong></td>
+              <td><span class="badge badge-green">&le; 15</span></td>
+              <td class="dim">Counts independent decision paths (if, while, case, &&). High = hard to test &amp; maintain.</td>
+              <td>Extract complex conditional blocks into dedicated helper functions.</td>
+            </tr>
+            <tr>
+              <td><strong>Cognitive Complexity</strong></td>
+              <td><span class="badge badge-green">&le; 20</span></td>
+              <td class="dim">Measures mental effort to comprehend control flow (rewards flat logic, penalises nesting).</td>
+              <td>Flatten nested loops/conditionals using early return guard clauses.</td>
+            </tr>
+            <tr>
+              <td><strong>Hotspot Risk (Churn x Debt)</strong></td>
+              <td><span class="badge badge-green">Low Percentile</span></td>
+              <td class="dim">High complexity in files edited frequently. Top source of production regressions.</td>
+              <td><strong>Highest Priority</strong>: Refactor these files first to maximize stability ROI.</td>
+            </tr>
+            <tr>
+              <td><strong>Main Sequence Distance ($|A+I-1|$)</strong></td>
+              <td><span class="badge badge-green">&le; 0.5</span></td>
+              <td class="dim">Balance between Abstractness ($A$) and Instability ($I$). High = Zone of Pain or Uselessness.</td>
+              <td>Decouple concrete dependencies using interface abstractions or split packages.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
         <div>
           <div style="font-size:11px;font-weight:600;color:var(--accent);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em">Dead code &amp; ISRs</div>
           <p style="font-size:12px;line-height:1.7;color:var(--text)">
