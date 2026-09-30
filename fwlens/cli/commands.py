@@ -88,10 +88,116 @@ def _run_pipeline(config_path: Path, auto_stub: bool = False):
     return model, config
 
 
+_CONFIG_TEMPLATES = {
+    "cmake": """# fwlens configuration for CMake project
+tool:
+  libclang_path: C:\\Program Files\\LLVM\\bin\\libclang.dll  # Adjust for your OS
+
+project:
+  compile_commands: build/compile_commands.json
+  mode: cmake
+
+scope:
+  first_party: [src, inc]
+  sdk: [sdk]
+  third_party_lib: [lib, vendor]
+  analyse: [first_party]
+
+thresholds:
+  cyclomatic_complexity: 15
+  cognitive_complexity: 20
+  function_loc: 100
+""",
+    "make": """# fwlens configuration for Make project
+tool:
+  libclang_path: C:\\Program Files\\LLVM\\bin\\libclang.dll  # Adjust for your OS
+
+project:
+  compile_commands: compile_commands.json
+  mode: make
+
+scope:
+  first_party: [src, inc]
+  sdk: [sdk]
+  third_party_lib: [lib, vendor]
+  analyse: [first_party]
+
+thresholds:
+  cyclomatic_complexity: 15
+  cognitive_complexity: 20
+  function_loc: 100
+""",
+    "ewp": """# fwlens configuration for IAR Embedded Workbench (.ewp) project
+tool:
+  libclang_path: C:\\Program Files\\LLVM\\bin\\libclang.dll
+
+project:
+  ewp: Project.ewp
+  configuration: Release
+  toolkit_dir: C:\\Program Files\\IAR Systems\\Embedded Workbench 9.6\\arm
+
+scope:
+  first_party: [Src, Inc]
+  sdk: [sdk]
+  third_party_lib: [Lib]
+  analyse: [first_party]
+
+thresholds:
+  cyclomatic_complexity: 15
+  cognitive_complexity: 20
+  function_loc: 100
+""",
+    "directory": """# fwlens configuration for Directory Scan mode
+tool:
+  libclang_path: C:\\Program Files\\LLVM\\bin\\libclang.dll  # Adjust for your OS
+
+project:
+  source_dir: .
+
+scope:
+  first_party: [.]
+  sdk: []
+  third_party_lib: []
+  analyse: [first_party]
+
+thresholds:
+  cyclomatic_complexity: 15
+  cognitive_complexity: 20
+  function_loc: 100
+"""
+}
+
+
 @click.group()
 def cli():
     """fwlens -- Embedded C Architecture & Static Analysis Platform."""
     pass
+
+
+@cli.command()
+@click.option("--output", "-o", default="config.yaml", help="Output file path (default: config.yaml)")
+@click.option("--type", "-t", "project_type", type=click.Choice(["cmake", "make", "ewp", "directory", "auto"]), default="auto", help="Project type template")
+def init(output: str, project_type: str):
+    """Generate a starter config.yaml template for your project."""
+    target_path = Path(output)
+    if target_path.exists():
+        console.print(f"[yellow][fwlens] WARNING: '{output}' already exists. Overwrite? (y/n)[/yellow]")
+        return
+
+    if project_type == "auto":
+        cwd = Path.cwd()
+        if (cwd / "CMakeLists.txt").exists() or (cwd / "build" / "compile_commands.json").exists():
+            project_type = "cmake"
+        elif (cwd / "Makefile").exists() or (cwd / "compile_commands.json").exists():
+            project_type = "make"
+        elif list(cwd.glob("*.ewp")):
+            project_type = "ewp"
+        else:
+            project_type = "directory"
+
+    template = _CONFIG_TEMPLATES.get(project_type, _CONFIG_TEMPLATES["directory"])
+    target_path.write_text(template, encoding="utf-8")
+    console.print(f"[cyan][fwlens][/cyan] Created starter configuration template ([bold]{project_type}[/bold] mode): [bold]{target_path.resolve()}[/bold]")
 
 
 def main():
