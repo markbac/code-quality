@@ -173,6 +173,13 @@ def _gitlab_option(f):
              "gl-code-quality-report.json when GITLAB_CI=true.")(f)
 
 
+def _findings_option(f):
+    return click.option(
+        "--findings-json", "findings_json", default=None, type=click.Path(),
+        help="Write the findings with stable ids and fingerprints to this file, for use as the "
+             "--base reference of `fwlens compare` / `pr-comment` in a later pipeline.")(f)
+
+
 def _emit_gitlab_report(breaches, gitlab_codequality):
     from fwlens.output.reporters import GitLabReporter, default_gitlab_report_path, running_on_gitlab
     if not gitlab_codequality and not running_on_gitlab():
@@ -211,7 +218,7 @@ def emit_github_annotations(breaches):
 
 def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
                       update_baseline_flag, accept_all, accept_ids, github_annotations=False,
-                      prune=False, gitlab_codequality=None):
+                      prune=False, gitlab_codequality=None, findings_json=None):
     """Compute breaches and either update the baseline or gate on it. Returns True to fail the run."""
     from fwlens.baseline import (
         classify_against_baseline, compute_breaches, load_baseline, update_baseline,
@@ -223,6 +230,11 @@ def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
     if github_annotations:
         emit_github_annotations(breaches)
     _emit_gitlab_report(breaches, gitlab_codequality)
+    if findings_json:
+        from fwlens.pr_check import write_findings
+        write_findings(Path(findings_json), breaches)
+        console.print(f"[cyan][fwlens][/cyan] Findings written: [bold]{findings_json}[/bold] "
+                      f"({len(breaches)} finding(s))")
 
     if not baseline_path:
         return False
@@ -261,10 +273,11 @@ def _auto_stub_option(f):
 @_auto_stub_option
 @_parse_error_option
 @_gitlab_option
+@_findings_option
 @_baseline_options
 def analyze(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fail_on_breach,
             update_baseline_flag, accept_all, accept_ids, prune, github_annotations,
-            gitlab_codequality):
+            gitlab_codequality, findings_json):
     """Run analysis and print breach summary to terminal."""
     _print_header("analyze", config_path)
     from fwlens.output.console import print_summary
@@ -275,7 +288,7 @@ def analyze(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fai
         model, config, baseline_path=baseline_path, fail_on_breach=fail_on_breach,
         update_baseline_flag=update_baseline_flag, accept_all=accept_all, accept_ids=accept_ids,
         github_annotations=github_annotations, prune=prune,
-        gitlab_codequality=gitlab_codequality,
+        gitlab_codequality=gitlab_codequality, findings_json=findings_json,
     )
     if _parse_health_failed(model, config, fail_on_parse_error):
         should_fail = True
@@ -289,10 +302,11 @@ def analyze(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fai
 @_auto_stub_option
 @_parse_error_option
 @_gitlab_option
+@_findings_option
 @_baseline_options
 def report(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fail_on_breach,
            update_baseline_flag, accept_all, accept_ids, prune, github_annotations,
-           gitlab_codequality):
+           gitlab_codequality, findings_json):
     """Run analysis and generate HTML report + exports."""
     from fwlens.output.console import print_summary
     from fwlens.output.html_report import generate_html_report
@@ -326,7 +340,7 @@ def report(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fail
         model, config, baseline_path=baseline_path, fail_on_breach=fail_on_breach,
         update_baseline_flag=update_baseline_flag, accept_all=accept_all, accept_ids=accept_ids,
         github_annotations=github_annotations, prune=prune,
-        gitlab_codequality=gitlab_codequality,
+        gitlab_codequality=gitlab_codequality, findings_json=findings_json,
     )
     if _parse_health_failed(model, config, fail_on_parse_error):
         should_fail = True
@@ -345,6 +359,120 @@ def export(config_path: str, auto_stub):
     export_csv(model, config)
     export_json(model, config)
     console.print(f"[cyan][fwlens][/cyan] Exports written to: [bold]{config.output.exports_dir}[/bold]")
+
+
+def _compare_options(f):
+    opts = [
+        click.option("--config", "config_path", default="config.yaml", type=click.Path(exists=True),
+                     help="Path to config.yaml"),
+        click.option("--base", "base_path", default=None, type=click.Path(),
+                     help="Reference results: a findings file (from --findings-json) or a baseline.json "
+                          "from the target branch."),
+        click.option("--base-ref", "base_ref", default=None,
+                     help="Git ref of the target branch. Analyses its merge-base in a temporary worktree "
+                          "(slower fallback when no --base artifact exists)."),
+        click.option("--current", "current_path", default=None, type=click.Path(exists=True),
+                     help="Findings file for the current checkout. Without it the analysis is run now."),
+        click.option("--markdown", "markdown_path", default=None, type=click.Path(),
+                     help="Also write the Markdown comment to this file."),
+        click.option("--max-items", default=20, show_default=True, help="Rows listed per table."),
+        click.option("--uncertain-gates", is_flag=True, default=False,
+                     help="Also fail on loosely matched findings, not only on worse ones."),
+        click.option("--fail-on-new", is_flag=True, default=False,
+                     help="Exit 1 when there are new or worsened findings."),
+        click.option("--report-url", default=None, help="Link to the full HTML report artefact."),
+        click.option("--base-label", default="the target branch", help="Name used for the reference in the text."),
+    ]
+    for o in reversed(opts):
+        f = o(f)
+    return f
+
+
+def _build_comparison(config_path, base_path, base_ref, current_path, uncertain_gates):
+    from fwlens.baseline import compute_breaches
+    from fwlens.identity import project_root
+    from fwlens.pr_check import (
+        breaches_from_entries, compare, findings_at_ref, load_reference, no_reference,
+    )
+
+    if current_path:
+        current = breaches_from_entries(load_reference(Path(current_path)))
+    else:
+        model, config = _run_pipeline(Path(config_path))
+        current = compute_breaches(model, config)
+
+    reference = None
+    if base_path and Path(base_path).exists():
+        reference = load_reference(Path(base_path))
+    elif base_path:
+        console.print(f"[yellow][fwlens] Reference results not found: {base_path}[/yellow]")
+    if reference is None and base_ref:
+        from fwlens.config import load_config
+        root = project_root(load_config(Path(config_path)))
+        reference = findings_at_ref(Path(config_path), base_ref, root)
+    if reference is None:
+        console.print("[yellow][fwlens] No reference results available -- reporting without comparison.[/yellow]")
+        return no_reference(current)
+    return compare(current, reference, uncertain_gates=uncertain_gates)
+
+
+def _render_and_write(comparison, markdown_path, max_items, report_url, base_label):
+    from fwlens.pr_check import render_markdown
+    md = render_markdown(comparison, max_items=max_items, report_url=report_url, base_label=base_label)
+    if markdown_path:
+        Path(markdown_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(markdown_path).write_text(md, encoding="utf-8")
+        console.print(f"[cyan][fwlens][/cyan] Markdown written: [bold]{markdown_path}[/bold]")
+    return md
+
+
+@cli.command(name="compare")
+@_compare_options
+def compare_cmd(config_path, base_path, base_ref, current_path, markdown_path, max_items,
+                uncertain_gates, fail_on_new, report_url, base_label):
+    """Compare current findings with a reference (target branch) and print the Markdown summary."""
+    comparison = _build_comparison(config_path, base_path, base_ref, current_path, uncertain_gates)
+    md = _render_and_write(comparison, markdown_path, max_items, report_url, base_label)
+    print(md)
+    if fail_on_new and not comparison.passed:
+        sys.exit(1)
+
+
+@cli.command(name="pr-comment")
+@_compare_options
+@click.option("--post", "post_to", type=click.Choice(["auto", "github", "gitlab", "none"]), default="auto",
+              show_default=True, help="Where to post the comment. auto picks from the CI environment.")
+@click.option("--dry-run", is_flag=True, default=False, help="Print the Markdown, post nothing.")
+@click.option("--pr", "pr_number", type=int, default=None, help="PR / MR number (default from the CI environment).")
+@click.option("--no-update", is_flag=True, default=False, help="Always create a new comment instead of updating.")
+def pr_comment(config_path, base_path, base_ref, current_path, markdown_path, max_items, uncertain_gates,
+               fail_on_new, report_url, base_label, post_to, dry_run, pr_number, no_update):
+    """Post (or update) one quality-check comment on the current PR / MR."""
+    from fwlens.pr_check import (
+        PostError, detect_platform, post_github, post_gitlab, write_github_step_summary,
+    )
+    comparison = _build_comparison(config_path, base_path, base_ref, current_path, uncertain_gates)
+    md = _render_and_write(comparison, markdown_path, max_items, report_url, base_label)
+
+    platform = detect_platform() if post_to == "auto" else (None if post_to == "none" else post_to)
+    if dry_run or platform is None:
+        print(md)
+    else:
+        try:
+            poster = post_github if platform == "github" else post_gitlab
+            action = poster(md, update_existing=not no_update, **({"pr": pr_number} if platform == "github"
+                                                                  else {"mr": pr_number}))
+            console.print(f"[cyan][fwlens][/cyan] {platform} comment {action}.")
+        except PostError as e:
+            # Typically a read-only token on a fork PR: keep the result visible instead of failing.
+            console.print(f"[yellow][fwlens] Could not post the comment: {e}[/yellow]")
+            if platform == "github" and write_github_step_summary(md):
+                console.print("[cyan][fwlens][/cyan] Wrote the summary to the job summary instead.")
+            else:
+                print(md)
+
+    if fail_on_new and not comparison.passed:
+        sys.exit(1)
 
 
 @cli.command(name="diff-breach")
