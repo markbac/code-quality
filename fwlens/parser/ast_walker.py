@@ -452,6 +452,27 @@ class _FunctionVisitor:
             "line": switch_cursor.location.line,
         }
 
+    @staticmethod
+    def _own_operator(cursor) -> str:
+        """Spelling of a BinaryOperator's own operator token, or "" if unknown.
+
+        The operator is the first token after the left operand's extent. Only
+        this node's operator is returned (not those of nested operands), and
+        an operator that comes from a macro expansion yields "" because the
+        cursor's tokens are then the macro call, not the expanded operator.
+        """
+        try:
+            kids = list(cursor.get_children())
+            if len(kids) != 2:
+                return ""
+            lhs_end = kids[0].extent.end.offset
+            for t in cursor.get_tokens():
+                if t.location.offset >= lhs_end and t.spelling != ")":
+                    return t.spelling
+        except Exception:
+            pass
+        return ""
+
     def _visit(self, cursor, nesting: int = 0, parent=None):
         try:
             ck = cursor.kind
@@ -478,10 +499,14 @@ class _FunctionVisitor:
             # Detect && and || for CC -- token scan for this narrow case only
             try:
                 tokens = [t.spelling for t in cursor.get_tokens()]
-                for tok in tokens:
-                    if tok in ("&&", "||"):
-                        self.cc += 1
-                        self.cognitive += 1
+                # Count only THIS node's own operator. A BinaryOperator's
+                # location is its operator token, so look the token up there.
+                # Scanning the whole subtree double-counted chained operands,
+                # and for operators written inside a macro the extent covers
+                # the macro call, which inflated CC (issue #46).
+                if self._own_operator(cursor) in ("&&", "||"):
+                    self.cc += 1
+                    self.cognitive += 1
                 # A plain assignment (=) always tokenises as a standalone '='
                 # token -- comparisons tokenise as '==', '<=', '>=', '!=', so
                 # this doesn't false-positive on those.
