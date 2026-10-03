@@ -573,6 +573,8 @@ class ProjectModel:
     git_available: bool = False
     # Parse health from the pipeline: in_scope, parsed_ok, failed, files_with_errors, fatal_diagnostics
     parse_stats: dict = field(default_factory=dict)
+    # In-scope translation units as parsed (defines, include paths, flags), for re-parsing by rule checks
+    translation_units: list = field(default_factory=list)
     # Tech debt / smells (fwlens.tech_debt)
     todo_markers: list[TodoMarker] = field(default_factory=list)
     commented_code_blocks: list[CommentedCodeBlock] = field(default_factory=list)

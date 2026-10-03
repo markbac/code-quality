@@ -54,7 +54,7 @@ fwlens = "main:cli"
 py-modules = ["main"]
 
 [tool.setuptools.package-data]
-fwlens = ["arch.yaml", "output/vendor/*"]
+fwlens = ["arch.yaml", "output/vendor/*", "standards/builtin/*.yaml"]
 
 [tool.setuptools.packages.find]
 where = ["."]

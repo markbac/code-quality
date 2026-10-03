@@ -26,11 +26,21 @@ def tool_version() -> str:
         return "0.0.0"
 
 
+CATEGORY_LEVEL = {"mandatory": "error", "required": "warning", "advisory": "note"}
+
+
 def rule_id(metric: str) -> str:
-    return f"FWLENS-{metric.upper()}"
+    # Coding-standard findings use the standard's own id (for example misra-c-2012:15.1)
+    return f"FWLENS-{metric.upper()}" if metric in METRIC_INFO else metric
 
 
-def build_rules() -> list[dict[str, Any]]:
+def result_level(b: Breach) -> str:
+    if b.category:
+        return CATEGORY_LEVEL.get(b.category, "warning")
+    return METRIC_INFO[b.metric][2]
+
+
+def build_rules(breaches: list[Breach] = ()) -> list[dict[str, Any]]:
     rules = []
     for metric, (name, short, level) in METRIC_INFO.items():
         rules.append({
@@ -40,6 +50,18 @@ def build_rules() -> list[dict[str, Any]]:
             "defaultConfiguration": {"level": level},
             "properties": {"metric": metric},
         })
+    declared: set[str] = set()
+    for b in breaches:
+        if b.metric in METRIC_INFO or b.metric in declared:
+            continue
+        declared.add(b.metric)
+        rules.append({
+            "id": rule_id(b.metric),
+            "name": b.metric,
+            "shortDescription": {"text": b.description or b.metric},
+            "defaultConfiguration": {"level": result_level(b)},
+            "properties": {"category": b.category},
+        })
     return rules
 
 
@@ -48,9 +70,10 @@ def breach_to_result(b: Breach, rule_index: dict[str, int]) -> dict[str, Any]:
     return {
         "ruleId": rid,
         "ruleIndex": rule_index[rid],
-        "level": METRIC_INFO[b.metric][2],
+        "level": result_level(b),
         "message": {
-            "text": f"Metric breach: '{b.metric}' value is {b.value} (threshold is {b.threshold})"
+            "text": (f"{b.description} ({b.metric})" if b.kind == "rule" else
+                     f"Metric breach: '{b.metric}' value is {b.value} (threshold is {b.threshold})")
         },
         "locations": [
             {
@@ -67,7 +90,7 @@ def breach_to_result(b: Breach, rule_index: dict[str, int]) -> dict[str, Any]:
 def generate_sarif_report(model: ProjectModel, config: FwLensConfig) -> dict[str, Any]:
     """Generate SARIF 2.1.0 JSON payload from project breaches."""
     breaches = compute_breaches(model, config)
-    rules = build_rules()
+    rules = build_rules(breaches)
     rule_index = {r["id"]: i for i, r in enumerate(rules)}
 
     return {

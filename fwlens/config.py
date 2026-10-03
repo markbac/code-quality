@@ -220,6 +220,23 @@ _EMBOS_DEFAULTS = {
 
 
 @dataclass
+class StandardSelection:
+    standard: str
+    include_categories: list[str] = field(default_factory=list)   # empty = all categories
+    include_ids: list[str] = field(default_factory=list)          # empty = all rules
+    exclude_rules: list[str] = field(default_factory=list)
+
+
+@dataclass
+class StandardsConfig:
+    """Optional coding-standard compliance (MISRA C, CERT C ...). Disabled unless ``enabled`` is set."""
+    enabled: list[StandardSelection] = field(default_factory=list)
+    extra_rule_dirs: list[Path] = field(default_factory=list)
+    deviations_file: Optional[Path] = None
+    imports: list[tuple[str, Path]] = field(default_factory=list)    # (tool, results file)
+
+
+@dataclass
 class FwLensConfig:
     config_path: Path
     tool: ToolConfig
@@ -234,6 +251,7 @@ class FwLensConfig:
     estimation: EstimationConfig = field(default_factory=EstimationConfig)
     cost_benefit: CostBenefitConfig = field(default_factory=CostBenefitConfig)
     rtos: RTOSConfig = field(default_factory=RTOSConfig)
+    standards: StandardsConfig = field(default_factory=StandardsConfig)
     # Function names treated as assertion calls for assert-coverage metrics. Extend
     # this with any project-specific assert macro or error-report function rather
     # than needing a code change. Note: a macro that expands to a conditional call
@@ -472,6 +490,22 @@ def load_config(config_path: Path) -> FwLensConfig:
         _default_assert_names.append("OS_Error")
     assert_names = raw.get("assert_names", _default_assert_names)
 
+    std_raw = raw.get("standards") or {}
+    standards = StandardsConfig(
+        enabled=[
+            StandardSelection(
+                standard=str(e["standard"]),
+                include_categories=[str(c) for c in e.get("include_categories", []) or []],
+                include_ids=[str(i) for i in e.get("include_ids", []) or []],
+                exclude_rules=[str(i) for i in e.get("exclude_rules", []) or []],
+            )
+            for e in std_raw.get("enabled", []) or []
+        ],
+        extra_rule_dirs=[resolve(d) for d in std_raw.get("extra_rule_dirs", []) or []],
+        deviations_file=resolve(std_raw["deviations_file"]) if std_raw.get("deviations_file") else None,
+        imports=[(str(i["tool"]), resolve(i["path"])) for i in std_raw.get("imports", []) or []],
+    )
+
     return FwLensConfig(
         config_path=config_path,
         tool=tool,
@@ -486,5 +520,6 @@ def load_config(config_path: Path) -> FwLensConfig:
         estimation=estimation,
         cost_benefit=cost_benefit,
         rtos=rtos,
+        standards=standards,
         assert_names=assert_names,
     )

@@ -226,3 +226,14 @@ output:
 #   # mutex_functions: [xSemaphoreCreateMutex]
 #   # usage_functions: [xQueueSend, xQueueReceive, xSemaphoreTake, xSemaphoreGive]
 #   # return_value_functions: [xQueueCreate, xSemaphoreCreateBinary, xSemaphoreCreateMutex]
+
+# Optional coding-standard checks (MISRA C, CERT C). Off unless enabled. See FWLENS_GUIDE.md.
+# standards:
+#   enabled:
+#     - standard: misra-c-2012
+#       include_categories: [mandatory, required]
+#     - standard: cert-c
+#   extra_rule_dirs: [./standards]
+#   deviations_file: ./standards/deviations.yaml
+#   imports:
+#     - { tool: cppcheck, path: build/cppcheck.xml }

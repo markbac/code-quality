@@ -413,4 +413,5 @@ def run_pipeline(config: FwLensConfig) -> ProjectModel:
         task_table_entries=all_task_table_entries,
     )
     model.parse_stats = parse_stats
+    model.translation_units = list(in_scope)
     return model

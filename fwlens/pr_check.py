@@ -68,7 +68,8 @@ def breaches_from_entries(entries: list[dict]) -> list[Breach]:
     for e in entries:
         out.append(Breach(e["id"], e.get("kind", "function"), e["file"], e["metric"], e["value"],
                           e["threshold"], line=e.get("line"), function=e.get("function"),
-                          fingerprint=e.get("fingerprint", {})))
+                          fingerprint=e.get("fingerprint", {}), category=e.get("category"),
+                          description=e.get("description")))
     return out
 
 
@@ -181,7 +182,10 @@ def render_markdown(c: Comparison, *, max_items: int = 20, report_url: Optional[
         for m in gating[:max_items]:
             b = m.current
             was = f"{m.base['value']:g}" if m.base else "new"
-            lines.append(f"| {_loc(b)} | {_name(b)} | {b.metric} | {b.value:g} | {b.threshold:g} | {was} |")
+            if b.kind == "rule":
+                lines.append(f"| {_loc(b)} | {_name(b)} | {b.metric} ({b.category}) | violation | - | {was if m.base else 'new'} |")
+            else:
+                lines.append(f"| {_loc(b)} | {_name(b)} | {b.metric} | {b.value:g} | {b.threshold:g} | {was} |")
         if len(gating) > max_items:
             lines.append(f"\n... and {len(gating) - max_items} more.")
         lines.append("")

@@ -475,6 +475,113 @@ def pr_comment(config_path, base_path, base_ref, current_path, markdown_path, ma
         sys.exit(1)
 
 
+@cli.group(name="standards")
+def standards_group():
+    """Optional coding-standard compliance (MISRA C, CERT C ...) described in YAML."""
+
+
+@standards_group.command(name="list")
+@click.option("--config", "config_path", default=None, type=click.Path(exists=True),
+              help="Config to read standards.extra_rule_dirs and standards.enabled from.")
+@click.option("--rule-dir", "rule_dirs", multiple=True, type=click.Path(), help="Extra directory of rule files.")
+def standards_list(config_path, rule_dirs):
+    """List known rules, how each is checked, and which are enabled."""
+    from fwlens.standards import RuleFileError, load_standards, select_rules
+    from rich.table import Table
+    extra = [Path(d) for d in rule_dirs]
+    selected = set()
+    if config_path:
+        from fwlens.config import load_config
+        cfg = load_config(Path(config_path))
+        extra += cfg.standards.extra_rule_dirs
+    try:
+        standards = load_standards(extra)
+        if config_path:
+            selected = {r.key for r in select_rules(standards, cfg.standards.enabled)}
+    except RuleFileError as e:
+        console.print(f"[red]{e}[/red]")
+        sys.exit(1)
+    for std in standards.values():
+        t = Table(title=f"{std.name} ({std.revision})", show_lines=False)
+        for col in ("Id", "Category", "Title", "Check", "Enabled"):
+            t.add_column(col)
+        for rule in std.rules.values():
+            how = rule.check_type + (f" ({rule.engine})" if rule.engine else "")
+            t.add_row(rule.id, rule.category, rule.title, how, "yes" if rule.key in selected else "")
+        console.print(t)
+
+
+@standards_group.command(name="validate")
+@click.argument("paths", nargs=-1, type=click.Path(exists=True))
+def standards_validate(paths):
+    """Validate rule files and deviation files (default: the built-in rule files)."""
+    from fwlens.standards import RuleFileError, load_standards
+    from fwlens.standards.deviations import load_deviations
+    from fwlens.standards.rules import BUILTIN_DIR, load_standard_file
+    import yaml as _yaml
+
+    files: list[Path] = []
+    for p in (paths or [str(BUILTIN_DIR)]):
+        pp = Path(p)
+        files += sorted(pp.glob("*.yaml")) if pp.is_dir() else [pp]
+    failed = 0
+    known = load_standards([])
+    rule_files, dev_files = [], []
+    for f in files:
+        try:
+            top = _yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+        except _yaml.YAMLError as e:
+            console.print(f"[red]{f}: invalid YAML: {e}[/red]")
+            failed += 1
+            continue
+        (dev_files if isinstance(top, dict) and "deviations" in top else rule_files).append(f)
+    for f in rule_files:
+        try:
+            std = load_standard_file(f)
+            known[std.id] = std
+            console.print(f"[green]OK[/green] {f} ({len(std.rules)} rules)")
+        except RuleFileError as e:
+            console.print(f"[red]{e}[/red]")
+            failed += 1
+    for f in dev_files:
+        try:
+            console.print(f"[green]OK[/green] {f} ({len(load_deviations(f, known))} deviations)")
+        except RuleFileError as e:
+            console.print(f"[red]{e}[/red]")
+            failed += 1
+    if failed:
+        sys.exit(1)
+
+
+@standards_group.command(name="report")
+@click.option("--config", "config_path", default="config.yaml", type=click.Path(exists=True))
+@click.option("--format", "fmt", type=click.Choice(["markdown", "json"]), default="markdown", show_default=True)
+@click.option("--output", "output_path", default=None, type=click.Path(), help="Write to a file instead of stdout.")
+@click.option("--fail-on-violation", is_flag=True, default=False,
+              help="Exit 1 if any active finding or deviation problem exists.")
+def standards_report(config_path, fmt, output_path, fail_on_violation):
+    """Run the analysis and print the compliance matrix for the enabled standards."""
+    from fwlens.standards import RuleFileError, run_standards
+    from fwlens.standards.matrix import render_json, render_markdown
+    model, config = _run_pipeline(Path(config_path))
+    if not config.standards.enabled:
+        console.print("[yellow][fwlens] No standards enabled. Add standards.enabled to the config.[/yellow]")
+        sys.exit(1)
+    try:
+        result = run_standards(model, config)
+    except RuleFileError as e:
+        console.print(f"[red]{e}[/red]")
+        sys.exit(1)
+    text = render_json(result) if fmt == "json" else render_markdown(result)
+    if output_path:
+        Path(output_path).write_text(text, encoding="utf-8")
+        console.print(f"[cyan][fwlens][/cyan] Compliance matrix written: [bold]{output_path}[/bold]")
+    else:
+        print(text)
+    if fail_on_violation and result.findings:
+        sys.exit(1)
+
+
 @cli.command(name="diff-breach")
 @click.option("--config", "config_path", default="config.yaml",
               type=click.Path(exists=True), help="Path to config.yaml (used for thresholds only)")
