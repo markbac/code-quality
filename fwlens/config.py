@@ -17,6 +17,18 @@ import yaml
 @dataclass
 class ToolConfig:
     libclang_path: Optional[Path]
+    # clang --target. "native" (or "host") passes no --target and uses the host compiler's headers.
+    target: str = "arm-none-eabi"
+    sysroot: Optional[Path] = None
+    # Extra system include directories. When set, auto-detection is skipped.
+    system_include_dirs: list[Path] = field(default_factory=list)
+    # Extra arguments appended to every clang invocation (e.g. ["-std=c11"]).
+    clang_args: list[str] = field(default_factory=list)
+    # Ask the compiler for system include dirs when none are configured.
+    auto_detect_includes: bool = True
+    # Fraction of in-scope files allowed to have fatal/error diagnostics before
+    # --fail-on-parse-error fails the run (0.0 = none allowed).
+    parse_error_threshold: float = 0.0
 
 
 @dataclass
@@ -274,8 +286,15 @@ def load_config(config_path: Path) -> FwLensConfig:
     # Tool
     tool_raw = raw.get("tool", {})
     libclang_raw = tool_raw.get("libclang_path")
+    sysroot_raw = tool_raw.get("sysroot")
     tool = ToolConfig(
-        libclang_path=Path(libclang_raw) if libclang_raw else None
+        libclang_path=Path(libclang_raw) if libclang_raw else None,
+        target=str(tool_raw.get("target", "arm-none-eabi")),
+        sysroot=Path(sysroot_raw) if sysroot_raw else None,
+        system_include_dirs=[Path(p) for p in tool_raw.get("system_include_dirs", []) or []],
+        clang_args=[str(a) for a in tool_raw.get("clang_args", []) or []],
+        auto_detect_includes=bool(tool_raw.get("auto_detect_includes", True)),
+        parse_error_threshold=float(tool_raw.get("parse_error_threshold", 0.0)),
     )
 
     # Project

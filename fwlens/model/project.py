@@ -571,6 +571,8 @@ class ProjectModel:
     # Hotspots: first-party functions ranked by churn x structural debt (fwlens.git_history)
     hotspots: list[FunctionMetrics] = field(default_factory=list)
     git_available: bool = False
+    # Parse health from the pipeline: in_scope, parsed_ok, failed, files_with_errors, fatal_diagnostics
+    parse_stats: dict = field(default_factory=dict)
     # Tech debt / smells (fwlens.tech_debt)
     todo_markers: list[TodoMarker] = field(default_factory=list)
     commented_code_blocks: list[CommentedCodeBlock] = field(default_factory=list)

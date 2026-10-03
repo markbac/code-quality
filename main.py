@@ -141,6 +141,31 @@ def _print_header(command: str, config_path: str):
 
 
 # Shared --baseline / --fail-on-breach / --update-baseline options for `analyze` and `report`.
+def _parse_error_option(f):
+    return click.option(
+        "--fail-on-parse-error", is_flag=True, default=False,
+        help="Exit 1 if the share of files with fatal/error parse diagnostics exceeds "
+             "tool.parse_error_threshold (default 0, so any such file fails). "
+             "A run that parsed nothing always fails.")(f)
+
+
+def _parse_health_failed(model, config, fail_on_parse_error: bool) -> bool:
+    """True when parsing was so incomplete the results should not be trusted."""
+    stats = getattr(model, "parse_stats", None) or {}
+    total = stats.get("in_scope", 0)
+    if total and stats.get("parsed_ok", 0) == 0:
+        console.print("[bold red][fwlens] Nothing could be parsed -- failing so an empty result "
+                      "cannot pass a gate.[/bold red]")
+        return True
+    if fail_on_parse_error and total:
+        ratio = stats.get("files_with_errors", 0) / total
+        if ratio > config.tool.parse_error_threshold:
+            console.print(f"[bold red][fwlens] {stats['files_with_errors']}/{total} files have fatal/error "
+                          f"parse diagnostics (threshold {config.tool.parse_error_threshold:.0%}).[/bold red]")
+            return True
+    return False
+
+
 def _baseline_options(f):
     f = click.option("--github-annotations", is_flag=True, default=False,
                       help="Emit GitHub Actions workflow commands (::warning file=...::) for PR diff annotations.")(f)
@@ -214,9 +239,10 @@ def _auto_stub_option(f):
 @click.option("--config", "config_path", default="config.yaml",
               type=click.Path(exists=True), help="Path to config.yaml")
 @_auto_stub_option
+@_parse_error_option
 @_baseline_options
-def analyze(config_path: str, auto_stub, baseline_path, fail_on_breach, update_baseline_flag,
-            accept_all, accept_ids, github_annotations):
+def analyze(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fail_on_breach,
+            update_baseline_flag, accept_all, accept_ids, github_annotations):
     """Run analysis and print breach summary to terminal."""
     _print_header("analyze", config_path)
     from fwlens.output.console import print_summary
@@ -228,6 +254,8 @@ def analyze(config_path: str, auto_stub, baseline_path, fail_on_breach, update_b
         update_baseline_flag=update_baseline_flag, accept_all=accept_all, accept_ids=accept_ids,
         github_annotations=github_annotations,
     )
+    if _parse_health_failed(model, config, fail_on_parse_error):
+        should_fail = True
     if should_fail:
         sys.exit(1)
 
@@ -236,9 +264,10 @@ def analyze(config_path: str, auto_stub, baseline_path, fail_on_breach, update_b
 @click.option("--config", "config_path", default="config.yaml",
               type=click.Path(exists=True), help="Path to config.yaml")
 @_auto_stub_option
+@_parse_error_option
 @_baseline_options
-def report(config_path: str, auto_stub, baseline_path, fail_on_breach, update_baseline_flag,
-           accept_all, accept_ids, github_annotations):
+def report(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fail_on_breach,
+           update_baseline_flag, accept_all, accept_ids, github_annotations):
     """Run analysis and generate HTML report + exports."""
     from fwlens.output.console import print_summary
     from fwlens.output.html_report import generate_html_report
@@ -273,6 +302,8 @@ def report(config_path: str, auto_stub, baseline_path, fail_on_breach, update_ba
         update_baseline_flag=update_baseline_flag, accept_all=accept_all, accept_ids=accept_ids,
         github_annotations=github_annotations,
     )
+    if _parse_health_failed(model, config, fail_on_parse_error):
+        should_fail = True
     if should_fail:
         sys.exit(1)
 

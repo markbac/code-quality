@@ -6,7 +6,19 @@ tool:
   # Full path to libclang.dll (Windows).
   # Install LLVM from https://github.com/llvm/llvm-project/releases
   # then point this at the DLL in the LLVM bin directory.
+  # Optional. Leave unset to use LIBCLANG_PATH or the libclang bundled with FWLens.
+  # An explicit path that does not exist is an error.
   libclang_path: C:\LLVM\bin\libclang.dll
+
+  # clang target. Default arm-none-eabi. Use "native" for host builds (no --target,
+  # headers from the host gcc/cc/clang). Compile-database flags (-target, -std, -m*)
+  # override these per file.
+  # target: arm-none-eabi
+  # sysroot: /opt/arm/sysroot
+  # system_include_dirs: [/usr/include]   # skips auto-detection when set
+  # clang_args: ["-std=c11"]
+  # auto_detect_includes: true            # ask the compiler where its headers are
+  # parse_error_threshold: 0.0            # used by --fail-on-parse-error
 
 # Project settings
   # --- Option A: IAR Embedded Workbench (.ewp) ---
