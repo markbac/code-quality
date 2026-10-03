@@ -7,6 +7,7 @@
 - [Directory mode (no .ewp)](#directory-mode-no-ewp)
 - [Baseline / breach gating](#baseline--breach-gating)
 - [GitLab integration](#gitlab-integration)
+- [PR / MR quality check](#pr--mr-quality-check)
 - [Two-hash comparison](#two-hash-comparison)
 - [Project-wide auto-stub](#project-wide-auto-stub)
 - [Diagnostic clusters](#diagnostic-clusters)
@@ -236,6 +237,93 @@ the job while you introduce the gate.
 
 Not included yet: a SAST report for coding-standard findings (planned with the MISRA/CERT
 work) and an optional merge request summary note (planned with the PR/MR comparison).
+
+---
+
+## PR / MR quality check
+
+`fwlens pr-comment` compares the current checkout with the target branch and posts **one**
+comment on the pull request (GitHub) or merge request (GitLab) listing what is new, worse,
+resolved or moved. `fwlens compare` does the same comparison without posting.
+
+```text
+## FWLens quality check: FAIL
+| Findings | 3 -> 7 (+4) |   New 4 | Worsened 0 | Improved 0 | Resolved 0 | Moved or renamed 2 | Matched loosely 0
+### New and worsened        (table: where, function, metric, value, threshold, was)
+<details> Resolved / Moved or renamed / Matched loosely </details>
+```
+
+Findings are matched with the same stable identity as the baseline (see
+[Moved and renamed code](#moved-and-renamed-code)), so a function that was moved, renamed or
+extracted is listed as moved, not as one fixed plus one new.
+
+### Where the reference results come from
+
+1. `--base findings.json`: a findings file published by the target branch pipeline
+   (`fwlens analyze --findings-json findings.json`). Fastest. A `baseline.json` also works.
+2. `--base-ref origin/main`: analyses the merge-base of `HEAD` and the ref in a temporary git
+   worktree. Slower, needs full git history (`fetch-depth: 0` on GitHub, `GIT_DEPTH: 0` on GitLab).
+3. If neither is available the comment says so and the check does not fail.
+
+### Options
+
+| Option | Meaning |
+|---|---|
+| `--fail-on-new` | exit 1 when there are new or worsened findings (the status check) |
+| `--uncertain-gates` | also fail on loosely matched findings, not only worse ones |
+| `--current findings.json` | reuse findings from an earlier step instead of analysing again |
+| `--post auto\|github\|gitlab\|none` | where to post, `auto` reads the CI environment |
+| `--dry-run` | print the Markdown, post nothing |
+| `--no-update` | create a new comment each time instead of updating the existing one |
+| `--markdown FILE`, `--max-items N`, `--report-url URL` | output controls |
+
+The comment is identified by a hidden marker, so re-running a pipeline updates it instead of
+adding another.
+
+### GitHub Actions
+
+```yaml
+on: pull_request
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  fwlens:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install fwlens
+      - run: fwlens pr-comment --config config.yaml --base-ref origin/${{ github.base_ref }} --fail-on-new
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+Pull requests from forks get a read-only token. The post then fails with a warning, the
+comment is written to the job summary instead, and the result is still shown.
+
+### GitLab merge requests
+
+```yaml
+fwlens-mr:
+  extends: .fwlens
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  variables:
+    GIT_DEPTH: "0"
+  script:
+    - fwlens pr-comment --config $FWLENS_CONFIG --base-ref origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME --fail-on-new
+```
+
+Posting a note needs a token that can write notes: set a masked `GITLAB_TOKEN` variable
+(a project access token with `api` scope). `CI_JOB_TOKEN` is used if it is the only token
+available, but GitLab usually does not allow it to create notes.
+
+Not included yet: restricting the report to files changed in the PR (issue #35), flash/RAM
+growth gates and a `pr_check` section in `config.yaml`. Rule violations from the MISRA/CERT
+work will use the same comparison.
 
 ---
 
