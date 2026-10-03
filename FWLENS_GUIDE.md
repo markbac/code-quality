@@ -79,7 +79,7 @@ Pass `-NoClean` to skip the automatic `.pyc` cache purge (faster re-runs when no
 | `debug` | Show EWP parse results and boundary classification without running analysis |
 
 `analyze` and `report` both accept `--baseline`, `--fail-on-breach`, `--update-baseline`,
-`--accept-all`, and `--accept-id` -- see [Baseline / breach gating](#baseline--breach-gating).
+`--accept-all`, `--accept-id`, and `--prune` -- see [Baseline / breach gating](#baseline--breach-gating).
 `analyze`, `report`, and `export` all accept `--auto-stub` -- see
 [Project-wide auto-stub](#project-wide-auto-stub).
 `report` also writes standalone PNG plots when `plots` is listed in `output.formats` -- see
@@ -130,12 +130,30 @@ fwlens can gate a CI run on threshold breaches, the same way the older ccccc-bas
 since the baseline was captured. Breaches already accepted into the baseline at their
 current severity do not fail the build.
 
-Breach ids look like:
+Breach ids do not contain a line number, so inserting lines above a function never changes
+its id. Paths are relative to the repository root with forward slashes, so the same id is
+produced on a laptop and on CI:
 
 ```text
-Src/BaseMeter/BaseMeter.c:1161:sarReturnDataPacket:cyclomatic_complexity   # function-level
-Src/BaseMeter/BaseMeter.c:main_sequence_distance                          # module-level
+Src/BaseMeter/BaseMeter.c:sarReturnDataPacket:cyclomatic_complexity   # function-level
+Src/BaseMeter/BaseMeter.c:main_sequence_distance                      # module-level
 ```
+
+A second function with the same name in one file gets `name#2`, numbered in source order.
+The line number is stored as a separate field and is used only for locations.
+
+### Moved and renamed code
+
+Each function-level breach also stores a content fingerprint in the baseline. A breach is
+matched to its baseline entry in tiers: same id, then same code (the function moved to
+another file or was renamed), then same code with identifiers renamed, then similar or
+partly overlapping code. Matches in the last group are listed as "matched loosely" and only
+gate when the value got worse. A split function is reported as a change, not as a new breach.
+Matching is heuristic: a function that is largely rewritten is reported as one resolved and
+one new breach. Module-level breaches are matched by file path only.
+
+Baselines written by earlier versions (ids with a line number) are migrated when read. They
+have no fingerprints until you re-run with `--update-baseline`.
 
 Function-level breaches are checked against: `cyclomatic_complexity`, `cognitive_complexity`,
 `block_depth`, `function_loc`, `parameter_count`, `return_path_count`, `magic_number_density`,
@@ -159,11 +177,20 @@ Accept every breach currently in the codebase:
 Exits with code 1 (propagated by `Run-FwLens.ps1`) if any breach is new or worse than the
 baselined value; existing breaches at an unchanged severity are reported but don't fail the run.
 
+### Removing resolved entries
+
+`--update-baseline` only adds or updates entries by default. Add `--prune` to also remove
+entries that no longer match any breach:
+
+```powershell
+.\Run-FwLens.ps1 analyze --baseline baseline.json --update-baseline --accept-all --prune
+```
+
 ### Accepting a specific new breach
 
 ```powershell
 .\Run-FwLens.ps1 analyze --baseline baseline.json --update-baseline `
-    --accept-id "Src/BaseMeter/BaseMeter.c:1161:sarReturnDataPacket:cyclomatic_complexity"
+    --accept-id "Src/BaseMeter/BaseMeter.c:sarReturnDataPacket:cyclomatic_complexity"
 ```
 
 > **Note:** baselining a breach accepts its *current* value. If the metric gets worse later

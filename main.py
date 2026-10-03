@@ -169,6 +169,9 @@ def _parse_health_failed(model, config, fail_on_parse_error: bool) -> bool:
 def _baseline_options(f):
     f = click.option("--github-annotations", is_flag=True, default=False,
                       help="Emit GitHub Actions workflow commands (::warning file=...::) for PR diff annotations.")(f)
+    f = click.option("--prune", is_flag=True, default=False,
+                      help="With --update-baseline, also remove baseline entries that no longer "
+                           "match any breach (resolved).")(f)
     f = click.option("--accept-id", "accept_ids", multiple=True,
                       help="With --update-baseline, accept only this breach id "
                            "(repeatable). Omit to use --accept-all instead.")(f)
@@ -189,17 +192,17 @@ def emit_github_annotations(breaches):
     for b in breaches:
         file_part = f"file={b.file}"
         line_part = ""
-        parts = b.id.split(":")
-        if len(parts) >= 4 and parts[1].isdigit():
-            line_part = f",line={parts[1]}"
+        if b.line:
+            line_part = f",line={b.line}"
         print(f"::warning {file_part}{line_part},title=FWLens Breach [{b.metric}]::{b.metric} is {b.value} (threshold {b.threshold})")
 
 
 def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
-                      update_baseline_flag, accept_all, accept_ids, github_annotations=False):
+                      update_baseline_flag, accept_all, accept_ids, github_annotations=False,
+                      prune=False):
     """Compute breaches and either update the baseline or gate on it. Returns True to fail the run."""
     from fwlens.baseline import (
-        compute_breaches, diff_against_baseline, load_baseline, update_baseline,
+        classify_against_baseline, compute_breaches, load_baseline, update_baseline,
     )
     from fwlens.output.console import print_baseline_summary
 
@@ -214,14 +217,18 @@ def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
     path = Path(baseline_path)
 
     if update_baseline_flag:
-        accepted = update_baseline(path, breaches, accept_all=accept_all, accept_ids=list(accept_ids))
+        accepted = update_baseline(path, breaches, accept_all=accept_all, accept_ids=list(accept_ids),
+                                   prune=prune)
         console.print(f"[cyan][fwlens][/cyan] Baseline updated: [bold]{path}[/bold] "
                       f"({len(accepted)} accepted breach(es) on file)")
         return False
 
     baseline = load_baseline(path)
-    new_or_worsened, accepted_unchanged = diff_against_baseline(breaches, baseline)
-    print_baseline_summary(new_or_worsened, accepted_unchanged, path)
+    result = classify_against_baseline(breaches, baseline)
+    gating = {id(m.current) for m in result.gating()}
+    new_or_worsened = [b for b in breaches if id(b) in gating]
+    accepted_unchanged = [b for b in breaches if id(b) not in gating]
+    print_baseline_summary(new_or_worsened, accepted_unchanged, path, result)
 
     return bool(fail_on_breach and new_or_worsened)
 
@@ -242,7 +249,7 @@ def _auto_stub_option(f):
 @_parse_error_option
 @_baseline_options
 def analyze(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fail_on_breach,
-            update_baseline_flag, accept_all, accept_ids, github_annotations):
+            update_baseline_flag, accept_all, accept_ids, prune, github_annotations):
     """Run analysis and print breach summary to terminal."""
     _print_header("analyze", config_path)
     from fwlens.output.console import print_summary
@@ -252,7 +259,7 @@ def analyze(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fai
     should_fail = _handle_baseline(
         model, config, baseline_path=baseline_path, fail_on_breach=fail_on_breach,
         update_baseline_flag=update_baseline_flag, accept_all=accept_all, accept_ids=accept_ids,
-        github_annotations=github_annotations,
+        github_annotations=github_annotations, prune=prune,
     )
     if _parse_health_failed(model, config, fail_on_parse_error):
         should_fail = True
@@ -267,7 +274,7 @@ def analyze(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fai
 @_parse_error_option
 @_baseline_options
 def report(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fail_on_breach,
-           update_baseline_flag, accept_all, accept_ids, github_annotations):
+           update_baseline_flag, accept_all, accept_ids, prune, github_annotations):
     """Run analysis and generate HTML report + exports."""
     from fwlens.output.console import print_summary
     from fwlens.output.html_report import generate_html_report
@@ -300,7 +307,7 @@ def report(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fail
     should_fail = _handle_baseline(
         model, config, baseline_path=baseline_path, fail_on_breach=fail_on_breach,
         update_baseline_flag=update_baseline_flag, accept_all=accept_all, accept_ids=accept_ids,
-        github_annotations=github_annotations,
+        github_annotations=github_annotations, prune=prune,
     )
     if _parse_health_failed(model, config, fail_on_parse_error):
         should_fail = True
