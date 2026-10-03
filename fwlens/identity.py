@@ -71,7 +71,12 @@ def _git_toplevel(directory: str) -> Optional[str]:
 
 
 def project_root(config) -> Path:
-    """Repository root (git top level) so ids match between a laptop and CI, else the config dir."""
+    """Repository root so ids match between a laptop and CI: CI_PROJECT_DIR on GitLab, else the
+    git top level, else the config dir."""
+    import os
+    ci_root = os.environ.get("CI_PROJECT_DIR")
+    if ci_root and Path(ci_root).is_dir():
+        return Path(ci_root)
     start = config.project.source_dir or config.project.proj_dir or config.config_path.parent
     top = _git_toplevel(str(start))
     return Path(top) if top else Path(config.config_path).parent

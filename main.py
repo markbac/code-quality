@@ -166,6 +166,22 @@ def _parse_health_failed(model, config, fail_on_parse_error: bool) -> bool:
     return False
 
 
+def _gitlab_option(f):
+    return click.option(
+        "--gitlab-codequality", "gitlab_codequality", default=None, type=click.Path(),
+        help="Write a GitLab Code Quality report (JSON) to this path. Defaults to "
+             "gl-code-quality-report.json when GITLAB_CI=true.")(f)
+
+
+def _emit_gitlab_report(breaches, gitlab_codequality):
+    from fwlens.output.reporters import GitLabReporter, default_gitlab_report_path, running_on_gitlab
+    if not gitlab_codequality and not running_on_gitlab():
+        return
+    path = GitLabReporter().emit(breaches, gitlab_codequality or default_gitlab_report_path())
+    console.print(f"[cyan][fwlens][/cyan] GitLab Code Quality report: [bold]{path}[/bold] "
+                  f"({len(breaches)} finding(s))")
+
+
 def _baseline_options(f):
     f = click.option("--github-annotations", is_flag=True, default=False,
                       help="Emit GitHub Actions workflow commands (::warning file=...::) for PR diff annotations.")(f)
@@ -189,17 +205,13 @@ def _baseline_options(f):
 
 def emit_github_annotations(breaches):
     """Output GitHub Actions workflow commands so breaches appear inline on PR code diffs."""
-    for b in breaches:
-        file_part = f"file={b.file}"
-        line_part = ""
-        if b.line:
-            line_part = f",line={b.line}"
-        print(f"::warning {file_part}{line_part},title=FWLens Breach [{b.metric}]::{b.metric} is {b.value} (threshold {b.threshold})")
+    from fwlens.output.reporters import GitHubReporter
+    GitHubReporter().emit(breaches)
 
 
 def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
                       update_baseline_flag, accept_all, accept_ids, github_annotations=False,
-                      prune=False):
+                      prune=False, gitlab_codequality=None):
     """Compute breaches and either update the baseline or gate on it. Returns True to fail the run."""
     from fwlens.baseline import (
         classify_against_baseline, compute_breaches, load_baseline, update_baseline,
@@ -210,6 +222,7 @@ def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
 
     if github_annotations:
         emit_github_annotations(breaches)
+    _emit_gitlab_report(breaches, gitlab_codequality)
 
     if not baseline_path:
         return False
@@ -247,9 +260,11 @@ def _auto_stub_option(f):
               type=click.Path(exists=True), help="Path to config.yaml")
 @_auto_stub_option
 @_parse_error_option
+@_gitlab_option
 @_baseline_options
 def analyze(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fail_on_breach,
-            update_baseline_flag, accept_all, accept_ids, prune, github_annotations):
+            update_baseline_flag, accept_all, accept_ids, prune, github_annotations,
+            gitlab_codequality):
     """Run analysis and print breach summary to terminal."""
     _print_header("analyze", config_path)
     from fwlens.output.console import print_summary
@@ -260,6 +275,7 @@ def analyze(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fai
         model, config, baseline_path=baseline_path, fail_on_breach=fail_on_breach,
         update_baseline_flag=update_baseline_flag, accept_all=accept_all, accept_ids=accept_ids,
         github_annotations=github_annotations, prune=prune,
+        gitlab_codequality=gitlab_codequality,
     )
     if _parse_health_failed(model, config, fail_on_parse_error):
         should_fail = True
@@ -272,9 +288,11 @@ def analyze(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fai
               type=click.Path(exists=True), help="Path to config.yaml")
 @_auto_stub_option
 @_parse_error_option
+@_gitlab_option
 @_baseline_options
 def report(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fail_on_breach,
-           update_baseline_flag, accept_all, accept_ids, prune, github_annotations):
+           update_baseline_flag, accept_all, accept_ids, prune, github_annotations,
+           gitlab_codequality):
     """Run analysis and generate HTML report + exports."""
     from fwlens.output.console import print_summary
     from fwlens.output.html_report import generate_html_report
@@ -308,6 +326,7 @@ def report(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fail
         model, config, baseline_path=baseline_path, fail_on_breach=fail_on_breach,
         update_baseline_flag=update_baseline_flag, accept_all=accept_all, accept_ids=accept_ids,
         github_annotations=github_annotations, prune=prune,
+        gitlab_codequality=gitlab_codequality,
     )
     if _parse_health_failed(model, config, fail_on_parse_error):
         should_fail = True
