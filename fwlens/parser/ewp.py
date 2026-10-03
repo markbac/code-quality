@@ -34,6 +34,8 @@ class TranslationUnit:
     include_paths: list[Path]
     boundary_class: BoundaryClass
     iar_group: Optional[str]
+    # Extra clang flags taken from a compile database entry (-std=, -m*, -include, --target=)
+    extra_args: list[str] = field(default_factory=list)
 
 
 @dataclass

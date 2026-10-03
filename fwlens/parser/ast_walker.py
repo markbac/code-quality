@@ -23,6 +23,7 @@ _MODULE_VERSION = "ast_walker-0.5.1"  # fixed: defensive CursorKind access via g
 from fwlens.config import FwLensConfig, macro_name
 from fwlens.model.project import FunctionMetrics, GlobalAccess, GlobalVarInfo, ParameterInfo
 from fwlens.parser.ewp import TranslationUnit
+from fwlens.sysinc import detect_system_includes, target_args
 
 # Lazy import -- clang may not be available until venv is set up
 _clang_available = False
@@ -32,24 +33,21 @@ def _ensure_clang(config: FwLensConfig):
     global _clang_available, _clang
     if _clang_available:
         return
-    import ctypes
-    if config.tool.libclang_path and config.tool.libclang_path.exists():
-        try:
-            import clang.cindex as ci
-            ci.Config.set_library_file(str(config.tool.libclang_path))
-            _clang = ci
-            _clang_available = True
-            return
-        except Exception as e:
-            raise RuntimeError(f"Failed to load libclang from {config.tool.libclang_path}: {e}")
-    # Try default (clang on PATH)
+    from fwlens.libclang_locate import locate_libclang, LibclangError
+    try:
+        location = locate_libclang(config.tool.libclang_path)
+    except LibclangError as e:
+        raise RuntimeError(str(e))
     try:
         import clang.cindex as ci
+        if location.path is not None:
+            ci.Config.set_library_file(str(location.path))
         _clang = ci
         _clang_available = True
     except Exception as e:
         raise RuntimeError(
-            "libclang not available. Set tool.libclang_path in config.yaml.\n"
+            "libclang not available. Install FWLens with its dependencies, or set "
+            "tool.libclang_path / LIBCLANG_PATH.\n"
             f"Original error: {e}"
         )
 
@@ -802,7 +800,7 @@ def walk_translation_unit(
     # looks. This disables that recognition entirely so our own stub declarations are
     # authoritative, which is what we want anyway since we don't have real headers.
     clang_args = [
-        "-x", "c", "--target=arm-none-eabi", "-fno-builtin",
+        "-x", "c", *target_args(config.tool.target), "-fno-builtin",
         # Matches IAR's default enum packing (--enum_is_int is OFF by default in IAR --
         # an enum takes the smallest type that fits its value range, not always a
         # 4-byte int). Without this, any struct/static_assert relying on IAR's real
@@ -850,6 +848,19 @@ def walk_translation_unit(
     if stubs_dir.exists():
         clang_args.append(f"-I{stubs_dir}")
 
+    # System headers: explicit config wins, otherwise ask the matching compiler.
+    # The libclang wheel ships no resource headers, so without this stddef.h and
+    # friends are "not found" (issue #48).
+    if config.tool.sysroot:
+        clang_args.append(f"--sysroot={config.tool.sysroot}")
+    if config.tool.system_include_dirs:
+        for d in config.tool.system_include_dirs:
+            clang_args.append(f"-isystem{d}")
+    elif config.tool.auto_detect_includes:
+        detected, _compiler = detect_system_includes(config.tool.target, str(config.tool.sysroot or ""))
+        for d in detected:
+            clang_args.append(f"-isystem{d}")
+
     # Inject LLVM bundled system headers so standard headers like string.h are found.
     if config.tool.libclang_path:
         llvm_root = config.tool.libclang_path.parent.parent
@@ -864,6 +875,14 @@ def walk_translation_unit(
     for inc in tu_info.include_paths:
         if inc.exists():
             clang_args.append(f"-I{inc}")
+
+    # Per-file flags from a compile database (-std, -m*, -include, -target ...)
+    # then project-wide extra args, so the build's own flags win over defaults.
+    extra = list(getattr(tu_info, "extra_args", []) or [])
+    if any(a.startswith(("--target=", "-target")) for a in extra):
+        clang_args = [a for a in clang_args if not a.startswith("--target=")]
+    clang_args.extend(extra)
+    clang_args.extend(config.tool.clang_args)
 
     index = ci.Index.create()
     try:

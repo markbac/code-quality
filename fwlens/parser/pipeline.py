@@ -61,6 +61,7 @@ def _worker(args: tuple) -> tuple:
             include_paths=[Path(p) for p in tu_dict["include_paths"]],
             boundary_class=BoundaryClass(tu_dict["boundary_class"]),
             iar_group=tu_dict["iar_group"],
+            extra_args=list(tu_dict.get("extra_args", [])),
         )
 
         functions, globals_, includes, all_include_edges, type_decl_count, file_scope_fn_refs, dispatch_tables_raw, dispatch_table_lines, var_registrations_raw, task_table_entries_raw, diagnostics_raw = walk_translation_unit(tu, config)
@@ -143,20 +144,15 @@ def run_pipeline(config: FwLensConfig) -> ProjectModel:
         f"[dim]{len(out_scope)} excluded (registered as boundary stubs)[/dim]"
     )
 
-    # Validate libclang path before spawning workers
-    if config.tool.libclang_path:
-        if not config.tool.libclang_path.exists():
-            console.print(
-                f"[red][fwlens] ERROR: libclang_path not found: {config.tool.libclang_path}[/red]\n"
-                f"[red]         Install LLVM and update tool.libclang_path in config.yaml[/red]"
-            )
-            # Return empty model rather than crashing
-            return _empty_model(config, ewp_result, in_scope, out_scope)
-    else:
-        console.print(
-            "[yellow][fwlens] WARNING: tool.libclang_path not set -- "
-            "will attempt system libclang (may fail)[/yellow]"
-        )
+    # Resolve libclang once, with the same rules the parser uses, before spawning workers.
+    # A wrong explicit path is an error: an empty model could otherwise pass a breach
+    # gate with nothing analysed (issue #26).
+    from fwlens.libclang_locate import locate_libclang, LibclangError
+    try:
+        location = locate_libclang(config.tool.libclang_path)
+    except LibclangError as e:
+        raise RuntimeError(str(e)) from e
+    console.print(f"[dim][fwlens] libclang: {location.path or 'system default'} ({location.source})[/dim]")
 
     workers = max(1, (os.cpu_count() or 2) - 1)
     console.print(f"[cyan][fwlens][/cyan] Parsing {len(in_scope)} in-scope files "
@@ -169,6 +165,7 @@ def run_pipeline(config: FwLensConfig) -> ProjectModel:
             "include_paths": [str(p) for p in tu.include_paths],
             "boundary_class": tu.boundary_class.value,
             "iar_group":     tu.iar_group,
+            "extra_args":    list(tu.extra_args),
         }
         for tu in in_scope
     ]
@@ -303,12 +300,39 @@ def run_pipeline(config: FwLensConfig) -> ProjectModel:
     fail_count = len(parse_errors)
     ok_colour = "green" if fail_count == 0 else ("yellow" if parse_ok > 0 else "red")
 
+    # A file can "parse" yet carry fatal or error diagnostics (missing system headers,
+    # unresolved macros), so its metrics are partial. Count those separately instead of
+    # reporting them as OK (issue #48).
+    files_with_errors = 0
+    fatal_diagnostics = 0
+    for m in modules:
+        sevs = [d.get("severity") for d in (m.parse_diagnostics or [])]
+        if any(sv in ("fatal", "error") for sv in sevs):
+            files_with_errors += 1
+        fatal_diagnostics += sum(1 for sv in sevs if sv == "fatal")
+    parse_stats = {
+        "in_scope": len(in_scope),
+        "parsed_ok": parse_ok,
+        "failed": fail_count,
+        "files_with_errors": files_with_errors,
+        "fatal_diagnostics": fatal_diagnostics,
+    }
+    if files_with_errors:
+        ok_colour = "yellow" if ok_colour == "green" else ok_colour
+
     console.print(
         f"[cyan][fwlens][/cyan] Parsed "
-        f"[{ok_colour}][bold]{parse_ok}/{len(in_scope)}[/bold][/{ok_colour}] files OK, "
+        f"[{ok_colour}][bold]{parse_ok}/{len(in_scope)}[/bold][/{ok_colour}] files, "
         f"[bold]{total_functions}[/bold] functions extracted"
         + (f", [red]{fail_count} failed[/red]" if fail_count else "")
+        + (f", [yellow]{files_with_errors} with fatal/error diagnostics[/yellow]" if files_with_errors else "")
     )
+    if files_with_errors:
+        console.print(
+            "[yellow][fwlens] Metrics for files with errors are partial. Common cause: system headers "
+            "not found. Set tool.target (use 'native' for host builds), tool.system_include_dirs or "
+            "tool.clang_args. Use --fail-on-parse-error to gate on this.[/yellow]"
+        )
 
     if parse_errors:
         # Group by error type
@@ -388,23 +412,5 @@ def run_pipeline(config: FwLensConfig) -> ProjectModel:
         globals=all_globals,
         task_table_entries=all_task_table_entries,
     )
+    model.parse_stats = parse_stats
     return model
-
-
-def _empty_model(config, ewp_result, in_scope, out_scope) -> ProjectModel:
-    """Return a model with modules registered but no functions -- used on hard errors."""
-    modules = []
-    for tu in in_scope + out_scope:
-        modules.append(ModuleMetrics(
-            path=tu.path,
-            boundary_class=tu.boundary_class,
-            iar_groups=[tu.iar_group] if tu.iar_group else [],
-            functions=[], function_count=0, includes=[], loc=0,
-        ))
-    return ProjectModel(
-        ewp_path=_project_path(config),
-        configuration=ewp_result.configuration_name,
-        iar_groups=ewp_result.iar_groups,
-        modules=modules,
-        globals=[],
-    )
