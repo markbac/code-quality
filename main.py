@@ -216,7 +216,7 @@ def _auto_stub_option(f):
 @_auto_stub_option
 @_baseline_options
 def analyze(config_path: str, auto_stub, baseline_path, fail_on_breach, update_baseline_flag,
-            accept_all, accept_ids):
+            accept_all, accept_ids, github_annotations):
     """Run analysis and print breach summary to terminal."""
     _print_header("analyze", config_path)
     from fwlens.output.console import print_summary
@@ -226,6 +226,7 @@ def analyze(config_path: str, auto_stub, baseline_path, fail_on_breach, update_b
     should_fail = _handle_baseline(
         model, config, baseline_path=baseline_path, fail_on_breach=fail_on_breach,
         update_baseline_flag=update_baseline_flag, accept_all=accept_all, accept_ids=accept_ids,
+        github_annotations=github_annotations,
     )
     if should_fail:
         sys.exit(1)
@@ -237,7 +238,7 @@ def analyze(config_path: str, auto_stub, baseline_path, fail_on_breach, update_b
 @_auto_stub_option
 @_baseline_options
 def report(config_path: str, auto_stub, baseline_path, fail_on_breach, update_baseline_flag,
-           accept_all, accept_ids):
+           accept_all, accept_ids, github_annotations):
     """Run analysis and generate HTML report + exports."""
     from fwlens.output.console import print_summary
     from fwlens.output.html_report import generate_html_report
@@ -270,6 +271,7 @@ def report(config_path: str, auto_stub, baseline_path, fail_on_breach, update_ba
     should_fail = _handle_baseline(
         model, config, baseline_path=baseline_path, fail_on_breach=fail_on_breach,
         update_baseline_flag=update_baseline_flag, accept_all=accept_all, accept_ids=accept_ids,
+        github_annotations=github_annotations,
     )
     if should_fail:
         sys.exit(1)

@@ -33,6 +33,9 @@ dependencies = [
     "click>=8.1.0",
     "jinja2>=3.1.0",
     "matplotlib>=3.7.0",
+    "networkx>=3.0",
+    "scipy>=1.11",
+    "numpy>=1.24",
 ]
 
 [project.optional-dependencies]
@@ -46,6 +49,12 @@ dev = [
 
 [project.scripts]
 fwlens = "main:cli"
+
+[tool.setuptools]
+py-modules = ["main"]
+
+[tool.setuptools.package-data]
+fwlens = ["arch.yaml", "output/vendor/*"]
 
 [tool.setuptools.packages.find]
 where = ["."]
