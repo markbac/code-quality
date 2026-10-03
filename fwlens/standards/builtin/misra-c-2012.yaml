@@ -1,0 +1,146 @@
+# Built-in subset of MISRA C:2012. Titles are short original paraphrases and are NOT the
+# licensed guideline text. Categories, decidability and scope follow the published
+# classification. Add rules here (or in your own file via standards.extra_rule_dirs), no code
+# change needed for rules that fit an existing engine.
+schema_version: 1
+standard:
+  id: misra-c-2012
+  name: MISRA C:2012
+  revision: "3rd edition, revision 1"
+  language: c
+  guideline_text: user-supplied      # FWLens ships no licensed text, point your tooling at your own copy
+  categories: [mandatory, required, advisory]
+  undeviable_categories: [mandatory]
+  severity_map: { mandatory: error, required: warning, advisory: note }
+
+rules:
+  - id: "15.1"
+    kind: rule
+    title: Avoid the goto statement
+    category: advisory
+    decidable: true
+    scope: single-tu
+    cwe: [CWE-1119]
+    check: { type: native, engine: ast, match: { cursor: GOTO_STMT } }
+
+  - id: "15.6"
+    kind: rule
+    title: Bodies of selection and iteration statements must be compound statements
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: native, engine: compound_body }
+
+  - id: "17.2"
+    kind: rule
+    title: Functions must not call themselves, directly or indirectly
+    category: required
+    decidable: false
+    scope: system
+    cwe: [CWE-674]
+    check: { type: native, engine: callgraph, match: { cycle: true } }
+    notes: Follows direct calls only. Recursion through function pointers is not detected.
+
+  - id: "21.3"
+    kind: rule
+    title: Do not use the stdlib dynamic memory functions
+    category: required
+    decidable: true
+    scope: single-tu
+    cwe: [CWE-401]
+    check: { type: native, engine: ast, match: { cursor: CALL_EXPR, callee_in: [malloc, calloc, realloc, free, aligned_alloc] } }
+
+  - id: "21.4"
+    kind: rule
+    title: Do not use setjmp and longjmp
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: native, engine: ast, match: { cursor: CALL_EXPR, callee_in: [setjmp, longjmp] } }
+
+  - id: "21.6"
+    kind: rule
+    title: Do not use the stdio input and output functions
+    category: required
+    decidable: true
+    scope: single-tu
+    check:
+      type: native
+      engine: ast
+      match:
+        cursor: CALL_EXPR
+        callee_in: [printf, fprintf, sprintf, snprintf, vprintf, vfprintf, vsprintf, vsnprintf, scanf, fscanf, sscanf,
+                    fopen, freopen, fclose, fread, fwrite, fgets, fputs, gets, puts, getc, getchar, putc, putchar,
+                    fseek, ftell, fflush, remove, rename, tmpfile, perror]
+
+  - id: "21.7"
+    kind: rule
+    title: Do not use the atof, atoi, atol and atoll conversion functions
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: native, engine: ast, match: { cursor: CALL_EXPR, callee_in: [atof, atoi, atol, atoll] } }
+
+  - id: "21.8"
+    kind: rule
+    title: Do not use the stdlib abort, exit, getenv and system functions
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: native, engine: ast, match: { cursor: CALL_EXPR, callee_in: [abort, exit, _Exit, quick_exit, getenv, system] } }
+
+  - id: "21.9"
+    kind: rule
+    title: Do not use the stdlib bsearch and qsort functions
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: native, engine: ast, match: { cursor: CALL_EXPR, callee_in: [bsearch, qsort] } }
+
+  - id: "21.10"
+    kind: rule
+    title: Do not use the standard library time and date functions
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: native, engine: ast, match: { cursor: CALL_EXPR, callee_in: [clock, time, difftime, mktime, asctime, ctime, gmtime, localtime, strftime] } }
+
+  - id: "9.1"
+    kind: rule
+    title: Automatic objects must be set before they are read
+    category: mandatory
+    decidable: false
+    scope: system
+    cwe: [CWE-457]
+    check: { type: import }
+
+  - id: "14.4"
+    kind: rule
+    title: Controlling expressions must be essentially boolean
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: import }
+
+  - id: "17.7"
+    kind: rule
+    title: The value returned by a function must be used
+    category: required
+    decidable: true
+    scope: system
+    check: { type: import }
+
+  - id: "D4.1"
+    kind: directive
+    title: Run-time failures must be minimised
+    category: required
+    decidable: false
+    scope: system
+    check: { type: manual }
+
+# Map other tools' ids onto these rules. Patterns for the common cppcheck and clang-tidy
+# id shapes are built in, entries here override or extend them.
+tool_map:
+  cppcheck:
+    misra-c2012-15.1: "15.1"
+    misra-c2012-dir-4.1: "D4.1"

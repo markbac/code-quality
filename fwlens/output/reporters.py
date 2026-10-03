@@ -24,6 +24,8 @@ def severity_for(b: Breach) -> str:
 
     Note-level metrics are one step quieter: within 25 % over the threshold they are info.
     """
+    if b.category:
+        return {"mandatory": "critical", "required": "major", "advisory": "minor"}.get(b.category, "major")
     ratio = (b.value / b.threshold) if b.threshold else float("inf")
     quiet = METRIC_INFO.get(b.metric, ("", "", "warning"))[2] == "note"
     if ratio < 1.25:
@@ -42,7 +44,8 @@ def to_codequality(breaches: Iterable[Breach]) -> list[dict]:
     entries = []
     for b in breaches:
         entries.append({
-            "description": f"{b.metric} is {b.value:g} (threshold {b.threshold:g})"
+            "description": (f"{b.metric}: {b.description}" if b.kind == "rule" else
+                            f"{b.metric} is {b.value:g} (threshold {b.threshold:g})")
                            + (f" in {b.function}" if b.function else ""),
             "check_name": f"fwlens/{b.metric}",
             "fingerprint": fingerprint_for(b),
@@ -68,8 +71,8 @@ class GitHubReporter(Reporter):
     def emit(self, breaches, out_path=None):
         for b in breaches:
             line = f",line={b.line}" if b.line else ""
-            print(f"::warning file={b.file}{line},title=FWLens Breach [{b.metric}]::"
-                  f"{b.metric} is {b.value} (threshold {b.threshold})")
+            text = b.description if b.kind == "rule" else f"{b.metric} is {b.value} (threshold {b.threshold})"
+            print(f"::warning file={b.file}{line},title=FWLens Breach [{b.metric}]::{text}")
         return None
 
 

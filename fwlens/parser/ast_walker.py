@@ -772,24 +772,8 @@ class _FunctionVisitor:
         return fm
 
 
-def walk_translation_unit(
-    tu_info: TranslationUnit,
-    config: FwLensConfig,
-) -> tuple[list[FunctionMetrics], list[GlobalVarInfo], list[Path], list[tuple[str, str]]]:
-    """
-    Parse a single translation unit and return:
-    - list of FunctionMetrics (one per function defined in this file)
-    - list of GlobalVarInfo (globals declared in this file)
-    - list of included paths (direct #includes)
-    - list of (including_file, included_file) edges across the FULL transitive
-      include chain (any depth) -- for building the header-to-header include graph
-    """
-    _ensure_clang(config)
-    ci = _clang
-
-    if not tu_info.path.exists():
-        return [], [], [], [], 0, [], {}, {}, {}, [], [{"severity": "fatal", "message": "file not found", "line": 0}]
-
+def build_clang_args(tu_info: TranslationUnit, config: FwLensConfig) -> list[str]:
+    """The clang command line for one translation unit (shared with the standards checks)."""
     # Build clang args
     # -fno-builtin: without this, clang treats well-known library function names
     # (memcpy, strlen, snprintf, ...) as builtins with its own hardcoded signature,
@@ -883,6 +867,28 @@ def walk_translation_unit(
         clang_args = [a for a in clang_args if not a.startswith("--target=")]
     clang_args.extend(extra)
     clang_args.extend(config.tool.clang_args)
+    return clang_args
+
+
+def walk_translation_unit(
+    tu_info: TranslationUnit,
+    config: FwLensConfig,
+) -> tuple[list[FunctionMetrics], list[GlobalVarInfo], list[Path], list[tuple[str, str]]]:
+    """
+    Parse a single translation unit and return:
+    - list of FunctionMetrics (one per function defined in this file)
+    - list of GlobalVarInfo (globals declared in this file)
+    - list of included paths (direct #includes)
+    - list of (including_file, included_file) edges across the FULL transitive
+      include chain (any depth) -- for building the header-to-header include graph
+    """
+    _ensure_clang(config)
+    ci = _clang
+
+    if not tu_info.path.exists():
+        return [], [], [], [], 0, [], {}, {}, {}, [], [{"severity": "fatal", "message": "file not found", "line": 0}]
+
+    clang_args = build_clang_args(tu_info, config)
 
     index = ci.Index.create()
     try:

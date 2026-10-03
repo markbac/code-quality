@@ -8,6 +8,7 @@
 - [Baseline / breach gating](#baseline--breach-gating)
 - [GitLab integration](#gitlab-integration)
 - [PR / MR quality check](#pr--mr-quality-check)
+- [Coding standards (MISRA C, CERT C)](#coding-standards-misra-c-cert-c)
 - [Two-hash comparison](#two-hash-comparison)
 - [Project-wide auto-stub](#project-wide-auto-stub)
 - [Diagnostic clusters](#diagnostic-clusters)
@@ -324,6 +325,115 @@ available, but GitLab usually does not allow it to create notes.
 Not included yet: restricting the report to files changed in the PR (issue #35), flash/RAM
 growth gates and a `pr_check` section in `config.yaml`. Rule violations from the MISRA/CERT
 work will use the same comparison.
+
+---
+
+## Coding standards (MISRA C, CERT C)
+
+Optional and **off by default**: nothing changes unless `standards.enabled` is set. FWLens
+reports what it checked or imported. It never states that a project is compliant: a MISRA
+Compliance claim also needs a guideline enforcement plan, any recategorization and deviation
+records, which are process documents outside this tool.
+
+```yaml
+standards:
+  enabled:
+    - standard: misra-c-2012
+      include_categories: [mandatory, required]   # optional filters
+      exclude_rules: ["D4.1"]
+    - standard: cert-c
+      include_ids: [ENV33-C, MSC30-C]
+  extra_rule_dirs: [./standards]                  # your own *.yaml rule files
+  deviations_file: ./standards/deviations.yaml
+  imports:                                        # results from other analysers
+    - { tool: cppcheck,   path: build/cppcheck.xml }
+    - { tool: clang-tidy, path: build/tidy.txt }
+    - { tool: sarif,      path: build/other.sarif }
+```
+
+Findings join the normal breach list, so baseline gating (`--baseline`, `--fail-on-breach`),
+the PR/MR comment, SARIF and the GitLab Code Quality report all include them. SARIF uses the
+standard's own id (`misra-c-2012:15.1`) with levels from the category (mandatory is an error,
+required a warning, advisory a note). GitLab severities follow the same categories.
+
+### Rules are YAML, not Python
+
+Each standard is one file in `fwlens/standards/builtin/` or in your `extra_rule_dirs`. A rule has
+metadata (id, kind, category, decidable, scope, CWE) and a `check` block:
+
+| `check.type` | Meaning |
+|---|---|
+| `native` | FWLens checks it itself with an engine named in `check.engine` |
+| `import` | covered by results imported from another tool |
+| `manual` | needs human review, listed in the matrix as such |
+
+```yaml
+- id: "21.3"
+  kind: rule
+  title: Do not use the stdlib dynamic memory functions
+  category: required
+  decidable: true
+  scope: single-tu
+  check:
+    type: native
+    engine: ast
+    match: { cursor: CALL_EXPR, callee_in: [malloc, calloc, realloc, free] }
+```
+
+Engines: `ast` (a libclang cursor kind, optionally restricted to named callees),
+`compound_body` (selection and iteration statements without a compound body) and `callgraph`
+(call cycles, for recursion). Adding a rule that fits an engine is a YAML edit only. Files are
+validated on load with errors that name the file, rule and field, and
+`fwlens standards validate [FILES...]` checks rule and deviation files. `fwlens standards list`
+shows every rule, how it is checked and which are enabled.
+
+A `tool_map` section maps another tool's check ids onto rule ids. Common cppcheck MISRA and
+CERT ids and clang-tidy `cert-*` ids are recognised without it.
+
+### Deviations
+
+`deviations_file` is a separate YAML file so deviations are reviewed and expire on their own:
+
+```yaml
+deviations:
+  - id: DEV-001
+    standard: misra-c-2012
+    rule: "21.3"
+    type: specific              # project | specific
+    justification: Single start-up allocation, reviewed by the architecture board
+    approved_by: architecture-board
+    scope: { paths: ["src/platform/*.c"], functions: [alloc_init] }
+    expires: 2027-03-31
+```
+
+A covered finding is moved out of the gate and shown as deviated in the matrix. A deviation
+against a mandatory guideline, or one past its `expires` date, does not apply and becomes a
+finding of its own, so it fails the gate.
+
+### Compliance matrix
+
+```bash
+fwlens standards report --config config.yaml --output matrix.md      # or --format json
+```
+
+One row per selected guideline: category, decidability and scope, status (violated, deviated,
+no findings, manual review, not assessed), how it is checked and its deviations. Guidelines no
+configured source covers say `not assessed`.
+
+### What is bundled
+
+The built-in files carry guideline **ids**, the published category, decidability and scope, and
+short FWLens-written descriptions of what each check detects. They contain no MISRA or CERT
+guideline text. Point your own tooling at your licensed copy for the official wording.
+
+Current coverage is a starter set: MISRA C:2012 15.1, 15.6, 17.2, 21.3, 21.4, 21.6 to 21.10
+natively (9.1, 14.4, 17.7 import-only, Dir 4.1 manual) and CERT C ENV33-C, MSC30-C, MSC24-C
+natively (EXP34-C, INT30-C, ARR38-C, ERR33-C import-only). Native checks match call names, so a
+project function that shares a name with a library function is a false positive. Code in headers
+is not analysed, only the translation units. Recursion follows direct calls only.
+
+Not implemented yet: MISRA C:2023, message triage, recategorization, inline deviation markers,
+a Standards tab in the HTML report and CSV export.
 
 ---
 

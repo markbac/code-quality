@@ -74,6 +74,11 @@ class Breach:
     line: Optional[int] = None        # location only, not part of the identity
     function: Optional[str] = None
     fingerprint: dict = field(default_factory=dict)
+    # Coding-standard findings (kind "rule"): category such as mandatory/required/advisory,
+    # the rule title, and the deviation that covers the finding, if any
+    category: Optional[str] = None
+    description: Optional[str] = None
+    deviation: Optional[str] = None
 
     def to_dict(self) -> dict:
         d = {
@@ -90,6 +95,9 @@ class Breach:
             d["function"] = self.function
         if self.fingerprint:
             d["fingerprint"] = self.fingerprint
+        for key in ("category", "description", "deviation"):
+            if getattr(self, key) is not None:
+                d[key] = getattr(self, key)
         return d
 
 
@@ -98,12 +106,12 @@ def _assign_ordinals(breaches: list[Breach]) -> None:
     numbering them in source order."""
     groups: dict[tuple, list[Breach]] = {}
     for b in breaches:
-        if b.kind == "function":
+        if b.kind in ("function", "rule"):
             groups.setdefault((b.file, b.function, b.metric), []).append(b)
     for (file, function, metric), items in groups.items():
         items.sort(key=lambda b: b.line or 0)
         for n, b in enumerate(items, start=1):
-            b.id = make_key(file, function, metric, n)
+            b.id = make_key(file, function if function is not None or b.kind != "rule" else "<file>", metric, n)
 
 
 def compute_breaches(model: ProjectModel, config: FwLensConfig) -> list[Breach]:
@@ -132,8 +140,17 @@ def compute_breaches(model: ProjectModel, config: FwLensConfig) -> list[Breach]:
                 breaches.append(Breach(make_key(file_str, None, metric_key), "module", file_str,
                                        metric_key, value, threshold))
 
+    _standards_findings(model, config, breaches)
     _assign_ordinals(breaches)
     return breaches
+
+
+def _standards_findings(model: ProjectModel, config: FwLensConfig, breaches: list[Breach]) -> None:
+    """Add coding-standard findings when standards are enabled (optional, off by default)."""
+    if not getattr(config, "standards", None) or not config.standards.enabled:
+        return
+    from fwlens.standards import run_standards
+    breaches.extend(run_standards(model, config).findings)
 
 
 def compute_breaches_from_json(json_path: Path, config: FwLensConfig) -> list[Breach]:
