@@ -93,9 +93,8 @@ def emit_github_annotations(breaches):
     for b in breaches:
         file_part = f"file={b.file}"
         line_part = ""
-        parts = b.id.split(":")
-        if len(parts) >= 4 and parts[1].isdigit():
-            line_part = f",line={parts[1]}"
+        if b.line:
+            line_part = f",line={b.line}"
         print(f"::warning {file_part}{line_part},title=FWLens Breach [{b.metric}]::{b.metric} is {b.value} (threshold {b.threshold})")
 
 

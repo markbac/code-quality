@@ -18,9 +18,27 @@ from fwlens.model.project import FunctionMetrics, ModuleMetrics, ProjectModel
 console = Console()
 
 
-def print_baseline_summary(new_or_worsened, accepted_unchanged, baseline_path) -> None:
-    """Print the result of diffing computed breaches against a baseline.json."""
+def print_baseline_summary(new_or_worsened, accepted_unchanged, baseline_path, result=None) -> None:
+    """Print the result of diffing computed breaches against a baseline.json.
+
+    ``result`` is an optional fwlens.identity.MatchResult; when given, findings that moved
+    with their code, loose matches and resolved baseline entries are listed too, so the
+    reader can see what the matcher decided.
+    """
     console.print(f"\n[bold]Baseline check[/bold]  [dim]({baseline_path})[/dim]")
+
+    if result is not None:
+        moved = result.by_status("moved")
+        uncertain = result.by_status("uncertain")
+        if moved:
+            console.print(f"  [dim]{len(moved)} breach(es) moved or renamed with their code (not counted as new)[/dim]")
+        if uncertain:
+            console.print(f"  [yellow]{len(uncertain)} breach(es) matched loosely (gated only if worse):[/yellow]")
+            for m in uncertain[:10]:
+                console.print(f"    [dim]{m.current.id}  <-  {m.base['id']}  ({m.note})[/dim]")
+        if result.resolved:
+            console.print(f"  [green]{len(result.resolved)} baselined breach(es) resolved[/green] "
+                          "[dim](remove with --update-baseline --prune)[/dim]")
 
     if not new_or_worsened and not accepted_unchanged:
         console.print("  [green]No threshold breaches.[/green]")
