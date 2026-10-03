@@ -6,6 +6,7 @@
 - [Commands](#commands)
 - [Directory mode (no .ewp)](#directory-mode-no-ewp)
 - [Baseline / breach gating](#baseline--breach-gating)
+- [GitLab integration](#gitlab-integration)
 - [Two-hash comparison](#two-hash-comparison)
 - [Project-wide auto-stub](#project-wide-auto-stub)
 - [Diagnostic clusters](#diagnostic-clusters)
@@ -196,6 +197,45 @@ entries that no longer match any breach:
 > **Note:** baselining a breach accepts its *current* value. If the metric gets worse later
 > (e.g. cyclomatic complexity rises from 20 to 25), it is reported as a new breach again --
 > baselining is not an open-ended exemption for that function/metric.
+
+---
+
+## GitLab integration
+
+`analyze` and `report` write a GitLab **Code Quality** report with `--gitlab-codequality PATH`.
+When `GITLAB_CI=true` the report is written automatically to
+`$CI_PROJECT_DIR/gl-code-quality-report.json`. GitLab compares it with the report from the
+target branch and shows new and fixed findings in the merge request widget.
+
+- Each finding has `description`, `check_name` (`fwlens/<metric>`), `severity`, `fingerprint`
+  and `location` (repo-relative path with forward slashes, plus the start line).
+- Fingerprints are derived from the stable breach id, which has no line number, so unrelated
+  edits do not appear as new findings.
+- Severity follows how far the value is over its threshold: under 25 % over is `minor`
+  (`info` for note-level metrics such as `fan_out`), under 100 % over is `major`, beyond that
+  `critical`. `blocker` is not used.
+- Paths are made relative to `CI_PROJECT_DIR` on GitLab, so Windows runners produce the same
+  forward-slash paths as Linux.
+
+A reusable job lives in `ci/gitlab/fwlens.gitlab-ci.yml`:
+
+```yaml
+include:
+  - remote: 'https://raw.githubusercontent.com/markbac/code-quality/main/ci/gitlab/fwlens.gitlab-ci.yml'
+
+fwlens:
+  extends: .fwlens
+  variables:
+    FWLENS_CONFIG: config.yaml
+    FWLENS_BASELINE: baseline.json   # optional: gate with --fail-on-breach
+```
+
+The template caches pip, keeps the artifact with `when: always` (so the report is published
+even when the gate fails the job) and sets `expire_in: 2 weeks`. Set `allow_failure: true` on
+the job while you introduce the gate.
+
+Not included yet: a SAST report for coding-standard findings (planned with the MISRA/CERT
+work) and an optional merge request summary note (planned with the PR/MR comparison).
 
 ---
 
