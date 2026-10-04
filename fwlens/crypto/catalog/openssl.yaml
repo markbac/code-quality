@@ -1,0 +1,29 @@
+# OpenSSL / LibreSSL / BoringSSL. EVP_aes_128_gcm style names carry the mode and key size.
+library:
+  id: openssl
+  name: OpenSSL
+  include_fragments: ["openssl/"]
+  dir_names: ["openssl"]
+entries:
+  - {id: aes, name: AES, primitive: block-cipher, identifiers: ["EVP_aes_*", "AES_encrypt", "AES_decrypt", "AES_set_encrypt_key", "AES_set_decrypt_key", "AES_cbc_encrypt"], mode_from_name: true, bits_from_name: true, functions: [encrypt, decrypt]}
+  - {id: chachapoly, name: ChaCha20-Poly1305, primitive: ae, identifiers: ["EVP_chacha20_poly1305"], functions: [encrypt, decrypt, tag]}
+  - {id: sha256, name: SHA-256, primitive: hash, parameter_set: "256", identifiers: ["EVP_sha256", "SHA256_*", "SHA256"], functions: [digest]}
+  - {id: sha384, name: SHA-384, primitive: hash, parameter_set: "384", identifiers: ["EVP_sha384", "SHA384*"], functions: [digest]}
+  - {id: sha512, name: SHA-512, primitive: hash, parameter_set: "512", identifiers: ["EVP_sha512", "SHA512*"], functions: [digest]}
+  - {id: sha1, name: SHA-1, primitive: hash, parameter_set: "160", identifiers: ["EVP_sha1", "SHA1_*", "SHA1"], functions: [digest], weak: "SHA-1 is collision-prone and deprecated for signatures"}
+  - {id: md5, name: MD5, primitive: hash, parameter_set: "128", identifiers: ["EVP_md5", "MD5_*", "MD5"], functions: [digest], weak: "MD5 is broken for collision resistance"}
+  - {id: des, name: DES, primitive: block-cipher, parameter_set: "56", identifiers: ["EVP_des_ecb", "EVP_des_cbc", "DES_*"], functions: [encrypt, decrypt], weak: "DES has a 56-bit key"}
+  - {id: des3, name: 3DES, primitive: block-cipher, parameter_set: "112", identifiers: ["EVP_des_ede3*", "EVP_des_ede_*"], functions: [encrypt, decrypt], weak: "3DES is deprecated (64-bit block, Sweet32)"}
+  - {id: rc4, name: RC4, primitive: stream-cipher, identifiers: ["EVP_rc4*", "RC4_*"], functions: [encrypt, decrypt], weak: "RC4 has known keystream biases"}
+  - {id: hmac, name: HMAC, primitive: mac, identifiers: ["HMAC_*", "HMAC"], functions: [tag]}
+  - {id: rsa, name: RSA, primitive: pke, identifiers: ["RSA_*", "EVP_PKEY_RSA"], functions: [encrypt, decrypt, sign, verify, keygen]}
+  - {id: ecdsa, name: ECDSA, primitive: signature, curve_aware: true, identifiers: ["ECDSA_*"], functions: [sign, verify]}
+  - {id: ecdh, name: ECDH, primitive: key-agree, curve_aware: true, identifiers: ["ECDH_*"], functions: [keyderive]}
+  - {id: pbkdf2, name: PBKDF2, primitive: kdf, identifiers: ["PKCS5_PBKDF2_HMAC*"], functions: [keyderive]}
+  - {id: drbg, name: Random bytes, primitive: drbg, identifiers: ["RAND_bytes", "RAND_priv_bytes"], functions: [generate]}
+  - {id: tls, name: TLS, kind: protocol, protocol: tls, identifiers: ["SSL_CTX_new", "SSL_new", "TLS_method", "TLS_client_method", "TLS_server_method"]}
+  - {id: tls10, name: TLS 1.0, kind: protocol, protocol: tls, version: "1.0", identifiers: ["TLSv1_method", "TLSv1_client_method", "TLSv1_server_method", "TLS1_VERSION"], weak: "TLS 1.0 is deprecated (RFC 8996)"}
+  - {id: tls11, name: TLS 1.1, kind: protocol, protocol: tls, version: "1.1", identifiers: ["TLSv1_1_method", "TLSv1_1_client_method", "TLSv1_1_server_method", "TLS1_1_VERSION"], weak: "TLS 1.1 is deprecated (RFC 8996)"}
+  - {id: ssl3, name: SSL 3.0, kind: protocol, protocol: other, version: "3.0", identifiers: ["SSLv3_method", "SSLv3_client_method", "SSLv3_server_method", "SSL3_VERSION"], weak: "SSL 3.0 is broken (POODLE)"}
+  - {id: tls12, name: TLS 1.2, kind: protocol, protocol: tls, version: "1.2", identifiers: ["TLSv1_2_method", "TLS1_2_VERSION"]}
+  - {id: tls13, name: TLS 1.3, kind: protocol, protocol: tls, version: "1.3", identifiers: ["TLS1_3_VERSION"]}

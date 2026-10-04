@@ -1,0 +1,22 @@
+# PSA Crypto API (Arm PSA, Mbed TLS 3.x, TF-M) and the STM32 HAL crypto peripherals.
+library:
+  id: psa-st
+  name: PSA Crypto and STM32 HAL crypto
+  include_fragments: ["psa/crypto", "stm32", "_hal_cryp", "_hal_hash", "_hal_rng", "_hal_pka"]
+  dir_names: ["psa", "tf-m", "trusted-firmware-m"]
+entries:
+  - {id: psa-cipher, name: PSA cipher, primitive: block-cipher, identifiers: ["psa_cipher_*", "PSA_ALG_CBC_*", "PSA_ALG_CTR", "PSA_KEY_TYPE_AES"], functions: [encrypt, decrypt]}
+  - {id: psa-ecb, name: ECB mode (PSA), primitive: block-cipher, mode: ecb, identifiers: ["PSA_ALG_ECB_NO_PADDING"], functions: [encrypt, decrypt], weak: "ECB leaks plaintext patterns"}
+  - {id: psa-aead, name: PSA AEAD, primitive: ae, identifiers: ["psa_aead_*", "PSA_ALG_GCM", "PSA_ALG_CCM", "PSA_ALG_CHACHA20_POLY1305"], functions: [encrypt, decrypt, tag]}
+  - {id: psa-hash, name: PSA hash, primitive: hash, identifiers: ["psa_hash_*", "PSA_ALG_SHA_256", "PSA_ALG_SHA_512"], functions: [digest]}
+  - {id: psa-sha1, name: SHA-1 (PSA), primitive: hash, parameter_set: "160", identifiers: ["PSA_ALG_SHA_1"], functions: [digest], weak: "SHA-1 is collision-prone and deprecated for signatures"}
+  - {id: psa-md5, name: MD5 (PSA), primitive: hash, parameter_set: "128", identifiers: ["PSA_ALG_MD5"], functions: [digest], weak: "MD5 is broken for collision resistance"}
+  - {id: psa-mac, name: PSA MAC, primitive: mac, identifiers: ["psa_mac_*", "PSA_ALG_HMAC", "PSA_ALG_CMAC"], functions: [tag]}
+  - {id: psa-sign, name: PSA signature, primitive: signature, curve_aware: true, identifiers: ["psa_sign_*", "psa_verify_*", "PSA_ALG_ECDSA", "PSA_ALG_RSA_PSS"], functions: [sign, verify]}
+  - {id: psa-agree, name: PSA key agreement, primitive: key-agree, curve_aware: true, identifiers: ["psa_raw_key_agreement", "PSA_ALG_ECDH"], functions: [keyderive]}
+  - {id: psa-keys, name: PSA key management, primitive: other, identifiers: ["psa_generate_key", "psa_import_key", "psa_export_key"], functions: [keygen]}
+  - {id: psa-random, name: PSA random, primitive: drbg, identifiers: ["psa_generate_random"], functions: [generate]}
+  - {id: hal-cryp, name: STM32 CRYP hardware accelerator, primitive: block-cipher, hardware: true, identifiers: ["HAL_CRYP_*", "HAL_CRYPEx_*"], functions: [encrypt, decrypt]}
+  - {id: hal-hash, name: STM32 HASH hardware accelerator, primitive: hash, hardware: true, identifiers: ["HAL_HASH_*", "HAL_HASHEx_*"], functions: [digest]}
+  - {id: hal-rng, name: STM32 RNG hardware, primitive: drbg, hardware: true, identifiers: ["HAL_RNG_*"], functions: [generate]}
+  - {id: hal-pka, name: STM32 PKA hardware accelerator, primitive: pke, hardware: true, identifiers: ["HAL_PKA_*"], functions: [sign, verify, keygen]}

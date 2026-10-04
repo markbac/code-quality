@@ -706,6 +706,9 @@ def report(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_e
     if "sbom" in formats:
         from fwlens.sbom import write_sbom
         console.print(f"[cyan][fwlens][/cyan] SBOM        : [bold]{write_sbom(config, config.output.exports_dir / 'sbom.cdx.json')}[/bold]")
+    if "cbom" in formats:
+        from fwlens.cbom import write_cbom
+        console.print(f"[cyan][fwlens][/cyan] CBOM        : [bold]{write_cbom(config, config.output.exports_dir / 'cbom.cdx.json')}[/bold]")
     if "plots" in formats:
         from fwlens.output.plots import generate_plots
         plots_dir = generate_plots(model, config)
@@ -765,6 +768,25 @@ def sbom_cmd(config_path, output_path):
                   if any(p["name"] == "fwlens:version-source" and p["value"] == "unknown" for p in c["properties"]))
     console.print(f"[cyan][fwlens][/cyan] SBOM: [bold]{written}[/bold] ({len(doc['components'])} component(s), "
                   f"{unknown} without a version)")
+
+
+@cli.command(name="cbom")
+@click.option("--config", "config_path", default="config.yaml", type=_CONFIG_FILE, help="Path to config.yaml")
+@click.option("--output", "output_path", default=None, type=click.Path(),
+              help="Where to write the CycloneDX JSON (default: <exports_dir>/cbom.cdx.json).")
+def cbom_cmd(config_path, output_path):
+    """Write a Cryptography Bill of Materials (CycloneDX 1.6 JSON): the algorithms, protocols and
+    libraries the source names. Detected usage only; not a complete inventory."""
+    from fwlens.cbom import write_cbom
+    from fwlens.config import load_config
+    config = load_config(Path(config_path))
+    target = Path(output_path) if output_path else config.output.exports_dir / "cbom.cdx.json"
+    written = write_cbom(config, target)
+    doc = json.loads(written.read_text(encoding="utf-8"))
+    assets = [c for c in doc["components"] if c["type"] == "cryptographic-asset"]
+    weak = sum(1 for c in assets if any(p["name"] == "fwlens:weak" for p in c["properties"]))
+    console.print(f"[cyan][fwlens][/cyan] CBOM: [bold]{written}[/bold] ({len(assets)} asset(s), {weak} flagged weak; "
+                  f"detected usage only)")
 
 
 def _compare_options(f):

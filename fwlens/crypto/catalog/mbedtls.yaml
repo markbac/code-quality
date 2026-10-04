@@ -1,0 +1,32 @@
+# Mbed TLS (legacy mbedtls_* API). Each entry is matched by the identifiers a source file uses.
+library:
+  id: mbedtls
+  name: Mbed TLS
+  include_fragments: ["mbedtls/"]
+  dir_names: ["mbedtls"]
+entries:
+  - {id: aes, name: AES, primitive: block-cipher, identifiers: ["mbedtls_aes_*", "MBEDTLS_CIPHER_AES_*"], config_macros: [MBEDTLS_AES_C], functions: [encrypt, decrypt]}
+  - {id: gcm, name: AES-GCM, primitive: ae, mode: gcm, identifiers: ["mbedtls_gcm_*"], config_macros: [MBEDTLS_GCM_C], functions: [encrypt, decrypt, tag]}
+  - {id: ccm, name: AES-CCM, primitive: ae, mode: ccm, identifiers: ["mbedtls_ccm_*"], config_macros: [MBEDTLS_CCM_C], functions: [encrypt, decrypt, tag]}
+  - {id: chachapoly, name: ChaCha20-Poly1305, primitive: ae, identifiers: ["mbedtls_chachapoly_*"], config_macros: [MBEDTLS_CHACHAPOLY_C], functions: [encrypt, decrypt, tag]}
+  - {id: sha256, name: SHA-256, primitive: hash, parameter_set: "256", identifiers: ["mbedtls_sha256*"], config_macros: [MBEDTLS_SHA256_C], functions: [digest]}
+  - {id: sha512, name: SHA-512, primitive: hash, parameter_set: "512", identifiers: ["mbedtls_sha512*"], config_macros: [MBEDTLS_SHA512_C], functions: [digest]}
+  - {id: sha1, name: SHA-1, primitive: hash, parameter_set: "160", identifiers: ["mbedtls_sha1*"], config_macros: [MBEDTLS_SHA1_C], functions: [digest], weak: "SHA-1 is collision-prone and deprecated for signatures"}
+  - {id: md5, name: MD5, primitive: hash, parameter_set: "128", identifiers: ["mbedtls_md5*"], config_macros: [MBEDTLS_MD5_C], functions: [digest], weak: "MD5 is broken for collision resistance"}
+  - {id: des, name: DES, primitive: block-cipher, parameter_set: "56", identifiers: ["mbedtls_des_*"], config_macros: [MBEDTLS_DES_C], functions: [encrypt, decrypt], weak: "DES has a 56-bit key"}
+  - {id: des3, name: 3DES, primitive: block-cipher, parameter_set: "112", identifiers: ["mbedtls_des3_*"], functions: [encrypt, decrypt], weak: "3DES is deprecated (64-bit block, Sweet32)"}
+  - {id: arc4, name: RC4, primitive: stream-cipher, identifiers: ["mbedtls_arc4_*"], config_macros: [MBEDTLS_ARC4_C], functions: [encrypt, decrypt], weak: "RC4 has known keystream biases"}
+  - {id: hmac, name: HMAC, primitive: mac, identifiers: ["mbedtls_md_hmac*"], functions: [tag]}
+  - {id: cmac, name: AES-CMAC, primitive: mac, identifiers: ["mbedtls_cipher_cmac*", "mbedtls_aes_cmac*"], config_macros: [MBEDTLS_CMAC_C], functions: [tag]}
+  - {id: rsa, name: RSA, primitive: pke, identifiers: ["mbedtls_rsa_*"], config_macros: [MBEDTLS_RSA_C], functions: [encrypt, decrypt, sign, verify, keygen]}
+  - {id: ecdsa, name: ECDSA, primitive: signature, curve_aware: true, identifiers: ["mbedtls_ecdsa_*"], config_macros: [MBEDTLS_ECDSA_C], functions: [sign, verify, keygen]}
+  - {id: ecdh, name: ECDH, primitive: key-agree, curve_aware: true, identifiers: ["mbedtls_ecdh_*"], config_macros: [MBEDTLS_ECDH_C], functions: [keyderive]}
+  - {id: dhm, name: Diffie-Hellman, primitive: key-agree, identifiers: ["mbedtls_dhm_*"], config_macros: [MBEDTLS_DHM_C], functions: [keyderive]}
+  - {id: pbkdf2, name: PBKDF2, primitive: kdf, identifiers: ["mbedtls_pkcs5_pbkdf2*"], functions: [keyderive]}
+  - {id: hkdf, name: HKDF, primitive: kdf, identifiers: ["mbedtls_hkdf*"], config_macros: [MBEDTLS_HKDF_C], functions: [keyderive]}
+  - {id: drbg, name: CTR-DRBG, primitive: drbg, identifiers: ["mbedtls_ctr_drbg_*", "mbedtls_hmac_drbg_*"], config_macros: [MBEDTLS_CTR_DRBG_C], functions: [generate]}
+  - {id: tls, name: TLS, kind: protocol, protocol: tls, identifiers: ["mbedtls_ssl_*"], config_macros: [MBEDTLS_SSL_TLS_C], functions: []}
+  - {id: tls10, name: TLS 1.0, kind: protocol, protocol: tls, version: "1.0", identifiers: ["MBEDTLS_SSL_MINOR_VERSION_1", "MBEDTLS_SSL_PROTO_TLS1"], weak: "TLS 1.0 is deprecated (RFC 8996)"}
+  - {id: tls11, name: TLS 1.1, kind: protocol, protocol: tls, version: "1.1", identifiers: ["MBEDTLS_SSL_MINOR_VERSION_2", "MBEDTLS_SSL_PROTO_TLS1_1"], weak: "TLS 1.1 is deprecated (RFC 8996)"}
+  - {id: tls12, name: TLS 1.2, kind: protocol, protocol: tls, version: "1.2", identifiers: ["MBEDTLS_SSL_MINOR_VERSION_3", "MBEDTLS_SSL_PROTO_TLS1_2"]}
+  - {id: tls13, name: TLS 1.3, kind: protocol, protocol: tls, version: "1.3", identifiers: ["MBEDTLS_SSL_TLS1_3_*", "MBEDTLS_SSL_PROTO_TLS1_3"]}

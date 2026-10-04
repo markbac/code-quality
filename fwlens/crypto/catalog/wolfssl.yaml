@@ -1,0 +1,18 @@
+library:
+  id: wolfssl
+  name: wolfSSL / wolfCrypt
+  include_fragments: ["wolfssl/"]
+  dir_names: ["wolfssl"]
+entries:
+  - {id: aes, name: AES, primitive: block-cipher, identifiers: ["wc_Aes*"], functions: [encrypt, decrypt]}
+  - {id: sha256, name: SHA-256, primitive: hash, parameter_set: "256", identifiers: ["wc_Sha256*", "wc_InitSha256*"], functions: [digest]}
+  - {id: sha512, name: SHA-512, primitive: hash, parameter_set: "512", identifiers: ["wc_Sha512*"], functions: [digest]}
+  - {id: sha1, name: SHA-1, primitive: hash, parameter_set: "160", identifiers: ["wc_ShaUpdate", "wc_ShaFinal", "wc_InitSha"], functions: [digest], weak: "SHA-1 is collision-prone and deprecated for signatures"}
+  - {id: md5, name: MD5, primitive: hash, parameter_set: "128", identifiers: ["wc_Md5*", "wc_InitMd5"], functions: [digest], weak: "MD5 is broken for collision resistance"}
+  - {id: chacha, name: ChaCha20-Poly1305, primitive: ae, identifiers: ["wc_ChaCha*", "wc_Poly1305*"], functions: [encrypt, decrypt]}
+  - {id: rsa, name: RSA, primitive: pke, identifiers: ["wc_Rsa*", "wc_InitRsaKey"], functions: [encrypt, decrypt, sign, verify]}
+  - {id: ecc, name: ECC (ECDSA/ECDH), primitive: signature, curve_aware: true, identifiers: ["wc_ecc_*"], functions: [sign, verify, keyderive]}
+  - {id: hmac, name: HMAC, primitive: mac, identifiers: ["wc_Hmac*"], functions: [tag]}
+  - {id: tls, name: TLS, kind: protocol, protocol: tls, identifiers: ["wolfSSL_CTX_new", "wolfSSL_new", "wolfTLS_client_method", "wolfTLSv1_2_client_method", "wolfTLSv1_3_client_method"]}
+  - {id: tls10, name: TLS 1.0, kind: protocol, protocol: tls, version: "1.0", identifiers: ["wolfTLSv1_client_method", "wolfTLSv1_server_method"], weak: "TLS 1.0 is deprecated (RFC 8996)"}
+  - {id: tls11, name: TLS 1.1, kind: protocol, protocol: tls, version: "1.1", identifiers: ["wolfTLSv1_1_client_method", "wolfTLSv1_1_server_method"], weak: "TLS 1.1 is deprecated (RFC 8996)"}

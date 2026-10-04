@@ -1,0 +1,21 @@
+# Small embedded libraries: TinyCrypt, libsodium, micro-ecc.
+library:
+  id: embedded-crypto
+  name: Embedded crypto libraries
+  include_fragments: ["tinycrypt/", "sodium.h", "sodium/", "uECC.h"]
+  dir_names: ["tinycrypt", "libsodium", "micro-ecc", "uecc"]
+entries:
+  - {id: tc-aes, name: AES (TinyCrypt), primitive: block-cipher, identifiers: ["tc_aes*"], functions: [encrypt, decrypt]}
+  - {id: tc-cbc, name: AES-CBC (TinyCrypt), primitive: block-cipher, mode: cbc, identifiers: ["tc_cbc_mode_*"], functions: [encrypt, decrypt]}
+  - {id: tc-ctr, name: AES-CTR (TinyCrypt), primitive: block-cipher, mode: ctr, identifiers: ["tc_ctr_mode"], functions: [encrypt, decrypt]}
+  - {id: tc-ccm, name: AES-CCM (TinyCrypt), primitive: ae, mode: ccm, identifiers: ["tc_ccm_*"], functions: [encrypt, decrypt, tag]}
+  - {id: tc-cmac, name: AES-CMAC (TinyCrypt), primitive: mac, identifiers: ["tc_cmac_*"], functions: [tag]}
+  - {id: tc-sha256, name: SHA-256 (TinyCrypt), primitive: hash, parameter_set: "256", identifiers: ["tc_sha256_*"], functions: [digest]}
+  - {id: tc-hmac, name: HMAC (TinyCrypt), primitive: mac, identifiers: ["tc_hmac_*"], functions: [tag]}
+  - {id: tc-ecc, name: ECC (TinyCrypt), primitive: signature, curve: secp256r1, identifiers: ["uECC_*", "tc_uECC_*"], functions: [sign, verify, keygen, keyderive]}
+  - {id: sodium-aead, name: ChaCha20-Poly1305 (libsodium), primitive: ae, identifiers: ["crypto_aead_chacha20poly1305*", "crypto_aead_xchacha20poly1305*"], functions: [encrypt, decrypt]}
+  - {id: sodium-aes, name: AES-256-GCM (libsodium), primitive: ae, mode: gcm, parameter_set: "256", identifiers: ["crypto_aead_aes256gcm*"], functions: [encrypt, decrypt]}
+  - {id: sodium-sign, name: Ed25519 (libsodium), primitive: signature, curve: ed25519, identifiers: ["crypto_sign*"], functions: [sign, verify]}
+  - {id: sodium-box, name: X25519 box (libsodium), primitive: pke, curve: curve25519, identifiers: ["crypto_box*", "crypto_scalarmult*", "crypto_kx_*"], functions: [encrypt, decrypt, keyderive]}
+  - {id: sodium-hash, name: BLAKE2b (libsodium), primitive: hash, identifiers: ["crypto_generichash*"], functions: [digest]}
+  - {id: sodium-kdf, name: Argon2 / KDF (libsodium), primitive: kdf, identifiers: ["crypto_pwhash*", "crypto_kdf_*"], functions: [keyderive]}
