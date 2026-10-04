@@ -248,6 +248,7 @@ class GlobalVarInfo:
     isr_readers: list[str] = field(default_factory=list)
     isr_writers: list[str] = field(default_factory=list)
     volatile_risk: bool = False  # accessed from ISR and non-ISR, not volatile
+    is_static: bool = False      # internal linkage: only functions in the same file can touch it
 
 
 @dataclass

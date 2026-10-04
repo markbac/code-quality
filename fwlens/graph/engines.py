@@ -411,15 +411,23 @@ def compute_global_access_risk(model: ProjectModel) -> None:
     for gv in model.globals:
         by_name.setdefault(gv.name, []).append(gv)
 
+    def _visible(gv: GlobalVarInfo, func) -> bool:
+        # A file-local static can only be touched from its own file (#61).
+        return not (gv.is_static and gv.file.suffix == ".c" and gv.file != func.file)
+
     for func in model.all_functions():
         for var_name in func.global_reads:
             for gv in by_name.get(var_name, []):
+                if not _visible(gv, func):
+                    continue
                 if func.name not in gv.readers:
                     gv.readers.append(func.name)
                 if func.is_isr and func.name not in gv.isr_readers:
                     gv.isr_readers.append(func.name)
         for var_name in func.global_writes:
             for gv in by_name.get(var_name, []):
+                if not _visible(gv, func):
+                    continue
                 if func.name not in gv.writers:
                     gv.writers.append(func.name)
                 if func.is_isr and func.name not in gv.isr_writers:

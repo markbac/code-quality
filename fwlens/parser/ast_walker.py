@@ -288,13 +288,32 @@ class _FunctionVisitor:
             'STRUCT_DECL', 'ENUM_DECL', 'TYPEDEF_DECL', 'UNION_DECL',
         )
 
+    def _is_file_scope_var(self, ref) -> bool:
+        """True for a variable declared at file scope. Locals, parameters and function-scope
+        statics have the function as semantic parent and are not global state (#61)."""
+        try:
+            parent = ref.semantic_parent
+            return parent is not None and parent.kind == self.ci.CursorKind.TRANSLATION_UNIT
+        except Exception:
+            return False
+
+    def _is_plain_assignment_target(self, cursor, parent) -> bool:
+        """True when cursor is the left operand of a plain `=`. That is a write only, not a read."""
+        try:
+            if parent is None or parent.kind not in self._binary_op:
+                return False
+            kids = list(parent.get_children())
+            return len(kids) == 2 and kids[0] == cursor and self._own_operator(parent) == "="
+        except Exception:
+            return False
+
     def _record_write_target(self, target_cursor) -> None:
-        """If target_cursor is a direct DECL_REF_EXPR to a VAR_DECL, record it as a write."""
+        """If target_cursor is a direct DECL_REF_EXPR to a file-scope VAR_DECL, record it as a write."""
         try:
             if target_cursor.kind in self._decl_ref:
                 ref = target_cursor.referenced
                 var_decl = getattr(self.ci.CursorKind, 'VAR_DECL', None)
-                if ref and var_decl and ref.kind == var_decl:
+                if ref and var_decl and ref.kind == var_decl and self._is_file_scope_var(ref):
                     name = ref.spelling
                     if name and name not in self.global_writes:
                         self.global_writes.append(name)
@@ -594,11 +613,13 @@ class _FunctionVisitor:
                     var_decl  = getattr(ci.CursorKind, 'VAR_DECL', None)
                     func_decl = getattr(ci.CursorKind, 'FUNCTION_DECL', None)
                     if var_decl and ref.kind == var_decl:
-                        # Record all VAR_DECL references regardless of linkage.
-                        # The dispatcher detection filters by known table names so
-                        # including local variables is harmless noise.
+                        # File-scope variables only (#61): locals and parameters are not
+                        # shared state, and a local that shadows a global must not be
+                        # credited to it. A plain `x = ...` target is a write, not a read.
                         name = ref.spelling
-                        if name and name not in self.global_reads:
+                        if (name and name not in self.global_reads
+                                and self._is_file_scope_var(ref)
+                                and not self._is_plain_assignment_target(cursor, parent)):
                             self.global_reads.append(name)
                     # Function referenced by address (e.g. stored in a struct/array
                     # initialiser as a function pointer).  Treat it the same as a
@@ -1042,10 +1063,15 @@ def walk_translation_unit(
             if cursor.is_definition() or not is_extern_decl:
                 type_spell = cursor.type.spelling if cursor.type else ""
                 is_vol = "volatile" in type_spell
+                try:
+                    is_static = cursor.storage_class == ci.StorageClass.STATIC
+                except Exception:
+                    is_static = False
                 gv = GlobalVarInfo(
                     name=cursor.spelling,
                     file=tu_path,
                     is_volatile=is_vol,
+                    is_static=is_static,
                 )
                 globals_.append(gv)
                 # Collect any function pointer references in the initialiser
