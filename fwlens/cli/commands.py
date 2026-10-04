@@ -374,6 +374,20 @@ def _findings_option(f):
              "--base reference of `fwlens compare` / `pr-comment` in a later pipeline.")(f)
 
 
+def _sarif_option(f):
+    return click.option(
+        "--sarif", "sarif_path", default=None, type=click.Path(),
+        help="Write the findings as SARIF 2.1.0 to this path (for GitHub code scanning, "
+             "github/codeql-action/upload-sarif). `report` also writes "
+             "exports/fwlens.sarif when output.formats includes sarif.")(f)
+
+
+def _emit_sarif(model, config, path, breaches=None):
+    from fwlens.output.sarif import write_sarif_report
+    written = write_sarif_report(model, config, Path(path), breaches)
+    console.print(f"[cyan][fwlens][/cyan] SARIF report: [bold]{written}[/bold]")
+
+
 def _emit_gitlab_report(breaches, gitlab_codequality):
     from fwlens.output.reporters import GitLabReporter, default_gitlab_report_path, running_on_gitlab
     if not gitlab_codequality and not running_on_gitlab():
@@ -412,7 +426,7 @@ def emit_github_annotations(breaches):
 
 def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
                       update_baseline_flag, accept_all, accept_ids, github_annotations=False,
-                      prune=False, gitlab_codequality=None, findings_json=None):
+                      prune=False, gitlab_codequality=None, findings_json=None, sarif_path=None):
     """Compute breaches and either update the baseline or gate on it. Returns True to fail the run."""
     from fwlens.baseline import (
         classify_against_baseline,
@@ -427,6 +441,8 @@ def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
     if github_annotations:
         emit_github_annotations(breaches)
     _emit_gitlab_report(breaches, gitlab_codequality)
+    if sarif_path:
+        _emit_sarif(model, config, sarif_path, breaches)
     if findings_json:
         from fwlens.pr_check import write_findings
         write_findings(Path(findings_json), breaches)
@@ -484,10 +500,11 @@ def _auto_stub_option(f):
 @_parse_error_option
 @_gitlab_option
 @_findings_option
+@_sarif_option
 @_baseline_options
 def analyze(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_error, baseline_path, fail_on_breach,
             update_baseline_flag, accept_all, accept_ids, prune, github_annotations,
-            gitlab_codequality, findings_json):
+            gitlab_codequality, findings_json, sarif_path):
     """Run analysis and print breach summary to terminal."""
     _print_header("analyze", config_path)
     from fwlens.output.console import print_summary
@@ -498,7 +515,7 @@ def analyze(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_
         model, config, baseline_path=baseline_path, fail_on_breach=fail_on_breach,
         update_baseline_flag=update_baseline_flag, accept_all=accept_all, accept_ids=accept_ids,
         github_annotations=github_annotations, prune=prune,
-        gitlab_codequality=gitlab_codequality, findings_json=findings_json,
+        gitlab_codequality=gitlab_codequality, findings_json=findings_json, sarif_path=sarif_path,
     )
     if _parse_health_failed(model, config, fail_on_parse_error):
         should_fail = True
@@ -514,10 +531,11 @@ def analyze(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_
 @_parse_error_option
 @_gitlab_option
 @_findings_option
+@_sarif_option
 @_baseline_options
 def report(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_error, baseline_path, fail_on_breach,
            update_baseline_flag, accept_all, accept_ids, prune, github_annotations,
-           gitlab_codequality, findings_json):
+           gitlab_codequality, findings_json, sarif_path):
     """Run analysis and generate HTML report + exports."""
     from fwlens.output.console import print_summary
     from fwlens.output.exports import export_csv, export_json
@@ -536,6 +554,8 @@ def report(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_e
     if "json" in formats:
         export_json(model, config)
         console.print(f"[cyan][fwlens][/cyan] JSON export: [bold]{config.output.exports_dir / 'fwlens_results.json'}[/bold]")
+    if "sarif" in formats and not sarif_path:
+        _emit_sarif(model, config, config.output.exports_dir / "fwlens.sarif")
     if "plots" in formats:
         from fwlens.output.plots import generate_plots
         plots_dir = generate_plots(model, config)
@@ -551,7 +571,7 @@ def report(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_e
         model, config, baseline_path=baseline_path, fail_on_breach=fail_on_breach,
         update_baseline_flag=update_baseline_flag, accept_all=accept_all, accept_ids=accept_ids,
         github_annotations=github_annotations, prune=prune,
-        gitlab_codequality=gitlab_codequality, findings_json=findings_json,
+        gitlab_codequality=gitlab_codequality, findings_json=findings_json, sarif_path=sarif_path,
     )
     if _parse_health_failed(model, config, fail_on_parse_error):
         should_fail = True
@@ -564,12 +584,15 @@ def report(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_e
               type=_CONFIG_FILE, help="Path to config.yaml")
 @_auto_stub_option
 @_parse_options
-def export(config_path: str, auto_stub, jobs, timeout, no_cache):
-    """Run analysis and export CSV + JSON only (no HTML report)."""
+@_sarif_option
+def export(config_path: str, auto_stub, jobs, timeout, no_cache, sarif_path):
+    """Run analysis and export CSV + JSON only (no HTML report). Add --sarif PATH for SARIF."""
     from fwlens.output.exports import export_csv, export_json
     model, config = _run_pipeline(Path(config_path), auto_stub=auto_stub, jobs=jobs, timeout=timeout, no_cache=no_cache)
     export_csv(model, config)
     export_json(model, config)
+    if sarif_path:
+        _emit_sarif(model, config, sarif_path)
     console.print(f"[cyan][fwlens][/cyan] Exports written to: [bold]{config.output.exports_dir}[/bold]")
 
 

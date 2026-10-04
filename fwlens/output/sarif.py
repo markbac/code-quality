@@ -87,9 +87,11 @@ def breach_to_result(b: Breach, rule_index: dict[str, int]) -> dict[str, Any]:
     }
 
 
-def generate_sarif_report(model: ProjectModel, config: FwLensConfig) -> dict[str, Any]:
-    """Generate SARIF 2.1.0 JSON payload from project breaches."""
-    breaches = compute_breaches(model, config)
+def generate_sarif_report(model: ProjectModel, config: FwLensConfig,
+                          breaches: list[Breach] | None = None) -> dict[str, Any]:
+    """Generate SARIF 2.1.0 JSON payload from project breaches (computed unless given)."""
+    if breaches is None:
+        breaches = compute_breaches(model, config)
     rules = build_rules(breaches)
     rule_index = {r["id"]: i for i, r in enumerate(rules)}
 
@@ -111,8 +113,11 @@ def generate_sarif_report(model: ProjectModel, config: FwLensConfig) -> dict[str
     }
 
 
-def write_sarif_report(model: ProjectModel, config: FwLensConfig, output_path: Path) -> None:
+def write_sarif_report(model: ProjectModel, config: FwLensConfig, output_path: Path,
+                       breaches: list[Breach] | None = None) -> Path:
+    output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    payload = generate_sarif_report(model, config)
+    payload = generate_sarif_report(model, config, breaches)
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
+    return output_path

@@ -25,6 +25,10 @@ inputs:
     description: "Extra arguments for 'fwlens analyze', split on spaces (for example '--jobs 2')"
     required: false
     default: ""
+  upload-sarif:
+    description: "Write SARIF and upload it to GitHub code scanning (needs permissions: security-events: write)"
+    required: false
+    default: "false"
   upload-report:
     description: "Also build the HTML report and CSV/JSON exports and upload them as an artifact"
     required: false
@@ -49,6 +53,7 @@ runs:
         FWLENS_BASELINE: ${{ inputs.baseline }}
         FWLENS_FAIL_ON_BREACH: ${{ inputs.fail-on-breach }}
         FWLENS_EXTRA_ARGS: ${{ inputs.extra-args }}
+        FWLENS_SARIF: ${{ inputs.upload-sarif }}
       run: |
         args=(analyze --config "$FWLENS_CONFIG" --github-annotations)
         if [ -n "$FWLENS_BASELINE" ]; then
@@ -57,11 +62,19 @@ runs:
         if [ "$FWLENS_FAIL_ON_BREACH" = "true" ]; then
           args+=(--fail-on-breach)
         fi
+        if [ "$FWLENS_SARIF" = "true" ]; then
+          args+=(--sarif fwlens.sarif)
+        fi
         if [ -n "$FWLENS_EXTRA_ARGS" ]; then
           read -r -a extra <<< "$FWLENS_EXTRA_ARGS"
           args+=("${extra[@]}")
         fi
         fwlens "${args[@]}"
+    - name: Upload SARIF
+      if: ${{ always() && inputs.upload-sarif == 'true' }}
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ inputs.working-directory }}/fwlens.sarif
     - name: Build report
       if: ${{ always() && inputs.upload-report == 'true' }}
       shell: bash

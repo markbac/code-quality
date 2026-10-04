@@ -356,6 +356,10 @@ The repository ships a composite action that installs FWLens from the action's o
     upload-report: "true"        # also builds the HTML report and uploads it as an artifact
 ```
 
+Set `upload-sarif: "true"` (with `permissions: security-events: write`) to send the findings to
+GitHub code scanning. Outside the action, `fwlens analyze --sarif out.sarif` (also on `report` and
+`export`, or `sarif` in `output.formats`) writes SARIF 2.1.0 for `github/codeql-action/upload-sarif`.
+
 Inputs reach the shell as environment variables, not as pasted text. `pip install fwlens` in
 your own workflow works equally well; the pre-commit hook analyses the whole project on each
 commit.
