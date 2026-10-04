@@ -284,6 +284,31 @@ class MatchConfig:
 
 
 @dataclass
+class SbomComponent:
+    """A component declared by hand, because versions and licences cannot always be read from source."""
+    name: str
+    path: Path
+    version: str | None = None
+    license: str | None = None       # an SPDX id or expression
+    supplier: str | None = None
+    purl: str | None = None
+    description: str | None = None
+
+
+@dataclass
+class SbomConfig:
+    components: list[SbomComponent] = field(default_factory=list)
+    include_files: bool = False      # list every file with its hash, not just one hash per component
+    application_version: str | None = None   # version of the firmware the SBOM describes
+
+
+@dataclass
+class CbomConfig:
+    extra_catalog_dirs: list[Path] = field(default_factory=list)   # more crypto catalogue YAML files
+    scan_scopes: list[str] = field(default_factory=lambda: ["first_party"])   # boundary classes scanned for use
+
+
+@dataclass
 class FwLensConfig:
     config_path: Path
     tool: ToolConfig
@@ -301,6 +326,8 @@ class FwLensConfig:
     standards: StandardsConfig = field(default_factory=StandardsConfig)
     pr_check: PRCheckConfig = field(default_factory=PRCheckConfig)
     match: MatchConfig = field(default_factory=MatchConfig)
+    sbom: SbomConfig = field(default_factory=SbomConfig)
+    cbom: CbomConfig = field(default_factory=CbomConfig)
     # Function names treated as assertion calls for assert-coverage metrics. Extend
     # this with any project-specific assert macro or error-report function rather
     # than needing a code change. Note: a macro that expands to a conditional call
@@ -610,6 +637,28 @@ def load_config(config_path: Path) -> FwLensConfig:
     match = MatchConfig(similarity=float(similarity),
                         report_uncertain=bool(match_raw.get("report_uncertain", True)))
 
+    sbom_raw = raw.get("sbom") or {}
+    sbom_components = []
+    for i, c in enumerate(sbom_raw.get("components") or []):
+        if not isinstance(c, dict) or not c.get("name") or not c.get("path"):
+            raise ConfigError(f"sbom.components[{i}] needs at least 'name' and 'path'")
+        sbom_components.append(SbomComponent(
+            name=str(c["name"]), path=resolve(str(c["path"])),
+            version=None if c.get("version") is None else str(c["version"]),
+            license=c.get("license"), supplier=c.get("supplier"), purl=c.get("purl"),
+            description=c.get("description")))
+    sbom = SbomConfig(components=sbom_components, include_files=bool(sbom_raw.get("include_files", False)),
+                      application_version=None if sbom_raw.get("application_version") is None
+                      else str(sbom_raw["application_version"]))
+
+    cbom_raw = raw.get("cbom") or {}
+    scan_scopes = [str(x) for x in cbom_raw.get("scan_scopes", ["first_party"])]
+    bad_scopes = [x for x in scan_scopes if x not in _BOUNDARY_CLASSES]
+    if bad_scopes:
+        raise ConfigError(f"cbom.scan_scopes has unsupported value(s) {bad_scopes}; use any of {list(_BOUNDARY_CLASSES)}")
+    cbom = CbomConfig(extra_catalog_dirs=[resolve(d) for d in cbom_raw.get("extra_catalog_dirs") or []],
+                      scan_scopes=scan_scopes)
+
     pc_raw = raw.get("pr_check") or {}
     defaults = PRCheckConfig()
     pr_check = PRCheckConfig(
@@ -642,6 +691,8 @@ def load_config(config_path: Path) -> FwLensConfig:
         standards=standards,
         pr_check=pr_check,
         match=match,
+        sbom=sbom,
+        cbom=cbom,
         assert_names=assert_names,
         warnings=load_warnings,
     )

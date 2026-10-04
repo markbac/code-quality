@@ -246,7 +246,9 @@
               "json",
               "plots",
               "diagrams",
-              "sarif"
+              "sarif",
+              "sbom",
+              "cbom"
             ]
           }
         },
@@ -489,6 +491,94 @@
         },
         "report_uncertain": {
           "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sbom": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "version": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "license": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "supplier": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "purl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "path"
+            ]
+          }
+        },
+        "include_files": {
+          "type": "boolean"
+        },
+        "application_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "cbom": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "extra_catalog_dirs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scan_scopes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false

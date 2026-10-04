@@ -364,20 +364,9 @@ class ParseCache:
 # Pipeline entry point
 # ---------------------------------------------------------------------------
 
-def run_pipeline(config: FwLensConfig, jobs: Optional[int] = None,
-                 timeout: Optional[float] = None, use_cache: Optional[bool] = None,
-                 _parse_fn=_parse_one) -> ProjectModel:
-    """
-    Full parse pipeline:
-    1.  Parse EWP, compile_commands.json (CMake/Make), or scan directory -- get all TUs
-    2.  Classify in-scope vs out-of-scope
-    3.  Parse in-scope TUs in parallel with libclang
-    4.  Register out-of-scope files as stub modules (no functions)
-    5.  Assemble ProjectModel
-
-    `jobs`, `timeout` (seconds per file, 0 disables) and `use_cache` override
-    `tool.jobs`, `tool.parse_timeout` and `tool.parse_cache` when given.
-    """
+def read_project(config: FwLensConfig):
+    """Read the project description (IAR, Keil, CDT, compilation database or directory scan) into
+    translation units. No source is parsed, so this is cheap and needs no libclang."""
     if config.project.mode == "directory":
         from fwlens.parser.dirscan import scan_directory
         console.print(f"[cyan][fwlens][/cyan] Scanning directory (no .ewp): "
@@ -405,6 +394,24 @@ def run_pipeline(config: FwLensConfig, jobs: Optional[int] = None,
         except Exception:
             pass
         ewp_result = parse_ewp(config)
+    return ewp_result
+
+
+def run_pipeline(config: FwLensConfig, jobs: Optional[int] = None,
+                 timeout: Optional[float] = None, use_cache: Optional[bool] = None,
+                 _parse_fn=_parse_one) -> ProjectModel:
+    """
+    Full parse pipeline:
+    1.  Parse EWP, compile_commands.json (CMake/Make), or scan directory -- get all TUs
+    2.  Classify in-scope vs out-of-scope
+    3.  Parse in-scope TUs in parallel with libclang
+    4.  Register out-of-scope files as stub modules (no functions)
+    5.  Assemble ProjectModel
+
+    `jobs`, `timeout` (seconds per file, 0 disables) and `use_cache` override
+    `tool.jobs`, `tool.parse_timeout` and `tool.parse_cache` when given.
+    """
+    ewp_result = read_project(config)
 
     scope_values = set(config.scope.analyse)
     in_scope  = [tu for tu in ewp_result.source_files if tu.boundary_class.value in scope_values]

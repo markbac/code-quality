@@ -10,6 +10,7 @@ Usage:
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import time
@@ -702,6 +703,9 @@ def report(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_e
         console.print(f"[cyan][fwlens][/cyan] JSON export: [bold]{config.output.exports_dir / 'fwlens_results.json'}[/bold]")
     if "sarif" in formats and not sarif_path:
         _emit_sarif(model, config, config.output.exports_dir / "fwlens.sarif")
+    if "sbom" in formats:
+        from fwlens.sbom import write_sbom
+        console.print(f"[cyan][fwlens][/cyan] SBOM        : [bold]{write_sbom(config, config.output.exports_dir / 'sbom.cdx.json')}[/bold]")
     if "plots" in formats:
         from fwlens.output.plots import generate_plots
         plots_dir = generate_plots(model, config)
@@ -743,6 +747,24 @@ def export(config_path: str, auto_stub, jobs, timeout, no_cache, sarif_path):
     if sarif_path:
         _emit_sarif(model, config, sarif_path)
     console.print(f"[cyan][fwlens][/cyan] Exports written to: [bold]{config.output.exports_dir}[/bold]")
+
+
+@cli.command(name="sbom")
+@click.option("--config", "config_path", default="config.yaml", type=_CONFIG_FILE, help="Path to config.yaml")
+@click.option("--output", "output_path", default=None, type=click.Path(),
+              help="Where to write the CycloneDX JSON (default: <exports_dir>/sbom.cdx.json).")
+def sbom_cmd(config_path, output_path):
+    """Write a Software Bill of Materials (CycloneDX 1.6 JSON) from the source tree and project file."""
+    from fwlens.config import load_config
+    from fwlens.sbom import write_sbom
+    config = load_config(Path(config_path))
+    target = Path(output_path) if output_path else config.output.exports_dir / "sbom.cdx.json"
+    written = write_sbom(config, target)
+    doc = json.loads(written.read_text(encoding="utf-8"))
+    unknown = sum(1 for c in doc["components"]
+                  if any(p["name"] == "fwlens:version-source" and p["value"] == "unknown" for p in c["properties"]))
+    console.print(f"[cyan][fwlens][/cyan] SBOM: [bold]{written}[/bold] ({len(doc['components'])} component(s), "
+                  f"{unknown} without a version)")
 
 
 def _compare_options(f):

@@ -31,6 +31,8 @@ _SECTIONS: dict[str, type] = {
     "standards": _cfg.StandardsConfig,
     "pr_check": _cfg.PRCheckConfig,
     "match": _cfg.MatchConfig,
+    "sbom": _cfg.SbomConfig,
+    "cbom": _cfg.CbomConfig,
 }
 
 # Top-level keys that are not a section: FwLensConfig fields with a direct YAML key, and
@@ -42,9 +44,10 @@ _ITEM_KEYS: dict[tuple[str, ...], type | tuple[str, ...]] = {
     ("layers",): _cfg.LayerRule,
     ("standards", "enabled"): _cfg.StandardSelection,
     ("standards", "imports"): ("tool", "path"),
+    ("sbom", "components"): _cfg.SbomComponent,
 }
 
-SUPPORTED_FORMATS = ("html", "csv", "json", "plots", "diagrams", "sarif")
+SUPPORTED_FORMATS = ("html", "csv", "json", "plots", "diagrams", "sarif", "sbom", "cbom")
 
 
 def _fields(cls: type) -> list[str]:
@@ -155,6 +158,10 @@ def json_schema() -> dict:
         "items": {"type": "object", "properties": {"tool": {"type": "string"}, "path": {"type": "string"}},
                   "additionalProperties": False},
     }
+
+    component = _section_schema(_cfg.SbomComponent)
+    component["required"] = ["name", "path"]
+    properties["sbom"]["properties"]["components"] = {"type": "array", "items": component}
 
     hints = typing.get_type_hints(_cfg.FwLensConfig)
     for key in _TOP_LEVEL_SCALARS:
