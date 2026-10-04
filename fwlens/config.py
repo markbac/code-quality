@@ -53,6 +53,7 @@ class ScopeConfig:
     sdk: list[str]
     third_party_lib: list[str]
     analyse: list[str]
+    exclude: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -378,6 +379,7 @@ def load_config(config_path: Path) -> FwLensConfig:
         sdk=scope_raw.get("sdk", ["sdk"]),
         third_party_lib=scope_raw.get("third_party_lib", ["Lib"]),
         analyse=scope_raw.get("analyse", ["first_party"]),
+        exclude=scope_raw.get("exclude", []),
     )
 
     # IAR compat defines
