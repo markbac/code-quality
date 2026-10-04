@@ -295,7 +295,12 @@ def load_config(config_path: Path) -> FwLensConfig:
     base = config_path.parent
 
     with open(config_path, encoding="utf-8") as f:
-        raw = yaml.safe_load(f) or {}
+        raw = yaml.safe_load(f)
+
+    if raw is None:
+        raw = {}
+    elif not isinstance(raw, dict):
+        raise ConfigError(f"Invalid config format in {config_path}: expected dictionary root")
 
     def resolve(p: str) -> Path:
         """Resolve path relative to config file location (for inputs like ewp, toolkit_dir)."""
