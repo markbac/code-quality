@@ -18,12 +18,31 @@ layer assignment falls back to path-based matching only.
 
 from __future__ import annotations
 
+import fnmatch
 from dataclasses import dataclass
 from pathlib import Path
 
 from fwlens.config import FwLensConfig
 from fwlens.model.project import BoundaryClass, IARGroup
 from fwlens.parser.ewp import TranslationUnit
+
+_DEFAULT_IGNORED_DIRS = {".git", "build", "__pycache__", ".cache", "node_modules", ".pytest_cache"}
+
+
+def _is_excluded(path: Path, source_dir: Path, exclude_patterns: list[str]) -> bool:
+    try:
+        rel_path = path.relative_to(source_dir).as_posix()
+    except ValueError:
+        rel_path = path.as_posix()
+
+    for part in path.parts:
+        if part in _DEFAULT_IGNORED_DIRS:
+            return True
+
+    for pattern in exclude_patterns:
+        if fnmatch.fnmatch(rel_path, pattern) or fnmatch.fnmatch(path.name, pattern):
+            return True
+    return False
 
 
 @dataclass
@@ -51,16 +70,21 @@ def _classify_boundary(path: Path, source_dir: Path, config: FwLensConfig) -> Bo
         if part in lib:
             return BoundaryClass.THIRD_PARTY_LIB
 
-    # No scope rule matched any path segment under source_dir -- default to
-    # first_party so pointing fwlens at a bare folder analyses everything.
     return BoundaryClass.FIRST_PARTY
 
 
 def scan_directory(config: FwLensConfig) -> DirScanResult:
     source_dir = config.project.source_dir
+    exclude_patterns = getattr(config.scope, "exclude", []) or []
 
-    c_files = sorted(source_dir.rglob("*.c"))
-    include_dirs = sorted({p.parent for p in source_dir.rglob("*.h")} | {source_dir})
+    c_files = [
+        p for p in sorted(source_dir.rglob("*.c"))
+        if not _is_excluded(p, source_dir, exclude_patterns)
+    ]
+    include_dirs = sorted({
+        p.parent for p in source_dir.rglob("*.h")
+        if not _is_excluded(p.parent, source_dir, exclude_patterns)
+    } | {source_dir})
 
     source_files = [
         TranslationUnit(

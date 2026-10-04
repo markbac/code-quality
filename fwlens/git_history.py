@@ -40,26 +40,33 @@ _MIN_CO_CHANGES = 3
 _MIN_COUPLING = 0.3
 
 
+def _is_shallow_repo(git_root: Path) -> bool:
+    return (git_root / ".git" / "shallow").exists()
+
+
 def _find_git_root(start: Path) -> Optional[Path]:
     try:
         result = subprocess.run(
-            ["git", "-C", str(start), "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, timeout=10,
+            ["git", "-c", "core.quotePath=false", "-C", str(start), "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10,
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
     if result.returncode != 0:
         return None
-    return Path(result.stdout.strip())
+    root = Path(result.stdout.strip())
+    if _is_shallow_repo(root):
+        console.print("[yellow][fwlens] Shallow git repository detected -- commit history metrics may be incomplete.[/yellow]")
+    return root
 
 
 def _commit_counts(git_root: Path, since: Optional[str]) -> dict[Path, int]:
     """One `git log --name-only` pass over the whole repo -> {absolute file path: commit count}."""
-    cmd = ["git", "-C", str(git_root), "log", "--name-only", "--pretty=format:", "--no-renames"]
+    cmd = ["git", "-c", "core.quotePath=false", "-C", str(git_root), "log", "--name-only", "--pretty=format:", "--no-renames"]
     if since:
         cmd += ["--since", since]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
     except (OSError, subprocess.TimeoutExpired):
         return {}
     if result.returncode != 0:
@@ -67,7 +74,7 @@ def _commit_counts(git_root: Path, since: Optional[str]) -> dict[Path, int]:
 
     counts: dict[Path, int] = {}
     for line in result.stdout.splitlines():
-        line = line.strip()
+        line = line.strip().strip('"')
         if not line:
             continue
         try:
@@ -80,12 +87,12 @@ def _commit_counts(git_root: Path, since: Optional[str]) -> dict[Path, int]:
 
 def _commits_file_lists(git_root: Path, since: Optional[str]) -> list[list[Path]]:
     """One `git log --name-only` pass -> list of per-commit absolute file path lists."""
-    cmd = ["git", "-C", str(git_root), "log", "--name-only", "--pretty=format:__FWLENS_COMMIT__",
+    cmd = ["git", "-c", "core.quotePath=false", "-C", str(git_root), "log", "--name-only", "--pretty=format:__FWLENS_COMMIT__",
            "--no-renames"]
     if since:
         cmd += ["--since", since]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
     except (OSError, subprocess.TimeoutExpired):
         return []
     if result.returncode != 0:
@@ -94,7 +101,7 @@ def _commits_file_lists(git_root: Path, since: Optional[str]) -> list[list[Path]
     commits: list[list[Path]] = []
     current: list[Path] = []
     for line in result.stdout.splitlines():
-        line = line.strip()
+        line = line.strip().strip('"')
         if line == "__FWLENS_COMMIT__":
             if current:
                 commits.append(current)
@@ -113,12 +120,12 @@ def _commits_file_lists(git_root: Path, since: Optional[str]) -> list[list[Path]
 
 def _commits_with_dates(git_root: Path, since: Optional[str]) -> list[tuple[datetime, list[Path]]]:
     """One `git log --name-only` pass -> list of (commit author date, absolute file paths)."""
-    cmd = ["git", "-C", str(git_root), "log", "--name-only",
+    cmd = ["git", "-c", "core.quotePath=false", "-C", str(git_root), "log", "--name-only",
            "--pretty=format:__FWLENS_COMMIT__%aI", "--no-renames"]
     if since:
         cmd += ["--since", since]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
     except (OSError, subprocess.TimeoutExpired):
         return []
     if result.returncode != 0:
@@ -129,7 +136,7 @@ def _commits_with_dates(git_root: Path, since: Optional[str]) -> list[tuple[date
     current_files: list[Path] = []
 
     for raw_line in result.stdout.splitlines():
-        line = raw_line.strip()
+        line = raw_line.strip().strip('"')
         if line.startswith("__FWLENS_COMMIT__"):
             if current_date is not None:
                 commits.append((current_date, current_files))
@@ -153,15 +160,13 @@ def _commits_with_dates(git_root: Path, since: Optional[str]) -> list[tuple[date
 
 
 def _commits_with_authors(git_root: Path, since: Optional[str]) -> list[tuple[str, list[Path]]]:
-    """One `git log --name-only` pass -> list of (author name, absolute file paths).
-    Shared plumbing for fwlens.ownership -- kept alongside the other _commits_with_*
-    helpers rather than in ownership.py so all raw git-log parsing stays in one place."""
-    cmd = ["git", "-C", str(git_root), "log", "--name-only",
-           "--pretty=format:__FWLENS_COMMIT__%an", "--no-renames"]
+    """One `git log --name-only` pass -> list of (author name, absolute file paths)."""
+    cmd = ["git", "-c", "core.quotePath=false", "-C", str(git_root), "log", "--use-mailmap", "--name-only",
+           "--pretty=format:__FWLENS_COMMIT__%aN", "--no-renames"]
     if since:
         cmd += ["--since", since]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
     except (OSError, subprocess.TimeoutExpired):
         return []
     if result.returncode != 0:
@@ -172,7 +177,7 @@ def _commits_with_authors(git_root: Path, since: Optional[str]) -> list[tuple[st
     current_files: list[Path] = []
 
     for raw_line in result.stdout.splitlines():
-        line = raw_line.strip()
+        line = raw_line.strip().strip('"')
         if line.startswith("__FWLENS_COMMIT__"):
             if current_author is not None:
                 commits.append((current_author, current_files))
