@@ -66,7 +66,15 @@ virtual environment automatically via `setup.ps1` if `.venv` doesn't exist yet.
 
 # Diagnose parse problems on a single file
 .\Run-FwLens.ps1 debug-parse
+
+# Software and cryptography bills of materials (CycloneDX 1.6 JSON)
+.\Run-FwLens.ps1 sbom
+.\Run-FwLens.ps1 cbom
 ```
+
+> **Note:** `Run-FwLens.ps1` looks for `fwlens_config.yaml` by default, in the working directory and
+> then next to the script. The `fwlens` command defaults to `config.yaml`. If your file is named
+> `config.yaml`, pass `-Config config.yaml` to the script.
 
 Pass `-NoClean` to skip the automatic `.pyc` cache purge (faster re-runs when no files changed):
 

@@ -5,6 +5,8 @@
 #   .\Run-FwLens.ps1 export
 #   .\Run-FwLens.ps1 diff-breach --from-json main.json --to-json feature.json
 #   .\Run-FwLens.ps1 call-graph --function sarReturnDataPacket --direction callers
+#   .\Run-FwLens.ps1 sbom
+#   .\Run-FwLens.ps1 cbom
 #   .\Run-FwLens.ps1 debug-parse
 #   .\Run-FwLens.ps1 analyze --config path\to\fwlens_config.yaml
 #
