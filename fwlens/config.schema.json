@@ -100,6 +100,18 @@
             "null"
           ]
         },
+        "uvprojx": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cproject": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "include_dirs": {
           "type": "array",
           "items": {

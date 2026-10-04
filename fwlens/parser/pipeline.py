@@ -32,7 +32,8 @@ console = Console()
 
 def _project_path(config: FwLensConfig) -> Path:
     """The .ewp path, compile_commands.json, or scanned source_dir/proj_dir."""
-    return config.project.ewp or config.project.compile_commands or config.project.source_dir or config.project.proj_dir
+    return (config.project.ewp or config.project.uvprojx or config.project.cproject
+            or config.project.compile_commands or config.project.source_dir or config.project.proj_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -386,6 +387,14 @@ def run_pipeline(config: FwLensConfig, jobs: Optional[int] = None,
         from fwlens.parser.compile_commands import parse_compile_commands
         console.print(f"[cyan][fwlens][/cyan] Parsing compilation database ([bold]{config.project.mode}[/bold])...")
         ewp_result = parse_compile_commands(config)
+    elif config.project.mode == "keil":
+        from fwlens.parser.ide_projects import parse_uvprojx
+        console.print("[cyan][fwlens][/cyan] Parsing Keil project...")
+        ewp_result = parse_uvprojx(config)
+    elif config.project.mode == "cproject":
+        from fwlens.parser.ide_projects import parse_cproject
+        console.print("[cyan][fwlens][/cyan] Parsing .cproject...")
+        ewp_result = parse_cproject(config)
     else:
         console.print("[cyan][fwlens][/cyan] Parsing EWP...")
         # Confirm which ast_walker is loaded -- catches stale .pyc issues

@@ -300,6 +300,7 @@ def doctor(config: str):
                 ("project.ewp", cfg.project.ewp), ("project.source_dir", cfg.project.source_dir),
                 ("project.compile_commands", cfg.project.compile_commands),
                 ("project.map_file", cfg.project.map_file),
+                ("project.uvprojx", cfg.project.uvprojx), ("project.cproject", cfg.project.cproject),
                 ("project.proj_dir", cfg.project.proj_dir), ("project.toolkit_dir", cfg.project.toolkit_dir),
                 ("tool.libclang_path", cfg.tool.libclang_path), ("tool.sysroot", cfg.tool.sysroot),
                 *[("tool.system_include_dirs", d) for d in cfg.tool.system_include_dirs],

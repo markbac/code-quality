@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?fileVersion 4.0.0?><cproject storage_type_id="org.eclipse.cdt.core.XmlProjectDescriptionStorage">
+  <storageModule moduleId="org.eclipse.cdt.core.settings">
+    <cconfiguration id="com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.debug.1">
+      <storageModule buildSystemId="org.eclipse.cdt.managedbuilder.core.configurationDataProvider" id="com.st.debug.1" moduleId="org.eclipse.cdt.core.settings" name="Debug">
+        <externalSettings/>
+      </storageModule>
+      <storageModule moduleId="cdtBuildSystem" version="4.0.0">
+        <configuration artifactName="${ProjName}" buildProperties="" id="com.st.debug.1" name="Debug" parent="com.st.config.exe.debug">
+          <folderInfo id="com.st.debug.1." name="/" resourcePath="">
+            <toolChain id="com.st.toolchain.1" name="MCU ARM GCC" superClass="com.st.toolchain">
+              <tool id="com.st.c.compiler.1" name="MCU GCC Compiler" superClass="com.st.c.compiler">
+                <option id="com.st.c.compiler.option.definedsymbols.1" superClass="com.st.c.compiler.option.definedsymbols" useByScannerDiscovery="false" valueType="definedSymbols">
+                  <listOptionValue builtIn="false" value="USE_HAL_DRIVER"/>
+                  <listOptionValue builtIn="false" value="STM32F407xx"/>
+                </option>
+                <option id="com.st.c.compiler.option.includepaths.1" superClass="com.st.c.compiler.option.includepaths" useByScannerDiscovery="false" valueType="includePath">
+                  <listOptionValue builtIn="false" value="../Core/Inc"/>
+                  <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/Drivers/HAL/Inc}&quot;"/>
+                  <listOptionValue builtIn="false" value="&quot;${STM32_PACK}/Include&quot;"/>
+                </option>
+              </tool>
+            </toolChain>
+          </folderInfo>
+          <sourceEntries>
+            <entry excluding="Generated" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Core"/>
+            <entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Drivers"/>
+          </sourceEntries>
+        </configuration>
+      </storageModule>
+    </cconfiguration>
+  </storageModule>
+</cproject>

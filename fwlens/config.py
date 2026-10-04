@@ -60,6 +60,8 @@ class ProjectConfig:
     source_dir: Path | None = None    # directory-mode root, glob'd for *.c
     compile_commands: Path | None = None  # path to compile_commands.json (CMake/Make)
     map_file: Path | None = None          # linker map file (IAR or GCC) for flash/RAM footprint
+    uvprojx: Path | None = None           # Keil uVision project; project.configuration names the target
+    cproject: Path | None = None          # Eclipse CDT / STM32CubeIDE .cproject; configuration names the build config
     include_dirs: list[Path] = field(default_factory=list)   # directory mode: explicit include path, in order
     include_mode: str = "all"            # directory mode: "all" header dirs | "used" (only dirs reached by #include)
 
@@ -389,13 +391,21 @@ def load_config(config_path: Path) -> FwLensConfig:
     map_file_raw = proj_raw.get("map_file")
     mode_raw = proj_raw.get("mode")
 
-    if not ewp_raw and not source_dir_raw and not compile_commands_raw and not mode_raw:
-        raise ConfigError("project.ewp, project.source_dir, or project.compile_commands must be set in config.yaml")
+    uvprojx_raw = proj_raw.get("uvprojx")
+    cproject_raw = proj_raw.get("cproject")
+
+    if not (ewp_raw or source_dir_raw or compile_commands_raw or mode_raw or uvprojx_raw or cproject_raw):
+        raise ConfigError("project.ewp, project.source_dir, or project.compile_commands must be set in "
+                          "config.yaml (or project.uvprojx / project.cproject)")
 
     if mode_raw:
         mode = mode_raw.lower()
     elif compile_commands_raw:
         mode = "compile_commands"
+    elif uvprojx_raw:
+        mode = "keil"
+    elif cproject_raw:
+        mode = "cproject"
     elif source_dir_raw:
         mode = "directory"
     else:
@@ -409,6 +419,8 @@ def load_config(config_path: Path) -> FwLensConfig:
     ewp_path = resolve(ewp_raw) if ewp_raw else None
     source_dir_path = resolve(source_dir_raw) if source_dir_raw else None
     compile_commands_path = resolve(compile_commands_raw) if compile_commands_raw else None
+    uvprojx_path = resolve(uvprojx_raw) if uvprojx_raw else None
+    cproject_path = resolve(cproject_raw) if cproject_raw else None
 
     proj_dir_raw = proj_raw.get("proj_dir")
     toolkit_dir_raw = proj_raw.get("toolkit_dir")
@@ -419,6 +431,10 @@ def load_config(config_path: Path) -> FwLensConfig:
         default_proj_dir = source_dir_path
     elif compile_commands_path:
         default_proj_dir = compile_commands_path.parent
+    elif uvprojx_path:
+        default_proj_dir = uvprojx_path.parent
+    elif cproject_path:
+        default_proj_dir = cproject_path.parent
     elif ewp_path:
         default_proj_dir = ewp_path.parent
     else:
@@ -435,6 +451,8 @@ def load_config(config_path: Path) -> FwLensConfig:
         map_file=resolve(map_file_raw) if map_file_raw else None,
         include_dirs=include_dirs,
         include_mode=include_mode,
+        uvprojx=uvprojx_path,
+        cproject=cproject_path,
     )
 
     # Scope

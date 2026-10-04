@@ -4,8 +4,11 @@
 
 - [Quick start](#quick-start)
 - [Commands](#commands)
+- [Other build systems and IDEs](#other-build-systems-and-ides)
 - [Directory mode (no .ewp)](#directory-mode-no-ewp)
 - [Baseline / breach gating](#baseline--breach-gating)
+- [Run history, trends and the ratchet](#run-history-trends-and-the-ratchet)
+- [JUnit and Markdown summaries](#junit-and-markdown-summaries)
 - [GitLab integration](#gitlab-integration)
 - [PR / MR quality check](#pr--mr-quality-check)
 - [Coding standards (MISRA C, CERT C)](#coding-standards-misra-c-cert-c)
@@ -120,6 +123,67 @@ Input paths (`project.*`, `tool.libclang_path`, `tool.sysroot`, `tool.system_inc
 `standards.*`) are relative to the directory containing `config.yaml`, so running from another
 directory gives the same result. `output.*` paths are the exception: they are relative to the
 directory you run `fwlens` from. `fwlens doctor --config config.yaml` prints every resolved path.
+
+## Other build systems and IDEs
+
+| Tool | Route | Key |
+| --- | --- | --- |
+| IAR Embedded Workbench | reader | `project.ewp` |
+| Keil uVision | reader | `project.uvprojx` |
+| STM32CubeIDE, Eclipse CDT | reader | `project.cproject` |
+| CMake, Make, Ninja | compilation database | `project.compile_commands` |
+| Zephyr (`west`) | compilation database (recipe) | `project.compile_commands` |
+| PlatformIO | compilation database (recipe) | `project.compile_commands` |
+| anything else | scan a directory | `project.source_dir` |
+
+**Keil.** `project.uvprojx: MDK-ARM/project.uvprojx`. `project.configuration` names the *target*
+(a project with one target needs no name). FWLens reads the target's `Define` and `IncludePath`
+(comma, space or semicolon separated, relative to the `.uvprojx`), and the C files of its groups
+(file type 1; assembler and C++ are skipped). Groups become FWLens groups. Whatever the target
+keeps in "Misc controls" or in the compiler itself is not read.
+
+**STM32CubeIDE / CDT.** `project.cproject: .cproject`. `project.configuration` names the build
+configuration (`Debug`, `Release`). Defines and include paths come from the C compiler options;
+`${workspace_loc:/${ProjName}/...}` is resolved, relative paths are resolved from the build
+directory, and any other `${variable}` is left out. Source files are the `*.c` files under the
+configuration's source folders minus its `excluding` entries.
+
+For both, set `scope.first_party` to the folders that hold your code (for example
+`[Core, Drivers]`), because file locations come from the IDE project, not from a fixed layout.
+
+```yaml
+project:
+  uvprojx: MDK-ARM/project.uvprojx
+  configuration: Debug
+scope:
+  first_party: [Core, Drivers]
+```
+
+**Zephyr (west).** `west build` runs CMake, which can write the database:
+
+```bash
+west build -b nrf52840dk_nrf52840 app -- -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+```
+
+Then set `project.compile_commands: build/compile_commands.json`. The generated headers
+(`-imacros .../autoconf.h`) are read from the build directory, so build first. Cross-compiler
+flags such as `-mcpu` and `-mthumb` are accepted; set `tool.target`/`tool.sysroot` if libclang
+cannot find the toolchain's headers.
+
+**PlatformIO.**
+
+```bash
+pio run -t compiledb
+```
+
+writes `compile_commands.json` in the project root (`.pio/build/<env>/` in some versions);
+point `project.compile_commands` at it. File paths in it are relative to its `directory`, which
+FWLens handles.
+
+These two are recipes, not readers. The tests use compilation databases written in the shape
+these tools produce; they do not run `west` or `pio`.
+
+---
 
 ## Directory mode (no .ewp)
 

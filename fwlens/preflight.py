@@ -54,6 +54,11 @@ def run_static_preflight(config: FwLensConfig) -> list[PreflightIssue]:
                 f"project.toolkit_dir not found: {config.project.toolkit_dir} -- "
                 "$TOOLKIT_DIR$-relative includes (e.g. CMSIS headers) will fail to resolve.",
             ))
+    elif config.project.mode in ("keil", "cproject"):
+        key, path = (("uvprojx", config.project.uvprojx) if config.project.mode == "keil"
+                     else ("cproject", config.project.cproject))
+        if not path or not path.exists():
+            issues.append(PreflightIssue("error", f"project.{key} not found: {path}"))
     else:
         if not config.project.source_dir or not config.project.source_dir.exists():
             issues.append(PreflightIssue(
