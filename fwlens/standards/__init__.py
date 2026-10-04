@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 from fwlens.baseline import Breach
 from fwlens.config import FwLensConfig, StandardSelection
@@ -17,7 +16,7 @@ from fwlens.identity import project_root, relative_posix, statement_fingerprint
 from fwlens.model.project import ProjectModel
 from fwlens.standards.deviations import Deviation, apply_deviations, load_deviations
 from fwlens.standards.engines import Hit, run_ast_engines, run_callgraph_engine
-from fwlens.standards.importers import RawFinding, map_to_rule, read_import
+from fwlens.standards.importers import map_to_rule, read_import
 from fwlens.standards.rules import Rule, RuleFileError, Standard, load_standards
 
 __all__ = ["RuleFileError", "StandardsResult", "load_standards", "run_standards", "select_rules"]

@@ -44,7 +44,6 @@ def test_bad_env_var_is_an_error(tmp_path, monkeypatch):
 
 def test_bundled_library_is_found_without_config(monkeypatch):
     monkeypatch.delenv("LIBCLANG_PATH", raising=False)
-    pytest.importorskip("clang.cindex")
     loc = locate_libclang(None)
     assert loc.source in ("bundled", "system")
 
@@ -138,10 +137,8 @@ def test_parse_health_clean_run_passes():
 
 def test_native_target_finds_system_headers(tmp_path):
     """End to end: with target native the host compiler's headers are located."""
-    import shutil
-    pytest.importorskip("clang.cindex")
-    if not shutil.which("gcc") and not shutil.which("cc") and not shutil.which("clang"):
-        pytest.skip("no host C compiler to ask for include directories")
+    import cparse
+    cparse.require_host_compiler()
     from test_p0_regressions import _config
 
     from fwlens.config import ToolConfig

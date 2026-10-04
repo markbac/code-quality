@@ -72,4 +72,50 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F"]
-ignore = ["E402", "E501", "E701", "E722", "E731", "E741", "F401", "F821", "F841", "W292", "W293"]
+# Style rules only. Undefined names (F821), unused imports and variables (F401, F841) and
+# bare excepts (E722) are errors: ignoring F821 hid the NameError in the dependency SVG.
+ignore = ["E402", "E501", "E701", "E731", "E741"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+files = ["fwlens", "main.py"]
+
+# Baseline: these modules had type errors when mypy was added to CI (#69). New modules are
+# checked in full. Remove a module from this list once it is clean; do not add to it.
+[[tool.mypy.overrides]]
+module = [
+    "fwlens.baseline",
+    "fwlens.cli.commands",
+    "fwlens.git_history",
+    "fwlens.graph.engines",
+    "fwlens.header_checks",
+    "fwlens.identity",
+    "fwlens.metrics.aggregates",
+    "fwlens.output.console",
+    "fwlens.output.diagrams",
+    "fwlens.output.exports",
+    "fwlens.output.html_report",
+    "fwlens.output.plots",
+    "fwlens.output.sarif",
+    "fwlens.ownership",
+    "fwlens.parser.ast_walker",
+    "fwlens.parser.dirscan",
+    "fwlens.parser.ewp",
+    "fwlens.parser.pipeline",
+    "fwlens.pr_check",
+    "fwlens.reliability",
+    "fwlens.risk",
+    "fwlens.rtos_analysis",
+    "fwlens.standards",
+    "fwlens.stats.distributions",
+]
+ignore_errors = true
+
+[tool.coverage.run]
+source = ["fwlens"]
+
+[tool.coverage.report]
+# Modest floor, raised as tests are added. Code that runs in parser worker processes is
+# under-reported (parser/ast_walker.py in particular).
+fail_under = 50

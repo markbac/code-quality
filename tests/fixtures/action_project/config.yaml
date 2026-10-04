@@ -1,0 +1,5 @@
+# Fixture for CI: used by the package and action jobs in .github/workflows/ci.yml.
+project:
+  source_dir: src
+tool:
+  target: native

@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
+import cparse
 import main as fwlens_main
 from fwlens.config import FwLensConfig, OutputConfig, ProjectConfig, ScopeConfig, ThresholdConfig, ToolConfig
 
@@ -55,22 +56,7 @@ def test_github_annotations_flag_reaches_baseline_handler(command, tmp_path, mon
 
 # --- #46: complexity must not be inflated by chained or macro operators --------
 
-def _parse_functions(tmp_path: Path, source: str) -> dict:
-    cindex = pytest.importorskip("clang.cindex")
-    from fwlens.parser.pipeline import run_pipeline
-
-    lib = next((p for p in (Path(cindex.__file__).parent / "native").glob("libclang*") if p.is_file()), None)
-    if lib is None:
-        pytest.skip("no bundled libclang found")
-    (tmp_path / "a.c").write_text(source)
-    (tmp_path / "config.yaml").write_text("project:\n  source_dir: .\n")
-    config = _config(tmp_path)
-    config.tool = ToolConfig(libclang_path=lib)
-    try:
-        model = run_pipeline(config)
-    except (SystemExit, Exception) as exc:  # libclang not usable in this environment
-        pytest.skip(f"libclang unavailable: {exc}")
-    return {f.name: f for f in model.first_party_functions()}
+_parse_functions = cparse.parse_functions
 
 
 def test_cyclomatic_complexity_counts_each_logical_operator_once(tmp_path):
@@ -80,11 +66,30 @@ int chain(int a, int b, int c, int d) { return a && b && c && d; }
 int mixed(int a, int b, int c) { if ((a || b) && c) { return 1; } return 0; }
 int macro_bits(int a, int b) { return MK(a, b); }
 """)
-    if not funcs:
-        pytest.skip("no functions parsed (libclang headers unavailable)")
     assert funcs["chain"].cyclomatic_complexity == 4      # 1 + three &&
     assert funcs["mixed"].cyclomatic_complexity == 4      # 1 + if + || + &&
     assert funcs["macro_bits"].cyclomatic_complexity == 1  # bitwise macro adds nothing
+
+
+def test_issue_46_reproduction(tmp_path):
+    """The literal reproduction from #46: a macro, 30 padding functions, then the function under test."""
+    pads = "\n".join(
+        f"int pad{i}(int a, int b, int c) {{ if (a && b && c) {{ return 1; }} if (a || b) {{ return 2; }} return 0; }}"
+        for i in range(30))
+    funcs = _parse_functions(tmp_path, f"""
+#define MK(a,b) (((a) << 20) | ((b) << 10))
+
+{pads}
+
+int target(int x, int y) {{
+  int r = MK(x, y);
+  if (x) {{ r++; }}
+  return r;
+}}
+""")
+    assert funcs["target"].cyclomatic_complexity == 2
+    assert funcs["pad0"].cyclomatic_complexity == 6
+    assert funcs["pad29"].cyclomatic_complexity == 6
 
 
 # --- #47: every Overview/cheat-sheet div must be balanced ----------------------

@@ -4,7 +4,6 @@ compliance matrix.
 """
 
 import json
-import shutil
 from datetime import date
 from pathlib import Path
 
@@ -137,9 +136,8 @@ out:
 @pytest.fixture
 def parsed(tmp_path):
     """A parsed model for C_SOURCE using the bundled libclang and the host headers."""
-    pytest.importorskip("clang.cindex")
-    if not any(shutil.which(c) for c in ("gcc", "cc", "clang")):
-        pytest.skip("no host compiler for system headers")
+    import cparse
+    cparse.require_host_compiler()
     from test_p0_regressions import _config
 
     from fwlens.parser.pipeline import run_pipeline
@@ -149,8 +147,7 @@ def parsed(tmp_path):
     config = _config(tmp_path)
     config.tool = ToolConfig(libclang_path=None, target="native")
     model = run_pipeline(config)
-    if model.parse_stats["parsed_ok"] != 1:
-        pytest.skip("libclang could not parse the fixture")
+    assert model.parse_stats["parsed_ok"] == 1, "libclang could not parse the fixture"
     return model, config, tmp_path
 
 

@@ -324,6 +324,30 @@ jobs:
 Pull requests from forks get a read-only token. The post then fails with a warning, the
 comment is written to the job summary instead, and the result is still shown.
 
+### The composite action
+
+The repository ships a composite action that installs FWLens from the action's own checkout
+(so `uses: markbac/code-quality@<tag or sha>` pins the version you run), then runs
+`fwlens analyze` with inline annotations:
+
+```yaml
+- uses: actions/checkout@v4
+  with: { fetch-depth: 0 }
+- uses: markbac/code-quality@v0.29.0
+  with:
+    config: config.yaml          # relative to working-directory
+    working-directory: firmware  # default "."
+    baseline: baseline.json      # breaches are only gated when a baseline is given
+    fail-on-breach: "true"
+    python-version: "3.12"
+    extra-args: "--jobs 2"       # split on spaces, never passed through a shell
+    upload-report: "true"        # also builds the HTML report and uploads it as an artifact
+```
+
+Inputs reach the shell as environment variables, not as pasted text. `pip install fwlens` in
+your own workflow works equally well; the pre-commit hook analyses the whole project on each
+commit.
+
 ### GitLab merge requests
 
 ```yaml

@@ -6,7 +6,11 @@ skip. If parsing is broken the test must fail, not silently disappear (#70).
 
 from __future__ import annotations
 
+import os
+import shutil
 from pathlib import Path
+
+import pytest
 
 from fwlens.config import FwLensConfig, OutputConfig, ProjectConfig, ScopeConfig, ThresholdConfig, ToolConfig
 from fwlens.parser.pipeline import run_pipeline
@@ -81,3 +85,12 @@ def echo_config_parse(tu_dict, config):
 def dying_worker_main(conn, config, parse_fn):
     import os
     os._exit(5)
+
+
+def require_host_compiler() -> None:
+    """Tests that need the host C compiler's headers. Mandatory in CI, skipped elsewhere."""
+    if any(shutil.which(c) for c in ("gcc", "cc", "clang")):
+        return
+    if os.environ.get("FWLENS_REQUIRE_LIBCLANG"):
+        pytest.fail("a host C compiler is required here (FWLENS_REQUIRE_LIBCLANG is set)")
+    pytest.skip("no host C compiler to ask for include directories")
