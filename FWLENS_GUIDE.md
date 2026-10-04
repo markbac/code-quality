@@ -1801,6 +1801,20 @@ scope. Functions called from SDK or Lib code (which is registered as a boundary 
 parsed) will show fan_in = 0 even if they are heavily used. Fan-in is therefore a
 *lower bound* on actual usage.
 
+### Operators written inside macro bodies
+
+Cyclomatic and cognitive complexity count `&&` and `||`, and write tracking recognises `=`,
+`++` and `--`, from the operator token written at the use site. An operator that appears only
+inside a macro body (for example `#define BOTH(a, b) ((a) && (b))`) is not visible there and is
+not counted, so macro-heavy code can under-report complexity and global writes. Earlier
+versions read the whole token range from the macro definition to the use site, which
+over-reported and attributed unrelated code to the macro.
+
+On littlefs `lfs.c` and `lfs_util.c` (current master, `tool.target: native`) the complexity of
+`lfs_dir_find` is 23, `lfs_file_flushedwrite` 16 and `lfs_dir_commit` 4, unchanged by this
+change; parsing took 41 s before and 4.6 s after, mostly from removing the repeated
+whole-subtree token scans.
+
 ### Halstead metrics vs lizard/ccccc
 
 fwlens uses AST cursor kinds for Halstead collection rather than lexical token scanning.

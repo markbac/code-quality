@@ -114,11 +114,15 @@ def _worker_main(conn, config: FwLensConfig, parse_fn) -> None:
         conn.send(parse_fn(tu_dict, config))
 
 
+_MAX_STARTUP_FAILURES = 3
+
+
 class _Slot:
     def __init__(self):
         self.proc = None
         self.conn = None
         self.ready = False
+        self.dead = False
         self.task: Optional[dict] = None
         self.deadline: Optional[float] = None
 
@@ -176,22 +180,24 @@ def _parse_parallel(tu_dicts: list[dict], config: FwLensConfig, workers: int,
     for s in slots:
         _start(s, ctx, config, parse_fn)
 
+    startup_failures = 0
     try:
         outstanding = len(tu_dicts)
         while outstanding:
             for s in slots:
-                if s.ready and s.task is None and pending:
+                if not s.dead and s.ready and s.task is None and pending:
                     s.task = pending.popleft()
                     s.deadline = time.monotonic() + timeout if timeout else None
                     s.conn.send(s.task)
 
             now = time.monotonic()
-            deadlines = [s.deadline - now for s in slots if s.deadline is not None]
+            live = [s for s in slots if not s.dead]
+            deadlines = [s.deadline - now for s in live if s.deadline is not None]
             wait_for = max(0.0, min(deadlines)) if deadlines else None
-            wait([s.conn for s in slots] + [s.proc.sentinel for s in slots], timeout=wait_for)
+            wait([s.conn for s in live] + [s.proc.sentinel for s in live], timeout=wait_for)
 
             now = time.monotonic()
-            for s in slots:
+            for s in live:
                 msg, crashed = None, False
                 try:
                     if s.conn.poll():
@@ -201,6 +207,7 @@ def _parse_parallel(tu_dicts: list[dict], config: FwLensConfig, workers: int,
 
                 if msg == "ready":
                     s.ready = True
+                    startup_failures = 0
                     continue
                 if msg is not None:
                     task, s.task, s.deadline = s.task, None, None
@@ -223,7 +230,23 @@ def _parse_parallel(tu_dicts: list[dict], config: FwLensConfig, workers: int,
                 # The worker exited. If it was parsing something, that file is the cause.
                 task = s.task
                 code = s.proc.exitcode
+                was_ready = s.ready
                 _stop(s, kill=True)
+                if not was_ready:
+                    # Died before it could even accept work (import error, bad environment).
+                    # Retrying forever would hang the run, so give up after a few attempts.
+                    startup_failures += 1
+                    if startup_failures > _MAX_STARTUP_FAILURES:
+                        for t in list(pending):
+                            outstanding -= 1
+                            yield t, _failure_result(
+                                t, f"WorkerCrash: parser processes cannot start (exit code {code})",
+                                "A worker exited before it was ready. Check that fwlens and libclang "
+                                "import correctly in this environment.")
+                        pending.clear()
+                    if startup_failures > _MAX_STARTUP_FAILURES:
+                        s.dead = True
+                        continue
                 _start(s, ctx, config, parse_fn)
                 if task is not None:
                     outstanding -= 1

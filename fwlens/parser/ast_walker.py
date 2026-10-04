@@ -77,6 +77,32 @@ _ISR_EXACT_NAMES = frozenset([
 ])
 
 
+def _extent_tokens(cursor) -> list[str]:
+    """
+    Token spellings of a cursor's own extent, read from the file at the written location.
+
+    cursor.get_tokens() on a node produced by a macro expansion returns the tokens from the
+    macro definition to the use site (#46). Reading the raw range between the extent's
+    offsets gives what is written at the use site instead.
+    """
+    from clang import cindex as ci
+    try:
+        ext = cursor.extent
+        file = ext.start.file
+        if file is None or ext.end.file is None or ext.end.file.name != file.name:
+            return []
+        start, end = ext.start.offset, ext.end.offset
+        if not 0 <= start < end:
+            return []
+        tu = cursor.translation_unit
+        rng = ci.SourceRange.from_locations(ci.SourceLocation.from_offset(tu, file, start),
+                                            ci.SourceLocation.from_offset(tu, file, end))
+        return [t.spelling for t in ci.TokenGroup.get_tokens(tu, rng)
+                if t.location.offset < end and t.location.file and t.location.file.name == file.name]
+    except Exception:
+        return []
+
+
 def _is_isr(cursor) -> bool:
     """Heuristic ISR detection: IAR attributes, _IRQHandler suffix, or a standard
     ARM Cortex-M exception/fault handler name."""
@@ -104,7 +130,7 @@ def _token_text_toplevel(ci_module, arg_cursor) -> str:
     rather than shared to avoid touching the already-working per-function path.
     """
     try:
-        direct = "".join(t.spelling for t in arg_cursor.get_tokens())
+        direct = "".join(_extent_tokens(arg_cursor))
     except Exception:
         direct = ""
     if direct:
@@ -124,7 +150,7 @@ def _token_text_toplevel(ci_module, arg_cursor) -> str:
             best[0] = ref.spelling
             return
         try:
-            toks = "".join(t.spelling for t in c.get_tokens())
+            toks = "".join(_extent_tokens(c))
         except Exception:
             toks = ""
         if toks:
@@ -188,7 +214,7 @@ def _extract_task_table_entries(cursor, type_name: str, ci_module) -> list[dict]
                     # and strip the leading "field=" textually as a last resort, rather
                     # than silently losing the value.
                     try:
-                        pair_text = "".join(t.spelling for t in pair.get_tokens())
+                        pair_text = "".join(_extent_tokens(pair))
                     except Exception:
                         pair_text = ""
                     prefix = f".{field_name}="
@@ -333,7 +359,7 @@ class _FunctionVisitor:
         just what's directly visible in the AST.
         """
         try:
-            direct = "".join(t.spelling for t in arg_cursor.get_tokens())
+            direct = "".join(_extent_tokens(arg_cursor))
         except Exception:
             direct = ""
         if direct:
@@ -353,7 +379,7 @@ class _FunctionVisitor:
                 best[0] = ref.spelling
                 return
             try:
-                toks = "".join(t.spelling for t in c.get_tokens())
+                toks = "".join(_extent_tokens(c))
             except Exception:
                 toks = ""
             if toks:
@@ -385,13 +411,8 @@ class _FunctionVisitor:
                 return parent.spelling or ""
             if binop_kind and parent.kind == binop_kind:
                 kids = list(parent.get_children())
-                if len(kids) == 2 and kids[1] == cursor:
-                    try:
-                        toks = [t.spelling for t in parent.get_tokens()]
-                    except Exception:
-                        toks = []
-                    if "=" in toks:
-                        return self._arg_text(kids[0]).strip()
+                if len(kids) == 2 and kids[1] == cursor and self._own_operator(parent) == "=":
+                    return self._arg_text(kids[0]).strip()
         except Exception:
             pass
         return ""
@@ -423,11 +444,7 @@ class _FunctionVisitor:
         def scan_stmt(cursor):
             k = cursor.kind
             if k in self._binary_op:
-                try:
-                    toks = [t.spelling for t in cursor.get_tokens()]
-                except Exception:
-                    toks = []
-                if "=" in toks:
+                if self._own_operator(cursor) == "=":
                     kids = list(cursor.get_children())
                     if len(kids) >= 2:
                         lhs_text = self._arg_text(kids[0]).strip()
@@ -468,22 +485,65 @@ class _FunctionVisitor:
         }
 
     @staticmethod
-    def _own_operator(cursor) -> str:
+    def _gap_tokens(cursor, start_off: int, end_off: int, file) -> list[str]:
+        """
+        Token spellings between two raw offsets of one file.
+
+        cursor.get_tokens() tokenises the whole extent, so asking it about each operator
+        rescans every enclosing subtree (quadratic), and for a node produced by a macro
+        expansion it returns the tokens from the macro definition to the use site (#46).
+        Tokenising only the small gap between two operands avoids both. Returns [] when
+        the offsets are not an ordered pair in one file, which is what a macro-expanded
+        node looks like.
+        """
+        from clang import cindex as ci
+        if file is None or not (0 <= start_off < end_off):
+            return []
+        try:
+            tu = cursor.translation_unit
+            rng = ci.SourceRange.from_locations(
+                ci.SourceLocation.from_offset(tu, file, start_off),
+                ci.SourceLocation.from_offset(tu, file, end_off))
+            return [t.spelling for t in ci.TokenGroup.get_tokens(tu, rng)
+                    if t.location.offset < end_off and t.location.file
+                    and t.location.file.name == file.name]
+        except Exception:
+            return []
+
+    @classmethod
+    def _own_operator(cls, cursor) -> str:
         """Spelling of a BinaryOperator's own operator token, or "" if unknown.
 
-        The operator is the first token after the left operand's extent. Only
-        this node's operator is returned (not those of nested operands), and
-        an operator that comes from a macro expansion yields "" because the
-        cursor's tokens are then the macro call, not the expanded operator.
+        The operator is the first token between the two operands. Only this node's
+        operator is returned (not those of nested operands). An operator written inside a
+        macro body is not visible at the use site and yields "" (a known limitation,
+        see "Known limitations" in the guide).
         """
         try:
             kids = list(cursor.get_children())
             if len(kids) != 2:
                 return ""
-            lhs_end = kids[0].extent.end.offset
-            for t in cursor.get_tokens():
-                if t.location.offset >= lhs_end and t.spelling != ")":
-                    return t.spelling
+            lhs_end, rhs_start = kids[0].extent.end, kids[1].extent.start
+            for tok in cls._gap_tokens(cursor, lhs_end.offset, rhs_start.offset, lhs_end.file):
+                if tok != ")":
+                    return tok
+        except Exception:
+            pass
+        return ""
+
+    @classmethod
+    def _own_unary_operator(cls, cursor) -> str:
+        """Spelling of a UnaryOperator's own operator token (prefix or postfix), or ""."""
+        try:
+            kids = list(cursor.get_children())
+            if len(kids) != 1:
+                return ""
+            ext, operand = cursor.extent, kids[0].extent
+            toks = (cls._gap_tokens(cursor, ext.start.offset, operand.start.offset, ext.start.file)
+                    or cls._gap_tokens(cursor, operand.end.offset, ext.end.offset, ext.start.file))
+            for tok in toks:
+                if tok not in ("(", ")"):
+                    return tok
         except Exception:
             pass
         return ""
@@ -511,21 +571,15 @@ class _FunctionVisitor:
             nesting += 1
 
         if ck in self._binary_op:
-            # Detect && and || for CC -- token scan for this narrow case only
+            # && and || count toward CC, and a plain `=` is a write. Both are read from
+            # this node's own operator token (see _own_operator), never from the tokens
+            # of the whole subtree (issue #46, #72).
             try:
-                tokens = [t.spelling for t in cursor.get_tokens()]
-                # Count only THIS node's own operator. A BinaryOperator's
-                # location is its operator token, so look the token up there.
-                # Scanning the whole subtree double-counted chained operands,
-                # and for operators written inside a macro the extent covers
-                # the macro call, which inflated CC (issue #46).
-                if self._own_operator(cursor) in ("&&", "||"):
+                op = self._own_operator(cursor)
+                if op in ("&&", "||"):
                     self.cc += 1
                     self.cognitive += 1
-                # A plain assignment (=) always tokenises as a standalone '='
-                # token -- comparisons tokenise as '==', '<=', '>=', '!=', so
-                # this doesn't false-positive on those.
-                if "=" in tokens:
+                if op == "=":
                     children = list(cursor.get_children())
                     if children:
                         self._record_write_target(children[0])
@@ -546,8 +600,7 @@ class _FunctionVisitor:
 
         if ck in self._unary_op:
             try:
-                tokens = [t.spelling for t in cursor.get_tokens()]
-                if "++" in tokens or "--" in tokens:
+                if self._own_unary_operator(cursor) in ("++", "--"):
                     children = list(cursor.get_children())
                     if children:
                         self._record_write_target(children[0])

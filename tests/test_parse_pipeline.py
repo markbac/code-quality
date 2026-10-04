@@ -100,3 +100,13 @@ def test_cli_accepts_jobs_timeout_no_cache(command, tmp_path, monkeypatch):
                                                   "--jobs", "1", "--timeout", "5", "--no-cache"])
     assert result.exit_code == 0, result.output
     assert (seen["jobs"], seen["timeout"], seen["no_cache"]) == (1, 5.0, True)
+
+
+def test_workers_that_cannot_start_fail_the_run_instead_of_hanging(tmp_path, monkeypatch):
+    _write(tmp_path, {"a.c": GOOD, "b.c": GOOD})
+    monkeypatch.setattr("fwlens.parser.pipeline._worker_main", cparse.dying_worker_main)
+    start = time.monotonic()
+    model = run_pipeline(cparse.make_config(tmp_path), jobs=2, use_cache=False)
+    assert time.monotonic() - start < 60
+    assert model.parse_stats["parsed_ok"] == 0
+    assert model.parse_stats["failed"] == 2

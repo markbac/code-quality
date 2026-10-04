@@ -76,3 +76,8 @@ def echo_config_parse(tu_dict, config):
     """Report what the worker's config says, as the parse error text."""
     from fwlens.parser.pipeline import _failure_result
     return _failure_result(tu_dict, "Echo: " + ",".join(config.tool.clang_args) + "|" + config.tool.target, "")
+
+
+def dying_worker_main(conn, config, parse_fn):
+    import os
+    os._exit(5)
