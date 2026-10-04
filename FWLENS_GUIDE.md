@@ -85,6 +85,14 @@ Pass `-NoClean` to skip the automatic `.pyc` cache purge (faster re-runs when no
 `--accept-all`, `--accept-id`, and `--prune` -- see [Baseline / breach gating](#baseline--breach-gating).
 `analyze`, `report`, and `export` all accept `--auto-stub` -- see
 [Project-wide auto-stub](#project-wide-auto-stub).
+
+`analyze`, `report`, and `export` also accept `--jobs/-j N` (parallel parse workers),
+`--timeout SECONDS` (a file whose parse takes longer is killed and reported as a `timeout`
+parse error; `0` disables the limit) and `--no-cache`. The same settings are available as
+`tool.jobs`, `tool.parse_timeout` and `tool.parse_cache`. Parse results are cached under
+`output.cache_dir`, keyed by the source file, every header it includes, its defines and include
+paths, the `tool.*` settings, the libclang library and the FWLens version. Files that parsed with
+fatal or error diagnostics are never cached.
 `report` also writes standalone PNG plots when `plots` is listed in `output.formats` -- see
 [Standalone plots](#standalone-plots) -- and Mermaid/SVG diagrams when `diagrams` is listed --
 see [Architecture & call-graph diagrams](#architecture--call-graph-diagrams).

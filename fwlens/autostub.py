@@ -319,11 +319,9 @@ def _write_function_stubs(stubs_dir: Path, functions: set[str], console: Console
 def _apply_arch_defines(config: FwLensConfig, arch_needed: set[str], stubs_dir: Path, console: Console) -> bool:
     """
     Add missing arch defines two ways: appended to config.iar_compat_defines in memory
-    (visible to anything in *this* process reading it directly), and written to
-    iar_stubs/_auto_detected_defines.txt (visible to the parse subprocess workers, which
-    only receive a config *path* and independently call load_config() fresh -- see the
-    comment in fwlens.config.load_config for why the in-memory mutation alone does
-    nothing for them). Neither is ever written to config.yaml itself. Returns True if
+    (the parse workers receive this live config object), and written to
+    iar_stubs/_auto_detected_defines.txt so that later runs pick them up through
+    load_config. Neither is ever written to config.yaml itself. Returns True if
     anything new was added.
 
     Defines EVERY candidate macro named in the message, not just one guessed as "most

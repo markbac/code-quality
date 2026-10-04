@@ -51,3 +51,28 @@ def parse_model(root: Path, sources: dict[str, str] | str):
 
 def parse_functions(root: Path, sources: dict[str, str] | str) -> dict:
     return {f.name: f for f in parse_model(root, sources).first_party_functions()}
+
+
+# Parse functions used to exercise the worker pool. They live here, not in a test module, so the
+# spawned worker processes can import them.
+
+def slow_parse(tu_dict, config):
+    import time
+    from fwlens.parser.pipeline import _parse_one
+    if "slow" in tu_dict["path"]:
+        time.sleep(120)
+    return _parse_one(tu_dict, config)
+
+
+def crashing_parse(tu_dict, config):
+    import os
+    from fwlens.parser.pipeline import _parse_one
+    if "boom" in tu_dict["path"]:
+        os._exit(3)
+    return _parse_one(tu_dict, config)
+
+
+def echo_config_parse(tu_dict, config):
+    """Report what the worker's config says, as the parse error text."""
+    from fwlens.parser.pipeline import _failure_result
+    return _failure_result(tu_dict, "Echo: " + ",".join(config.tool.clang_args) + "|" + config.tool.target, "")

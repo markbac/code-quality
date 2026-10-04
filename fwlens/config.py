@@ -31,6 +31,12 @@ class ToolConfig:
     # Fraction of in-scope files allowed to have fatal/error diagnostics before
     # --fail-on-parse-error fails the run (0.0 = none allowed).
     parse_error_threshold: float = 0.0
+    # Parallel parse workers (0 = number of CPUs minus one).
+    jobs: int = 0
+    # Seconds allowed per translation unit before its worker is killed (0 = no limit).
+    parse_timeout: float = 120.0
+    # Reuse per-file parse results from output.cache_dir when nothing relevant changed.
+    parse_cache: bool = True
 
 
 @dataclass
@@ -319,6 +325,9 @@ def load_config(config_path: Path) -> FwLensConfig:
         clang_args=[str(a) for a in tool_raw.get("clang_args", []) or []],
         auto_detect_includes=bool(tool_raw.get("auto_detect_includes", True)),
         parse_error_threshold=float(tool_raw.get("parse_error_threshold", 0.0)),
+        jobs=int(tool_raw.get("jobs", 0)),
+        parse_timeout=float(tool_raw.get("parse_timeout", 120.0)),
+        parse_cache=bool(tool_raw.get("parse_cache", True)),
     )
 
     # Project
@@ -383,15 +392,10 @@ def load_config(config_path: Path) -> FwLensConfig:
 
     config_yaml_macro_names = {macro_name(d) for d in iar_compat}
 
-    # Arch defines auto-detected by `--auto-stub` (fwlens.autostub) get written to a
-    # side-channel file rather than config.yaml itself. This has to be read back here,
-    # in load_config, rather than left as an in-memory mutation on the FwLensConfig
-    # object returned by an earlier load_config call: parsing runs in subprocess workers
-    # (fwlens.parser.pipeline._worker) that only receive a config *path*, not the live
-    # Python object, and independently call load_config(that path) fresh in each
-    # subprocess -- an in-memory-only mutation in the main process is invisible to them.
-    # Reading a side-channel file here means every load_config call, in any process,
-    # picks it up the same way.
+    # Arch defines auto-detected by `--auto-stub` (fwlens.autostub) are also written to a
+    # side-channel file so they persist: later runs, and `debug-parse`, load them here
+    # without --auto-stub. Within a run the parse workers receive the live config object,
+    # so --auto-stub's in-memory additions are visible to them directly.
     #
     # Dedup is by MACRO NAME, not exact line, and config.yaml always wins: if the
     # person has explicitly set a value for a macro in config.yaml (e.g. correcting

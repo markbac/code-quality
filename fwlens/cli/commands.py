@@ -31,7 +31,7 @@ def _load_config_safe(config_path: Path):
         sys.exit(1)
 
 
-def _run_pipeline(config_path: Path, auto_stub: bool = False):
+def _run_pipeline(config_path: Path, auto_stub: bool = False, jobs=None, timeout=None, no_cache: bool = False):
     from fwlens.clones import detect_clones
     from fwlens.complexity_trend import compute_complexity_trends
     from fwlens.cost_benefit import compute_cost_benefit
@@ -73,7 +73,7 @@ def _run_pipeline(config_path: Path, auto_stub: bool = False):
             run_auto_stub(config, console)
 
     t0 = time.perf_counter()
-    model = run_pipeline(config)
+    model = run_pipeline(config, jobs=jobs, timeout=timeout, use_cache=False if no_cache else None)
     from fwlens.diagnostic_clusters import compute_diagnostic_clusters
     model.diagnostic_clusters = compute_diagnostic_clusters(model)
     run_aggregation(model, config)
@@ -400,6 +400,18 @@ def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
     return bool(fail_on_breach and new_or_worsened)
 
 
+def _parse_options(f):
+    f = click.option("--jobs", "-j", "jobs", type=click.IntRange(min=1), default=None,
+                      help="Parallel parse workers (default: tool.jobs, else CPUs minus one).")(f)
+    f = click.option("--timeout", "timeout", type=click.FloatRange(min=0), default=None,
+                      help="Seconds allowed per source file before its parse is killed and "
+                           "reported as a 'timeout' parse error (0 = no limit; default: "
+                           "tool.parse_timeout).")(f)
+    f = click.option("--no-cache", "no_cache", is_flag=True, default=False,
+                      help="Ignore and do not update the per-file parse cache.")(f)
+    return f
+
+
 def _auto_stub_option(f):
     f = click.option("--auto-stub", "auto_stub", is_flag=True, default=False,
                       help="Before parsing, aggregate missing-header/undeclared-function "
@@ -413,17 +425,18 @@ def _auto_stub_option(f):
 @click.option("--config", "config_path", default="config.yaml",
               type=click.Path(exists=True), help="Path to config.yaml")
 @_auto_stub_option
+@_parse_options
 @_parse_error_option
 @_gitlab_option
 @_findings_option
 @_baseline_options
-def analyze(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fail_on_breach,
+def analyze(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_error, baseline_path, fail_on_breach,
             update_baseline_flag, accept_all, accept_ids, prune, github_annotations,
             gitlab_codequality, findings_json):
     """Run analysis and print breach summary to terminal."""
     _print_header("analyze", config_path)
     from fwlens.output.console import print_summary
-    model, config = _run_pipeline(Path(config_path), auto_stub=auto_stub)
+    model, config = _run_pipeline(Path(config_path), auto_stub=auto_stub, jobs=jobs, timeout=timeout, no_cache=no_cache)
     print_summary(model, config)
 
     should_fail = _handle_baseline(
@@ -442,11 +455,12 @@ def analyze(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fai
 @click.option("--config", "config_path", default="config.yaml",
               type=click.Path(exists=True), help="Path to config.yaml")
 @_auto_stub_option
+@_parse_options
 @_parse_error_option
 @_gitlab_option
 @_findings_option
 @_baseline_options
-def report(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fail_on_breach,
+def report(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_error, baseline_path, fail_on_breach,
            update_baseline_flag, accept_all, accept_ids, prune, github_annotations,
            gitlab_codequality, findings_json):
     """Run analysis and generate HTML report + exports."""
@@ -454,7 +468,7 @@ def report(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fail
     from fwlens.output.exports import export_csv, export_json
     from fwlens.output.html_report import generate_html_report
 
-    model, config = _run_pipeline(Path(config_path), auto_stub=auto_stub)
+    model, config = _run_pipeline(Path(config_path), auto_stub=auto_stub, jobs=jobs, timeout=timeout, no_cache=no_cache)
     print_summary(model, config)
 
     formats = config.output.formats
@@ -494,10 +508,11 @@ def report(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fail
 @click.option("--config", "config_path", default="config.yaml",
               type=click.Path(exists=True), help="Path to config.yaml")
 @_auto_stub_option
-def export(config_path: str, auto_stub):
+@_parse_options
+def export(config_path: str, auto_stub, jobs, timeout, no_cache):
     """Run analysis and export CSV + JSON only (no HTML report)."""
     from fwlens.output.exports import export_csv, export_json
-    model, config = _run_pipeline(Path(config_path), auto_stub=auto_stub)
+    model, config = _run_pipeline(Path(config_path), auto_stub=auto_stub, jobs=jobs, timeout=timeout, no_cache=no_cache)
     export_csv(model, config)
     export_json(model, config)
     console.print(f"[cyan][fwlens][/cyan] Exports written to: [bold]{config.output.exports_dir}[/bold]")

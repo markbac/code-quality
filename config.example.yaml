@@ -19,6 +19,9 @@ tool:
   # clang_args: ["-std=c11"]
   # auto_detect_includes: true            # ask the compiler where its headers are
   # parse_error_threshold: 0.0            # used by --fail-on-parse-error
+  # jobs: 0                               # parse workers (0 = CPUs minus one); --jobs/-j overrides
+  # parse_timeout: 120                    # seconds per source file, 0 = no limit; --timeout overrides
+  # parse_cache: true                     # reuse unchanged files from output.cache_dir; --no-cache disables
 
 # Project settings
   # --- Option A: IAR Embedded Workbench (.ewp) ---
