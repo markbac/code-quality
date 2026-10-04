@@ -193,14 +193,14 @@ def run_pipeline(config: FwLensConfig, jobs: Optional[int] = None) -> ProjectMod
                 for tu_dict in tu_dicts
             }
             for future in as_completed(futures):
+                tu_dict = futures[future]
                 try:
-                    result = future.result()
+                    result = future.result(timeout=60)
                 except Exception as e:
-                    tu_dict = futures[future]
                     parse_errors.append({
                         "file":       tu_dict.get("path", "?"),
                         "short":      Path(tu_dict.get("path", "?")).name,
-                        "error_type": "future-exception",
+                        "error_type": "timeout" if isinstance(e, TimeoutError) else "future-exception",
                         "first_line": f"{type(e).__name__}: {e}",
                         "full":       traceback.format_exc(),
                     })
