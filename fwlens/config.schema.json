@@ -1,0 +1,444 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/markbac/code-quality/main/fwlens/config.schema.json",
+  "title": "FWLens config.yaml",
+  "type": "object",
+  "properties": {
+    "tool": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "libclang_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target": {
+          "type": "string"
+        },
+        "sysroot": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "system_include_dirs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "clang_args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "auto_detect_includes": {
+          "type": "boolean"
+        },
+        "parse_error_threshold": {
+          "type": "number"
+        },
+        "jobs": {
+          "type": "integer"
+        },
+        "parse_timeout": {
+          "type": "number"
+        },
+        "parse_cache": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "project": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "ewp": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "configuration": {
+          "type": "string"
+        },
+        "proj_dir": {
+          "type": "string"
+        },
+        "toolkit_dir": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mode": {
+          "type": "string"
+        },
+        "source_dir": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "compile_commands": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "scope": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "first_party": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sdk": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "third_party_lib": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "analyse": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "first_party",
+              "sdk",
+              "third_party_lib",
+              "unknown"
+            ]
+          }
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "thresholds": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "cyclomatic_complexity": {
+          "type": "integer"
+        },
+        "cognitive_complexity": {
+          "type": "integer"
+        },
+        "halstead_effort": {
+          "type": "number"
+        },
+        "halstead_volume": {
+          "type": "number"
+        },
+        "block_depth": {
+          "type": "integer"
+        },
+        "function_loc": {
+          "type": "integer"
+        },
+        "parameter_count": {
+          "type": "integer"
+        },
+        "return_path_count": {
+          "type": "integer"
+        },
+        "magic_number_density": {
+          "type": "number"
+        },
+        "fan_out": {
+          "type": "integer"
+        },
+        "cohesion_min": {
+          "type": "number"
+        },
+        "instability_zone_of_pain": {
+          "type": "number"
+        },
+        "instability_zone_of_uselessness": {
+          "type": "number"
+        },
+        "main_sequence_distance": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "output": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "reports_dir": {
+          "type": "string"
+        },
+        "exports_dir": {
+          "type": "string"
+        },
+        "cache_dir": {
+          "type": "string"
+        },
+        "db_path": {
+          "type": "string"
+        },
+        "formats": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "html",
+              "csv",
+              "json",
+              "plots",
+              "diagrams",
+              "sarif"
+            ]
+          }
+        },
+        "top_n": {
+          "type": "integer"
+        },
+        "source_embed_loc_limit": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "git": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "since": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "heatmap_bin": {
+          "type": "string"
+        },
+        "fix_keywords": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "estimation": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "cocomo_mode": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "cost_benefit": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "cost_per_defect_static_usd": {
+          "type": "number"
+        },
+        "cost_per_defect_field_usd": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "rtos": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "task_functions": {
+          "type": "object"
+        },
+        "semaphore_functions": {
+          "type": "array"
+        },
+        "mutex_functions": {
+          "type": "array"
+        },
+        "mailbox_functions": {
+          "type": "array"
+        },
+        "queue_functions": {
+          "type": "array"
+        },
+        "event_functions": {
+          "type": "array"
+        },
+        "rwlock_functions": {
+          "type": "array"
+        },
+        "task_table_types": {
+          "type": "object"
+        },
+        "return_value_functions": {
+          "type": "array"
+        },
+        "usage_functions": {
+          "type": "array"
+        },
+        "wait_keywords": {
+          "type": "array"
+        },
+        "signal_keywords": {
+          "type": "array"
+        }
+      },
+      "additionalProperties": false
+    },
+    "standards": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "standard": {
+                "type": "string"
+              },
+              "include_categories": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "include_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "exclude_rules": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "extra_rule_dirs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deviations_file": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "imports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tool": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "iar_compat_defines": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "entry_points": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "assert_names": {
+      "type": "array"
+    },
+    "layers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ]
+      }
+    }
+  },
+  "additionalProperties": false
+}

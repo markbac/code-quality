@@ -102,6 +102,18 @@ see [Architecture & call-graph diagrams](#architecture--call-graph-diagrams).
 
 ---
 
+### Checking config.yaml
+
+An unknown key (for example `cyclomatic_complexty` under `thresholds`) produces a warning that
+names it and suggests the closest known key; the run continues. Unsupported values in
+`output.formats` (`html`, `csv`, `json`, `plots`, `diagrams`, `sarif`) and `scope.analyse` stop the
+run with the list of valid values. If `config.yaml` is not in the working directory, FWLens looks
+for `config.yaml`, `.fwlens.yaml` or `fwlens.yaml` in each parent directory.
+
+`fwlens config-schema` prints a JSON Schema for editors, generated from the same dataclasses the
+loader uses (also shipped as `fwlens/config.schema.json`). `config.example.yaml` references it
+through a `yaml-language-server` comment.
+
 ### Where relative paths in config.yaml point
 
 Input paths (`project.*`, `tool.libclang_path`, `tool.sysroot`, `tool.system_include_dirs` and

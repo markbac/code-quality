@@ -22,6 +22,32 @@ from fwlens import __version__
 console = Console()
 
 
+_CONFIG_NAMES = ("config.yaml", ".fwlens.yaml", "fwlens.yaml")
+
+
+class _ConfigFile(click.ParamType):
+    """
+    A path to config.yaml. When the default name is not in the working directory, look for
+    config.yaml, .fwlens.yaml or fwlens.yaml in the working directory and each parent, so
+    FWLens can be run from a subdirectory of the project.
+    """
+    name = "config file"
+
+    def convert(self, value, param, ctx):
+        path = Path(value)
+        if path.is_file():
+            return str(path)
+        if value == "config.yaml":
+            for directory in (Path.cwd(), *Path.cwd().parents):
+                for candidate in _CONFIG_NAMES:
+                    if (directory / candidate).is_file():
+                        return str(directory / candidate)
+        self.fail(f"Config file '{value}' does not exist.", param, ctx)
+
+
+_CONFIG_FILE = _ConfigFile()
+
+
 def _load_config_safe(config_path: Path):
     from fwlens.config import ConfigError, load_config
     try:
@@ -218,6 +244,21 @@ def init(output: str, project_type: str):
     template = _CONFIG_TEMPLATES.get(project_type, _CONFIG_TEMPLATES["directory"])
     target_path.write_text(template, encoding="utf-8")
     console.print(f"[cyan][fwlens][/cyan] Created starter configuration template ([bold]{project_type}[/bold] mode): [bold]{target_path.resolve()}[/bold]")
+
+
+@cli.command(name="config-schema")
+@click.option("--output", "-o", "out_path", type=click.Path(), default=None,
+              help="Write the schema to this file instead of standard output.")
+def config_schema(out_path):
+    """Print the JSON Schema for config.yaml (generated from the config dataclasses)."""
+    import json
+
+    from fwlens.config_schema import json_schema
+    text = json.dumps(json_schema(), indent=2) + "\n"
+    if out_path:
+        Path(out_path).write_text(text, encoding="utf-8")
+    else:
+        click.echo(text, nl=False)
 
 
 @cli.command()
@@ -437,7 +478,7 @@ def _auto_stub_option(f):
 
 @cli.command()
 @click.option("--config", "config_path", default="config.yaml",
-              type=click.Path(exists=True), help="Path to config.yaml")
+              type=_CONFIG_FILE, help="Path to config.yaml")
 @_auto_stub_option
 @_parse_options
 @_parse_error_option
@@ -467,7 +508,7 @@ def analyze(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_
 
 @cli.command()
 @click.option("--config", "config_path", default="config.yaml",
-              type=click.Path(exists=True), help="Path to config.yaml")
+              type=_CONFIG_FILE, help="Path to config.yaml")
 @_auto_stub_option
 @_parse_options
 @_parse_error_option
@@ -520,7 +561,7 @@ def report(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_e
 
 @cli.command()
 @click.option("--config", "config_path", default="config.yaml",
-              type=click.Path(exists=True), help="Path to config.yaml")
+              type=_CONFIG_FILE, help="Path to config.yaml")
 @_auto_stub_option
 @_parse_options
 def export(config_path: str, auto_stub, jobs, timeout, no_cache):
@@ -534,7 +575,7 @@ def export(config_path: str, auto_stub, jobs, timeout, no_cache):
 
 def _compare_options(f):
     opts = [
-        click.option("--config", "config_path", default="config.yaml", type=click.Path(exists=True),
+        click.option("--config", "config_path", default="config.yaml", type=_CONFIG_FILE,
                      help="Path to config.yaml"),
         click.option("--base", "base_path", default=None, type=click.Path(),
                      help="Reference results: a findings file (from --findings-json) or a baseline.json "
@@ -735,7 +776,7 @@ def standards_validate(paths):
 
 
 @standards_group.command(name="report")
-@click.option("--config", "config_path", default="config.yaml", type=click.Path(exists=True))
+@click.option("--config", "config_path", default="config.yaml", type=_CONFIG_FILE)
 @click.option("--format", "fmt", type=click.Choice(["markdown", "json"]), default="markdown", show_default=True)
 @click.option("--output", "output_path", default=None, type=click.Path(), help="Write to a file instead of stdout.")
 @click.option("--fail-on-violation", is_flag=True, default=False,
@@ -765,7 +806,7 @@ def standards_report(config_path, fmt, output_path, fail_on_violation):
 
 @cli.command(name="diff-breach")
 @click.option("--config", "config_path", default="config.yaml",
-              type=click.Path(exists=True), help="Path to config.yaml (used for thresholds only)")
+              type=_CONFIG_FILE, help="Path to config.yaml (used for thresholds only)")
 @click.option("--from-json", "from_json_path", required=True, type=click.Path(exists=True),
               help="fwlens_results.json from the baseline commit (e.g. checked out at hash A)")
 @click.option("--to-json", "to_json_path", required=True, type=click.Path(exists=True),
@@ -806,7 +847,7 @@ def diff_breach(config_path: str, from_json_path: str, to_json_path: str, fail_o
 
 @cli.command(name="call-graph")
 @click.option("--config", "config_path", default="config.yaml",
-              type=click.Path(exists=True), help="Path to config.yaml")
+              type=_CONFIG_FILE, help="Path to config.yaml")
 @click.option("--function", "function_name", required=True,
               help="Function name to scope the diagram to")
 @click.option("--direction", type=click.Choice(["callers", "callees", "both"]), default="both",
@@ -838,7 +879,7 @@ def call_graph(config_path: str, function_name: str, direction: str, depth: int)
 
 @cli.command()
 @click.option("--config", "config_path", default="config.yaml",
-              type=click.Path(exists=True), help="Path to config.yaml")
+              type=_CONFIG_FILE, help="Path to config.yaml")
 @click.option("--n", default=20, help="Number of sample paths to show per class")
 def debug(config_path: str, n: int):
     """Show EWP parse results and boundary classification without running analysis."""
@@ -939,7 +980,7 @@ def debug(config_path: str, n: int):
 
 @cli.command(name="debug-parse")
 @click.option("--config", "config_path", default="config.yaml",
-              type=click.Path(exists=True), help="Path to config.yaml")
+              type=_CONFIG_FILE, help="Path to config.yaml")
 @click.option("--file", "target_file", default=None,
               help="Specific .c file to test (default: first in-scope file)")
 def debug_parse(config_path: str, target_file: str):
@@ -1247,7 +1288,7 @@ def debug_parse(config_path: str, target_file: str):
 
 @cli.command(name="dump-ast")
 @click.option("--config", "config_path", default="config.yaml",
-              type=click.Path(exists=True), help="Path to config.yaml")
+              type=_CONFIG_FILE, help="Path to config.yaml")
 @click.option("--file", "target_file", default=None,
               help="Name (or partial path) of the .c file to parse")
 @click.option("--var", "var_name", default=None,

@@ -45,6 +45,7 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.0.0",
     "build>=1.0.0",
+    "jsonschema>=4.0",
     # Only needed to run the tests of packages/py-doc2slides and packages/py-doclint,
     # which the root pytest configuration collects.
     "python-pptx>=1.0.0",
@@ -55,7 +56,7 @@ dev = [
 fwlens = "fwlens.cli:main"
 
 [tool.setuptools.package-data]
-fwlens = ["output/vendor/*", "output/templates/*", "standards/builtin/*.yaml"]
+fwlens = ["config.schema.json", "output/vendor/*", "output/templates/*", "standards/builtin/*.yaml"]
 
 [tool.setuptools.packages.find]
 where = ["."]

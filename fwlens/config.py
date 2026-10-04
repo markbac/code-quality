@@ -23,6 +23,10 @@ class ConfigError(ValueError):
     """Raised when config loading or validation fails."""
 
 
+class ConfigWarning(UserWarning):
+    """A config.yaml problem that does not stop the run, such as an unknown key."""
+
+
 @dataclass
 class ToolConfig:
     libclang_path: Path | None
@@ -278,6 +282,11 @@ class FwLensConfig:
         "assert", "ASSERT", "PSP_ASSERT", "STATIC_ASSERT",
         "_Static_assert", "static_assert",
     ])
+    # Warnings raised while loading (unknown keys); also emitted through warnings.warn.
+    warnings: list = field(default_factory=list)
+
+
+_BOUNDARY_CLASSES = ("first_party", "sdk", "third_party_lib", "unknown")
 
 
 def macro_name(define_line: str) -> str:
@@ -311,6 +320,14 @@ def load_config(config_path: Path) -> FwLensConfig:
         raw = {}
     elif not isinstance(raw, dict):
         raise ConfigError(f"Invalid config format in {config_path}: expected dictionary root")
+
+    import warnings
+
+    from fwlens.config_schema import SUPPORTED_FORMATS, unknown_key_messages
+
+    load_warnings = unknown_key_messages(raw)
+    for message in load_warnings:
+        warnings.warn(f"{config_path.name}: {message}", ConfigWarning, stacklevel=2)
 
     def resolve(p: str) -> Path:
         """Resolve an input path relative to the config file location."""
@@ -385,7 +402,11 @@ def load_config(config_path: Path) -> FwLensConfig:
     )
 
     # Scope
-    scope_raw = raw.get("scope", {})
+    scope_raw = raw.get("scope") or {}
+    bad_analyse = [a for a in scope_raw.get("analyse", ["first_party"]) if a not in _BOUNDARY_CLASSES]
+    if bad_analyse:
+        raise ConfigError(f"scope.analyse has unsupported value(s) {bad_analyse}; "
+                          f"use any of {list(_BOUNDARY_CLASSES)}")
     scope = ScopeConfig(
         first_party=scope_raw.get("first_party", ["Src", "Inc"]),
         sdk=scope_raw.get("sdk", ["sdk"]),
@@ -447,14 +468,20 @@ def load_config(config_path: Path) -> FwLensConfig:
     )
 
     # Output
-    out_raw = raw.get("output", {})
+    out_raw = raw.get("output") or {}
+    formats = out_raw.get("formats", ["html", "csv", "json"])
+    bad_formats = [f for f in formats if f not in SUPPORTED_FORMATS]
+    if bad_formats:
+        raise ConfigError(f"output.formats has unsupported value(s) {bad_formats}; "
+                          f"supported: {list(SUPPORTED_FORMATS)}")
     output = OutputConfig(
         reports_dir=resolve_output(out_raw.get("reports_dir", "output/reports")),
         exports_dir=resolve_output(out_raw.get("exports_dir", "output/exports")),
         cache_dir=resolve_output(out_raw.get("cache_dir", "output/.cache")),
         db_path=resolve_output(out_raw.get("db_path", "output/fwlens.db")),
-        formats=out_raw.get("formats", ["html", "csv", "json"]),
+        formats=formats,
         top_n=out_raw.get("top_n", 20),
+        source_embed_loc_limit=out_raw.get("source_embed_loc_limit", 10000),
     )
 
     entry_points = raw.get("entry_points", ["main"])
@@ -538,4 +565,5 @@ def load_config(config_path: Path) -> FwLensConfig:
         rtos=rtos,
         standards=standards,
         assert_names=assert_names,
+        warnings=load_warnings,
     )

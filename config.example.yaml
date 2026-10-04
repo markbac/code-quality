@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/markbac/code-quality/main/fwlens/config.schema.json
 # fwlens configuration
 # Copy this file to config.yaml and edit for your project.
 
@@ -13,7 +14,7 @@ tool:
   # then point this at the DLL in the LLVM bin directory.
   # Optional. Leave unset to use LIBCLANG_PATH or the libclang bundled with FWLens.
   # An explicit path that does not exist is an error.
-  libclang_path: C:\LLVM\bin\libclang.dll
+  # libclang_path: C:\LLVM\bin\libclang.dll
 
   # clang target. Default arm-none-eabi. Use "native" for host builds (no --target,
   # headers from the host gcc/cc/clang). Compile-database flags (-target, -std, -m*)
@@ -29,6 +30,7 @@ tool:
   # parse_cache: true                     # reuse unchanged files from output.cache_dir; --no-cache disables
 
 # Project settings
+project:
   # --- Option A: IAR Embedded Workbench (.ewp) ---
   ewp: ..\iar\Project.ewp
   configuration: Debug
