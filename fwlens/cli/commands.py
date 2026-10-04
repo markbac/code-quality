@@ -399,13 +399,6 @@ def _auto_stub_option(f):
     return f
 
 
-def _get_helper(name: str):
-    main_mod = sys.modules.get("main")
-    if main_mod and hasattr(main_mod, name):
-        return getattr(main_mod, name)
-    return globals()[name]
-
-
 @cli.command()
 @click.option("--config", "config_path", default="config.yaml",
               type=click.Path(exists=True), help="Path to config.yaml")
@@ -420,10 +413,10 @@ def analyze(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fai
     """Run analysis and print breach summary to terminal."""
     _print_header("analyze", config_path)
     from fwlens.output.console import print_summary
-    model, config = _get_helper("_run_pipeline")(Path(config_path), auto_stub=auto_stub)
+    model, config = _run_pipeline(Path(config_path), auto_stub=auto_stub)
     print_summary(model, config)
 
-    should_fail = _get_helper("_handle_baseline")(
+    should_fail = _handle_baseline(
         model, config, baseline_path=baseline_path, fail_on_breach=fail_on_breach,
         update_baseline_flag=update_baseline_flag, accept_all=accept_all, accept_ids=accept_ids,
         github_annotations=github_annotations, prune=prune,
@@ -451,7 +444,7 @@ def report(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fail
     from fwlens.output.html_report import generate_html_report
     from fwlens.output.exports import export_csv, export_json
 
-    model, config = _get_helper("_run_pipeline")(Path(config_path), auto_stub=auto_stub)
+    model, config = _run_pipeline(Path(config_path), auto_stub=auto_stub)
     print_summary(model, config)
 
     formats = config.output.formats
@@ -475,7 +468,7 @@ def report(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fail
         console.print(f"[cyan][fwlens][/cyan] Architecture diagram: [bold]{arch_path}[/bold]")
         console.print(f"[cyan][fwlens][/cyan] Dependency SVG      : [bold]{svg_path}[/bold]")
 
-    should_fail = _get_helper("_handle_baseline")(
+    should_fail = _handle_baseline(
         model, config, baseline_path=baseline_path, fail_on_breach=fail_on_breach,
         update_baseline_flag=update_baseline_flag, accept_all=accept_all, accept_ids=accept_ids,
         github_annotations=github_annotations, prune=prune,

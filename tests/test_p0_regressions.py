@@ -41,7 +41,7 @@ def _config(tmp_path: Path, formats=("json",)) -> FwLensConfig:
 @pytest.mark.parametrize("command", ["analyze", "report"])
 def test_github_annotations_flag_reaches_baseline_handler(command, tmp_path, monkeypatch):
     cfg_file = tmp_path / "config.yaml"
-    cfg_file.write_text("x: 1\n")
+    cfg_file.write_text("project:\n  source_dir: .\n")
     seen = {}
 
     monkeypatch.setattr("fwlens.cli.commands._run_pipeline", lambda *a, **k: ("model", _config(tmp_path, formats=())))
