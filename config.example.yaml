@@ -1,6 +1,11 @@
 # fwlens configuration
 # Copy this file to config.yaml and edit for your project.
 
+# Paths: every input path below (project.*, tool.libclang_path, tool.sysroot,
+# tool.system_include_dirs, standards.*) is relative to the directory containing this file.
+# Absolute paths and ~ work as written. The exception is output.*, which is relative to the
+# directory you run fwlens from. `fwlens doctor` prints each resolved path.
+
 # Tool settings
 tool:
   # Full path to libclang.dll (Windows).

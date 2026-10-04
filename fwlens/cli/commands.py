@@ -239,6 +239,17 @@ def doctor(config: str):
             libclang_path = cfg.tool.libclang_path
             target = cfg.tool.target or "native"
             console.print(f"  [green]✓[/green] Config file loaded: [bold]{cfg_path}[/bold]")
+            for label, value in (
+                ("project.ewp", cfg.project.ewp), ("project.source_dir", cfg.project.source_dir),
+                ("project.compile_commands", cfg.project.compile_commands),
+                ("project.proj_dir", cfg.project.proj_dir), ("project.toolkit_dir", cfg.project.toolkit_dir),
+                ("tool.libclang_path", cfg.tool.libclang_path), ("tool.sysroot", cfg.tool.sysroot),
+                *[("tool.system_include_dirs", d) for d in cfg.tool.system_include_dirs],
+                ("output.reports_dir", cfg.output.reports_dir), ("output.exports_dir", cfg.output.exports_dir),
+                ("output.cache_dir", cfg.output.cache_dir), ("output.db_path", cfg.output.db_path),
+            ):
+                if value is not None:
+                    console.print(f"      [dim]{label}[/dim] = {value}")
         except Exception as e:
             console.print(f"  [yellow]![/yellow] Config load warning: {e}")
     else:

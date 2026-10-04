@@ -1,7 +1,14 @@
 """
 Configuration loader for fwlens.
 
-Loads and validates config.yaml, resolves all paths relative to the config file location.
+Loads and validates config.yaml.
+
+Path rule: every input path (project.*, tool.libclang_path, tool.sysroot,
+tool.system_include_dirs, standards.*) is resolved relative to the directory containing the
+config file, so the same config behaves the same from any working directory. Absolute paths and
+`~` are honoured as written. The one exception is output.* (reports_dir, exports_dir,
+cache_dir, db_path), which is relative to the current working directory because outputs belong
+where the tool is run, not next to the config.
 """
 
 from __future__ import annotations
@@ -306,8 +313,8 @@ def load_config(config_path: Path) -> FwLensConfig:
         raise ConfigError(f"Invalid config format in {config_path}: expected dictionary root")
 
     def resolve(p: str) -> Path:
-        """Resolve path relative to config file location (for inputs like ewp, toolkit_dir)."""
-        return (base / Path(p)).resolve()
+        """Resolve an input path relative to the config file location."""
+        return (base / Path(p).expanduser()).resolve()
 
     def resolve_output(p: str) -> Path:
         """Resolve output path relative to the working directory, not the config file."""
@@ -318,10 +325,10 @@ def load_config(config_path: Path) -> FwLensConfig:
     libclang_raw = tool_raw.get("libclang_path")
     sysroot_raw = tool_raw.get("sysroot")
     tool = ToolConfig(
-        libclang_path=Path(libclang_raw) if libclang_raw else None,
+        libclang_path=resolve(libclang_raw) if libclang_raw else None,
         target=str(tool_raw.get("target", "arm-none-eabi")),
-        sysroot=Path(sysroot_raw) if sysroot_raw else None,
-        system_include_dirs=[Path(p) for p in tool_raw.get("system_include_dirs", []) or []],
+        sysroot=resolve(sysroot_raw) if sysroot_raw else None,
+        system_include_dirs=[resolve(p) for p in tool_raw.get("system_include_dirs", []) or []],
         clang_args=[str(a) for a in tool_raw.get("clang_args", []) or []],
         auto_detect_includes=bool(tool_raw.get("auto_detect_includes", True)),
         parse_error_threshold=float(tool_raw.get("parse_error_threshold", 0.0)),
@@ -357,7 +364,7 @@ def load_config(config_path: Path) -> FwLensConfig:
     toolkit_dir_raw = proj_raw.get("toolkit_dir")
     
     if proj_dir_raw:
-        default_proj_dir = Path(proj_dir_raw)
+        default_proj_dir = resolve(proj_dir_raw)
     elif source_dir_path:
         default_proj_dir = source_dir_path
     elif compile_commands_path:
@@ -374,7 +381,7 @@ def load_config(config_path: Path) -> FwLensConfig:
         compile_commands=compile_commands_path,
         configuration=proj_raw.get("configuration", "Debug"),
         proj_dir=default_proj_dir,
-        toolkit_dir=Path(toolkit_dir_raw) if toolkit_dir_raw else None,
+        toolkit_dir=resolve(toolkit_dir_raw) if toolkit_dir_raw else None,
     )
 
     # Scope

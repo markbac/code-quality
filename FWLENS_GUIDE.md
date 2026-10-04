@@ -102,6 +102,13 @@ see [Architecture & call-graph diagrams](#architecture--call-graph-diagrams).
 
 ---
 
+### Where relative paths in config.yaml point
+
+Input paths (`project.*`, `tool.libclang_path`, `tool.sysroot`, `tool.system_include_dirs` and
+`standards.*`) are relative to the directory containing `config.yaml`, so running from another
+directory gives the same result. `output.*` paths are the exception: they are relative to the
+directory you run `fwlens` from. `fwlens doctor --config config.yaml` prints every resolved path.
+
 ## Directory mode (no .ewp)
 
 Set `project.source_dir` instead of `project.ewp` to analyse a plain folder of C sources
