@@ -48,9 +48,17 @@ def parse_include_search_list(stderr: str) -> list[str]:
     return dirs
 
 
+def parse_target_triple(stderr: str) -> str:
+    """Extract the Target triple from gcc/clang -v output if present."""
+    for line in stderr.splitlines():
+        if line.startswith("Target:"):
+            return line.split(":", 1)[1].strip()
+    return ""
+
+
 @functools.lru_cache(maxsize=16)
-def detect_system_includes(target: str, sysroot: str = "") -> tuple[tuple[str, ...], str]:
-    """Return (include dirs, compiler used or ""). Empty when no compiler is found."""
+def detect_system_includes(target: str, sysroot: str = "") -> tuple[tuple[str, ...], str, str]:
+    """Return (include dirs, compiler used or "", target triple or ""). Empty when no compiler is found."""
     for name in _compiler_candidates(target):
         exe = shutil.which(name)
         if not exe:
@@ -63,10 +71,13 @@ def detect_system_includes(target: str, sysroot: str = "") -> tuple[tuple[str, .
         except (OSError, subprocess.SubprocessError):
             continue
         found = [d for d in parse_include_search_list(proc.stderr) if Path(d).is_dir()]
+        triple = parse_target_triple(proc.stderr)
         if found:
-            return tuple(found), name
-    return (), ""
+            return tuple(found), name, triple
+    return (), "", ""
 
 
-def target_args(target: str) -> list[str]:
-    return [] if is_native(target) else [f"--target={target}"]
+def target_args(target: str, triple: str = "") -> list[str]:
+    if is_native(target):
+        return [f"--target={triple}"] if triple else []
+    return [f"--target={target}"]
