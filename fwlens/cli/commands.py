@@ -10,6 +10,7 @@ Usage:
 
 from __future__ import annotations
 
+import os
 import sys
 import time
 from pathlib import Path
@@ -427,6 +428,36 @@ def _sarif_option(f):
              "exports/fwlens.sarif when output.formats includes sarif.")(f)
 
 
+def _ci_report_options(f):
+    f = click.option(
+        "--junit", "junit_path", default=None, type=click.Path(),
+        help="Write the findings as JUnit XML (one failed test case per finding), for CI test views "
+             "such as GitLab artifacts:reports:junit.")(f)
+    f = click.option(
+        "--markdown-summary", "markdown_summary", default=None, type=click.Path(),
+        help="Write a Markdown summary of the findings to this path. Pass $GITHUB_STEP_SUMMARY to "
+             "show it on the workflow run (it is appended to, not overwritten).")(f)
+    return f
+
+
+def _emit_ci_reports(breaches, model, junit_path, markdown_summary):
+    if junit_path:
+        from fwlens.output.reporters import JUnitReporter
+        path = JUnitReporter().emit(breaches, junit_path)
+        console.print(f"[cyan][fwlens][/cyan] JUnit report: [bold]{path}[/bold] ({len(breaches)} finding(s))")
+    if markdown_summary:
+        from fwlens.output.reporters import markdown_summary as render
+        text = render(breaches, functions=len(list(model.first_party_functions())),
+                      modules=len(list(model.first_party_modules())))
+        target = Path(markdown_summary)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        mode = "a" if os.environ.get("GITHUB_STEP_SUMMARY") and \
+            target == Path(os.environ["GITHUB_STEP_SUMMARY"]) else "w"
+        with open(target, mode, encoding="utf-8") as fh:
+            fh.write(text)
+        console.print(f"[cyan][fwlens][/cyan] Markdown summary: [bold]{target}[/bold]")
+
+
 def _emit_sarif(model, config, path, breaches=None):
     from fwlens.output.sarif import write_sarif_report
     written = write_sarif_report(model, config, Path(path), breaches)
@@ -472,7 +503,7 @@ def emit_github_annotations(breaches):
 def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
                       update_baseline_flag, accept_all, accept_ids, github_annotations=False,
                       prune=False, gitlab_codequality=None, findings_json=None, sarif_path=None,
-                      changed_since=None, changed_scope="file"):
+                      changed_since=None, changed_scope="file", junit_path=None, markdown_summary=None):
     """Compute breaches and either update the baseline or gate on it. Returns True to fail the run."""
     from fwlens.baseline import (
         classify_against_baseline,
@@ -496,6 +527,7 @@ def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
     _emit_gitlab_report(breaches, gitlab_codequality)
     if sarif_path:
         _emit_sarif(model, config, sarif_path, breaches)
+    _emit_ci_reports(breaches, model, junit_path, markdown_summary)
     if findings_json:
         from fwlens.pr_check import write_findings
         write_findings(Path(findings_json), breaches, getattr(model, "footprint", None))
@@ -554,11 +586,13 @@ def _auto_stub_option(f):
 @_gitlab_option
 @_findings_option
 @_sarif_option
+@_ci_report_options
 @_diff_options
 @_baseline_options
 def analyze(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_error, baseline_path, fail_on_breach,
             update_baseline_flag, accept_all, accept_ids, prune, github_annotations,
-            gitlab_codequality, findings_json, sarif_path, changed_since, changed_scope):
+            gitlab_codequality, findings_json, sarif_path, junit_path, markdown_summary,
+            changed_since, changed_scope):
     """Run analysis and print breach summary to terminal."""
     _print_header("analyze", config_path)
     from fwlens.output.console import print_summary
@@ -571,6 +605,7 @@ def analyze(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_
         github_annotations=github_annotations, prune=prune,
         gitlab_codequality=gitlab_codequality, findings_json=findings_json, sarif_path=sarif_path,
         changed_since=changed_since, changed_scope=changed_scope,
+        junit_path=junit_path, markdown_summary=markdown_summary,
     )
     if _parse_health_failed(model, config, fail_on_parse_error):
         should_fail = True
@@ -587,11 +622,13 @@ def analyze(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_
 @_gitlab_option
 @_findings_option
 @_sarif_option
+@_ci_report_options
 @_diff_options
 @_baseline_options
 def report(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_error, baseline_path, fail_on_breach,
            update_baseline_flag, accept_all, accept_ids, prune, github_annotations,
-           gitlab_codequality, findings_json, sarif_path, changed_since, changed_scope):
+           gitlab_codequality, findings_json, sarif_path, junit_path, markdown_summary,
+            changed_since, changed_scope):
     """Run analysis and generate HTML report + exports."""
     from fwlens.output.console import print_summary
     from fwlens.output.exports import export_csv, export_json
@@ -629,6 +666,7 @@ def report(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_e
         github_annotations=github_annotations, prune=prune,
         gitlab_codequality=gitlab_codequality, findings_json=findings_json, sarif_path=sarif_path,
         changed_since=changed_since, changed_scope=changed_scope,
+        junit_path=junit_path, markdown_summary=markdown_summary,
     )
     if _parse_health_failed(model, config, fail_on_parse_error):
         should_fail = True

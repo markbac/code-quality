@@ -272,6 +272,36 @@ entries that no longer match any breach:
 
 ---
 
+## JUnit and Markdown summaries
+
+`analyze` and `report` can also write results for CI views that do not need a pull request:
+
+- `--junit PATH` writes JUnit XML. Each file is a test suite and each finding a failed test case
+  (class name = file, name = function and metric). A run with no findings holds one passing
+  case. The output is checked against the Jenkins `junit-10.xsd` schema in the tests.
+- `--markdown-summary PATH` writes a short summary: counts per metric and the largest findings.
+  When PATH is `$GITHUB_STEP_SUMMARY` the text is appended, so earlier steps are kept.
+
+```yaml
+# GitHub Actions
+- run: fwlens analyze --junit fwlens-junit.xml --markdown-summary "$GITHUB_STEP_SUMMARY"
+```
+
+```yaml
+# GitLab CI
+fwlens:
+  script: fwlens analyze --junit fwlens-junit.xml
+  artifacts:
+    when: always
+    reports:
+      junit: fwlens-junit.xml
+```
+
+These reports list every finding, not only new ones. For a comparison with the target branch
+use `pr-comment` or `compare`.
+
+---
+
 ## GitLab integration
 
 `analyze` and `report` write a GitLab **Code Quality** report with `--gitlab-codequality PATH`.
