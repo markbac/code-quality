@@ -205,6 +205,9 @@ class ModuleMetrics:
     # Git commit count touching this file (churn) -- populated by fwlens.git_history,
     # 0 if the project isn't a git repo or git is unavailable
     commit_count: int = 0
+    # Linker map footprint for this file's object (project.map_file): .text+.rodata+.data and .data+.bss
+    flash_bytes: int = 0
+    ram_bytes: int = 0
     # Fix-flavoured commit count touching this file (subset of commit_count) --
     # populated by fwlens.reliability.compute_bugfix_hotspots
     bugfix_commit_count: int = 0
@@ -572,6 +575,8 @@ class ProjectModel:
     git_available: bool = False
     # Parse health from the pipeline: in_scope, parsed_ok, failed, files_with_errors, fatal_diagnostics
     parse_stats: dict = field(default_factory=dict)
+    # Whole-map footprint from project.map_file: {flash_bytes, ram_bytes, objects, unmatched}; empty without a map
+    footprint: dict = field(default_factory=dict)
     # Problems reading git history (timeout, git failure, shallow clone); empty when history is complete
     history_warnings: list = field(default_factory=list)
     # In-scope translation units as parsed (defines, include paths, flags), for re-parsing by rule checks

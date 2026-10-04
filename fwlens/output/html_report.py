@@ -360,6 +360,7 @@ def generate_html_report(model: ProjectModel, config: FwLensConfig):
     meta = {        "ewp":             model.ewp_path.name,
         "configuration":   model.configuration,
         "module_count":    len(fp_modules),
+        "footprint":       getattr(model, "footprint", None),
         "function_count":  len(fp_funcs),
         "total_loc":       sum(f.loc for f in fp_funcs),
         "dead_count":      len(model.dead_candidates),

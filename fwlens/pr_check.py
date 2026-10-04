@@ -32,7 +32,7 @@ FINDINGS_VERSION = 1
 # Findings files (the reference format)
 # ---------------------------------------------------------------------------
 
-def write_findings(path: Path, breaches: list[Breach]) -> None:
+def write_findings(path: Path, breaches: list[Breach], footprint: dict | None = None) -> None:
     """Write current findings with fingerprints, for use as a reference by a later run."""
     try:
         from importlib.metadata import version
@@ -46,6 +46,9 @@ def write_findings(path: Path, breaches: list[Breach]) -> None:
         "tool_version": tool_version,
         "findings": [b.to_dict() for b in breaches],
     }
+    if footprint:
+        payload["footprint"] = {"flash_bytes": footprint.get("flash_bytes", 0),
+                                "ram_bytes": footprint.get("ram_bytes", 0)}
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
         f.write("\n")
@@ -61,6 +64,15 @@ def load_reference(path: Path) -> list[dict]:
     if entries is None:
         raise ValueError(f"{path} is neither a findings file nor a baseline (no 'findings' or 'accepted')")
     return [migrate_legacy_id(e) for e in entries]
+
+
+def load_footprint(path: Path) -> dict | None:
+    """The {flash_bytes, ram_bytes} recorded in a findings file, or None."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f).get("footprint")
+    except (OSError, ValueError, AttributeError):
+        return None
 
 
 def breaches_from_entries(entries: list[dict]) -> list[Breach]:
@@ -85,6 +97,10 @@ class Comparison:
     gating: list = field(default_factory=list)      # Match objects that fail the check
     uncertain_gates: bool = False
     reference_missing: bool = False                 # no reference results: nothing to compare with
+    base_footprint: dict | None = None              # {flash_bytes, ram_bytes} of the reference, if recorded
+    current_footprint: dict | None = None
+    max_flash_growth: int | None = None
+    max_ram_growth: int | None = None
 
     @property
     def new(self):
@@ -114,9 +130,24 @@ class Comparison:
     def resolved(self):
         return self.result.resolved
 
+    def growth(self, key: str) -> int | None:
+        if not self.base_footprint or not self.current_footprint:
+            return None
+        return self.current_footprint.get(key, 0) - self.base_footprint.get(key, 0)
+
+    @property
+    def footprint_failures(self) -> list[str]:
+        out = []
+        for key, label, limit in (("flash_bytes", "Flash", self.max_flash_growth),
+                                  ("ram_bytes", "RAM", self.max_ram_growth)):
+            g = self.growth(key)
+            if limit is not None and g is not None and g > limit:
+                out.append(f"{label} grew by {g} B, over the limit of {limit} B")
+        return out
+
     @property
     def passed(self) -> bool:
-        return not self.gating
+        return not self.gating and not self.footprint_failures
 
 
 def no_reference(current: list[Breach]) -> Comparison:
@@ -162,10 +193,12 @@ def render_markdown(c: Comparison, *, max_items: int = 20, report_url: str | Non
             out += ["", f"[Full report]({report_url})"]
         return "\n".join(out) + "\n"
     lines = [MARKER, f"## FWLens quality check: {'PASS' if c.passed else 'FAIL'}", ""]
-    if c.passed:
+    if not c.gating:
         lines.append("No new or worsened findings compared with " + base_label + ".")
     else:
         lines.append(f"{len(c.gating)} new or worsened finding(s) compared with {base_label}.")
+    for failure in c.footprint_failures:
+        lines.append(f"**{failure}.**")
     lines += ["", "| | |", "|---|---|",
               f"| Findings | {_delta(c.base_total, c.current_total)} |",
               f"| New | {len(c.new)} |",
@@ -173,7 +206,11 @@ def render_markdown(c: Comparison, *, max_items: int = 20, report_url: str | Non
               f"| Improved | {len(c.improved)} |",
               f"| Resolved | {len(c.resolved)} |",
               f"| Moved or renamed | {len(c.moved)} |",
-              f"| Matched loosely | {len(c.uncertain)} |", ""]
+              f"| Matched loosely | {len(c.uncertain)} |"]
+    for key, label in (("flash_bytes", "Flash (bytes)"), ("ram_bytes", "RAM (bytes)")):
+        if c.growth(key) is not None:
+            lines.append(f"| {label} | {_delta(c.base_footprint[key], c.current_footprint[key])} |")
+    lines.append("")
 
     gating = c.gating
     if gating:
@@ -298,6 +335,36 @@ def post_gitlab(markdown: str, *, update_existing: bool = True, mr: int | None =
     return "created"
 
 
+def post_status(state_ok: bool, description: str, *, env=None, request: Request = _http) -> str:
+    """Set a commit status named 'fwlens' on the PR head (GitHub) or the pipeline commit (GitLab)."""
+    env = os.environ if env is None else env
+    platform = detect_platform(env)
+    description = description[:140]
+    if platform == "github":
+        token, repo = env.get("GITHUB_TOKEN"), env.get("GITHUB_REPOSITORY")
+        sha = env.get("GITHUB_SHA")
+        event = env.get("GITHUB_EVENT_PATH")
+        if event and Path(event).exists():
+            sha = ((json.loads(Path(event).read_text()).get("pull_request") or {}).get("head") or {}).get("sha") or sha
+        if not (token and repo and sha):
+            raise PostError("GitHub status needs GITHUB_TOKEN (statuses: write), GITHUB_REPOSITORY and a commit sha")
+        api = env.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
+        request("POST", f"{api}/repos/{repo}/statuses/{sha}",
+                {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
+                {"state": "success" if state_ok else "failure", "context": "fwlens", "description": description})
+        return "github"
+    if platform == "gitlab":
+        api, project, sha = env.get("CI_API_V4_URL"), env.get("CI_PROJECT_ID"), env.get("CI_COMMIT_SHA")
+        token = env.get("GITLAB_TOKEN")
+        if not (api and project and sha and token):
+            raise PostError("GitLab status needs CI_API_V4_URL, CI_PROJECT_ID, CI_COMMIT_SHA and GITLAB_TOKEN")
+        request("POST", f"{api.rstrip('/')}/projects/{project}/statuses/{sha}",
+                {"PRIVATE-TOKEN": token},
+                {"state": "success" if state_ok else "failed", "name": "fwlens", "description": description})
+        return "gitlab"
+    raise PostError("A commit status can only be set from GitHub Actions or GitLab CI")
+
+
 def detect_platform(env=None) -> str | None:
     env = os.environ if env is None else env
     if env.get("GITHUB_ACTIONS", "").lower() == "true":
@@ -339,7 +406,7 @@ def findings_at_ref(config_path: Path, ref: str, repo_root: Path) -> list[dict]:
         proc = subprocess.run(
             # -I keeps the project's own files (cwd) off the import path, and the installed
             # FWLens (this version) analyses the old source, not the old FWLens.
-            [sys.executable, "-I", "-m", "main", "analyze", "--config", str(worktree / rel),
+            [sys.executable, "-I", "-m", "fwlens", "analyze", "--config", str(worktree / rel),
              "--findings-json", str(out_file)],
             cwd=worktree, capture_output=True, text=True,
         )

@@ -34,7 +34,7 @@ _MODULE_CSV_FIELDS = [
     "loc", "function_count", "type_decl_count",
     "fan_in", "fan_out", "instability",
     "abstractness", "main_sequence_distance",
-    "avg_cc", "max_cc",
+    "avg_cc", "max_cc", "flash_bytes", "ram_bytes",
     "avg_halstead_effort", "avg_mi_woc",
     "internal_call_cohesion",
     "header_source_coherence", "include_depth",

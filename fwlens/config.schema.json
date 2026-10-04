@@ -93,6 +93,12 @@
             "string",
             "null"
           ]
+        },
+        "map_file": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "additionalProperties": false
@@ -393,6 +399,60 @@
             },
             "additionalProperties": false
           }
+        }
+      },
+      "additionalProperties": false
+    },
+    "pr_check": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "base": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "base_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "uncertain_gates": {
+          "type": "boolean"
+        },
+        "fail_on_new": {
+          "type": "boolean"
+        },
+        "max_items": {
+          "type": "integer"
+        },
+        "base_label": {
+          "type": "string"
+        },
+        "report_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "max_flash_growth_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "max_ram_growth_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false

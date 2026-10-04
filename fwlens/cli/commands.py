@@ -102,6 +102,8 @@ def _run_pipeline(config_path: Path, auto_stub: bool = False, jobs=None, timeout
 
     t0 = time.perf_counter()
     model = run_pipeline(config, jobs=jobs, timeout=timeout, use_cache=False if no_cache else None)
+    from fwlens.footprint import apply_map_file
+    apply_map_file(model, config)
     from fwlens.diagnostic_clusters import compute_diagnostic_clusters
     model.diagnostic_clusters = compute_diagnostic_clusters(model)
     run_aggregation(model, config)
@@ -283,9 +285,20 @@ def doctor(config: str):
             libclang_path = cfg.tool.libclang_path
             target = cfg.tool.target or "native"
             console.print(f"  [green]✓[/green] Config file loaded: [bold]{cfg_path}[/bold]")
+            mf = cfg.project.map_file
+            if mf is not None and not mf.exists():
+                console.print(f"  [yellow]![/yellow] project.map_file does not exist yet: {mf} "
+                              "(build first; footprint is skipped until it does)")
+            elif mf is not None:
+                from fwlens.parser.mapfile import parse_linker_mapfile
+                found = len(parse_linker_mapfile(mf))
+                mark = "[green]✓[/green]" if found else "[yellow]![/yellow]"
+                console.print(f"  {mark} Map file {mf.name}: {found} objects with sizes"
+                              + ("" if found else " (only GCC-style .text/.data/.bss lines are read)"))
             for label, value in (
                 ("project.ewp", cfg.project.ewp), ("project.source_dir", cfg.project.source_dir),
                 ("project.compile_commands", cfg.project.compile_commands),
+                ("project.map_file", cfg.project.map_file),
                 ("project.proj_dir", cfg.project.proj_dir), ("project.toolkit_dir", cfg.project.toolkit_dir),
                 ("tool.libclang_path", cfg.tool.libclang_path), ("tool.sysroot", cfg.tool.sysroot),
                 *[("tool.system_include_dirs", d) for d in cfg.tool.system_include_dirs],
@@ -485,7 +498,7 @@ def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
         _emit_sarif(model, config, sarif_path, breaches)
     if findings_json:
         from fwlens.pr_check import write_findings
-        write_findings(Path(findings_json), breaches)
+        write_findings(Path(findings_json), breaches, getattr(model, "footprint", None))
         console.print(f"[cyan][fwlens][/cyan] Findings written: [bold]{findings_json}[/bold] "
                       f"({len(breaches)} finding(s))")
 
@@ -641,67 +654,110 @@ def export(config_path: str, auto_stub, jobs, timeout, no_cache, sarif_path):
 
 
 def _compare_options(f):
+    # Defaults come from the pr_check section of config.yaml; an option given here overrides it.
     opts = [
         click.option("--config", "config_path", default="config.yaml", type=_CONFIG_FILE,
                      help="Path to config.yaml"),
         click.option("--base", "base_path", default=None, type=click.Path(),
                      help="Reference results: a findings file (from --findings-json) or a baseline.json "
-                          "from the target branch."),
+                          "from the target branch. Default: pr_check.base."),
         click.option("--base-ref", "base_ref", default=None,
                      help="Git ref of the target branch. Analyses its merge-base in a temporary worktree "
-                          "(slower fallback when no --base artifact exists)."),
+                          "(slower fallback when no --base artifact exists). Default: pr_check.base_ref."),
         click.option("--current", "current_path", default=None, type=click.Path(exists=True),
                      help="Findings file for the current checkout. Without it the analysis is run now."),
         click.option("--markdown", "markdown_path", default=None, type=click.Path(),
                      help="Also write the Markdown comment to this file."),
-        click.option("--max-items", default=20, show_default=True, help="Rows listed per table."),
-        click.option("--uncertain-gates", is_flag=True, default=False,
+        click.option("--max-items", default=None, type=int, help="Rows listed per table (default 20)."),
+        click.option("--uncertain-gates/--no-uncertain-gates", default=None,
                      help="Also fail on loosely matched findings, not only on worse ones."),
-        click.option("--fail-on-new", is_flag=True, default=False,
-                     help="Exit 1 when there are new or worsened findings."),
+        click.option("--fail-on-new/--no-fail-on-new", default=None,
+                     help="Exit 1 when there are new or worsened findings or a footprint limit is exceeded."),
+        click.option("--max-flash-growth", "max_flash_growth", type=int, default=None, metavar="BYTES",
+                     help="Fail when flash grows by more than BYTES versus the reference "
+                          "(needs project.map_file; default pr_check.max_flash_growth_bytes)."),
+        click.option("--max-ram-growth", "max_ram_growth", type=int, default=None, metavar="BYTES",
+                     help="Fail when RAM grows by more than BYTES versus the reference."),
         click.option("--report-url", default=None, help="Link to the full HTML report artefact."),
-        click.option("--base-label", default="the target branch", help="Name used for the reference in the text."),
+        click.option("--base-label", default=None, help="Name used for the reference in the text."),
     ]
     for o in reversed(opts):
         f = o(f)
     return f
 
 
-def _build_comparison(config_path, base_path, base_ref, current_path, uncertain_gates):
+def _pr_settings(config_path, **cli):
+    """The pr_check config section with any option given on the command line applied on top."""
+    from fwlens.config import PRCheckConfig, load_config
+    try:
+        pc = load_config(Path(config_path)).pr_check
+    except FileNotFoundError:
+        pc = PRCheckConfig()
+    pick = lambda name, conf: conf if cli.get(name) is None else cli[name]   # noqa: E731
+    return PRCheckConfig(
+        base=pick("base_path", pc.base), base_ref=pick("base_ref", pc.base_ref),
+        uncertain_gates=pick("uncertain_gates", pc.uncertain_gates),
+        fail_on_new=pick("fail_on_new", pc.fail_on_new), max_items=pick("max_items", pc.max_items),
+        base_label=pick("base_label", pc.base_label), report_url=pick("report_url", pc.report_url),
+        max_flash_growth_bytes=pick("max_flash_growth", pc.max_flash_growth_bytes),
+        max_ram_growth_bytes=pick("max_ram_growth", pc.max_ram_growth_bytes),
+        status=pick("status", pc.status),
+    )
+
+
+def _build_comparison(config_path, current_path, settings):
     from fwlens.baseline import compute_breaches
     from fwlens.identity import project_root
     from fwlens.pr_check import (
         breaches_from_entries,
         compare,
         findings_at_ref,
+        load_footprint,
         load_reference,
         no_reference,
     )
 
+    current_footprint = None
     if current_path:
         current = breaches_from_entries(load_reference(Path(current_path)))
+        current_footprint = load_footprint(Path(current_path))
     else:
         model, config = _run_pipeline(Path(config_path))
         current = compute_breaches(model, config)
+        current_footprint = getattr(model, "footprint", None)
 
-    reference = None
+    reference, base_footprint = None, None
+    base_path = settings.base
     if base_path and Path(base_path).exists():
         reference = load_reference(Path(base_path))
+        base_footprint = load_footprint(Path(base_path))
     elif base_path:
         console.print(f"[yellow][fwlens] Reference results not found: {base_path}[/yellow]")
-    if reference is None and base_ref:
+    if reference is None and settings.base_ref:
         from fwlens.config import load_config
         root = project_root(load_config(Path(config_path)))
-        reference = findings_at_ref(Path(config_path), base_ref, root)
+        reference = findings_at_ref(Path(config_path), settings.base_ref, root)
     if reference is None:
         console.print("[yellow][fwlens] No reference results available -- reporting without comparison.[/yellow]")
-        return no_reference(current)
-    return compare(current, reference, uncertain_gates=uncertain_gates)
+        comparison = no_reference(current)
+    else:
+        comparison = compare(current, reference, uncertain_gates=settings.uncertain_gates)
+    comparison.current_footprint = current_footprint
+    comparison.base_footprint = base_footprint
+    comparison.max_flash_growth = settings.max_flash_growth_bytes
+    comparison.max_ram_growth = settings.max_ram_growth_bytes
+    if (settings.max_flash_growth_bytes is not None or settings.max_ram_growth_bytes is not None) \
+            and comparison.growth("flash_bytes") is None:
+        console.print("[yellow][fwlens] Footprint limits set but no footprint is recorded for both sides "
+                      "(needs project.map_file and a reference written with --findings-json) "
+                      "-- not checked.[/yellow]")
+    return comparison
 
 
-def _render_and_write(comparison, markdown_path, max_items, report_url, base_label):
+def _render_and_write(comparison, markdown_path, settings):
     from fwlens.pr_check import render_markdown
-    md = render_markdown(comparison, max_items=max_items, report_url=report_url, base_label=base_label)
+    md = render_markdown(comparison, max_items=settings.max_items, report_url=settings.report_url,
+                         base_label=settings.base_label)
     if markdown_path:
         Path(markdown_path).parent.mkdir(parents=True, exist_ok=True)
         Path(markdown_path).write_text(md, encoding="utf-8")
@@ -709,15 +765,25 @@ def _render_and_write(comparison, markdown_path, max_items, report_url, base_lab
     return md
 
 
+def _status_text(comparison) -> str:
+    if comparison.reference_missing:
+        return f"{comparison.current_total} findings, no reference to compare"
+    text = f"{len(comparison.new)} new, {len(comparison.worsened)} worse, {len(comparison.resolved)} resolved"
+    return text + "; " + "; ".join(comparison.footprint_failures) if comparison.footprint_failures else text
+
+
 @cli.command(name="compare")
 @_compare_options
 def compare_cmd(config_path, base_path, base_ref, current_path, markdown_path, max_items,
-                uncertain_gates, fail_on_new, report_url, base_label):
+                uncertain_gates, fail_on_new, max_flash_growth, max_ram_growth, report_url, base_label):
     """Compare current findings with a reference (target branch) and print the Markdown summary."""
-    comparison = _build_comparison(config_path, base_path, base_ref, current_path, uncertain_gates)
-    md = _render_and_write(comparison, markdown_path, max_items, report_url, base_label)
-    print(md)
-    if fail_on_new and not comparison.passed:
+    settings = _pr_settings(
+        config_path, base_path=base_path, base_ref=base_ref, max_items=max_items,
+        uncertain_gates=uncertain_gates, fail_on_new=fail_on_new, max_flash_growth=max_flash_growth,
+        max_ram_growth=max_ram_growth, report_url=report_url, base_label=base_label)
+    comparison = _build_comparison(config_path, current_path, settings)
+    print(_render_and_write(comparison, markdown_path, settings))
+    if settings.fail_on_new and not comparison.passed:
         sys.exit(1)
 
 
@@ -728,18 +794,26 @@ def compare_cmd(config_path, base_path, base_ref, current_path, markdown_path, m
 @click.option("--dry-run", is_flag=True, default=False, help="Print the Markdown, post nothing.")
 @click.option("--pr", "pr_number", type=int, default=None, help="PR / MR number (default from the CI environment).")
 @click.option("--no-update", is_flag=True, default=False, help="Always create a new comment instead of updating.")
+@click.option("--status/--no-status", "status", default=None,
+              help="Also set a commit status named 'fwlens' (default pr_check.status).")
 def pr_comment(config_path, base_path, base_ref, current_path, markdown_path, max_items, uncertain_gates,
-               fail_on_new, report_url, base_label, post_to, dry_run, pr_number, no_update):
+               fail_on_new, max_flash_growth, max_ram_growth, report_url, base_label, post_to, dry_run,
+               pr_number, no_update, status):
     """Post (or update) one quality-check comment on the current PR / MR."""
     from fwlens.pr_check import (
         PostError,
         detect_platform,
         post_github,
         post_gitlab,
+        post_status,
         write_github_step_summary,
     )
-    comparison = _build_comparison(config_path, base_path, base_ref, current_path, uncertain_gates)
-    md = _render_and_write(comparison, markdown_path, max_items, report_url, base_label)
+    settings = _pr_settings(
+        config_path, base_path=base_path, base_ref=base_ref, max_items=max_items,
+        uncertain_gates=uncertain_gates, fail_on_new=fail_on_new, max_flash_growth=max_flash_growth,
+        max_ram_growth=max_ram_growth, report_url=report_url, base_label=base_label, status=status)
+    comparison = _build_comparison(config_path, current_path, settings)
+    md = _render_and_write(comparison, markdown_path, settings)
 
     platform = detect_platform() if post_to == "auto" else (None if post_to == "none" else post_to)
     if dry_run or platform is None:
@@ -758,7 +832,14 @@ def pr_comment(config_path, base_path, base_ref, current_path, markdown_path, ma
             else:
                 print(md)
 
-    if fail_on_new and not comparison.passed:
+    if settings.status and not dry_run:
+        try:
+            where = post_status(comparison.passed, _status_text(comparison))
+            console.print(f"[cyan][fwlens][/cyan] {where} commit status set.")
+        except PostError as e:
+            console.print(f"[yellow][fwlens] Could not set the commit status: {e}[/yellow]")
+
+    if settings.fail_on_new and not comparison.passed:
         sys.exit(1)
 
 

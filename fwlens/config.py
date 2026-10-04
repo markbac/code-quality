@@ -59,6 +59,7 @@ class ProjectConfig:
     mode: str = "ewp"                    # "ewp" | "directory" | "compile_commands" | "cmake" | "make"
     source_dir: Path | None = None    # directory-mode root, glob'd for *.c
     compile_commands: Path | None = None  # path to compile_commands.json (CMake/Make)
+    map_file: Path | None = None          # linker map file (IAR or GCC) for flash/RAM footprint
 
 
 @dataclass
@@ -257,6 +258,21 @@ class StandardsConfig:
 
 
 @dataclass
+class PRCheckConfig:
+    """Defaults for `compare` and `pr-comment`; the matching command-line options override them."""
+    base: Path | None = None             # reference findings file or baseline.json (--base)
+    base_ref: str | None = None          # git ref to analyse in a worktree (--base-ref)
+    uncertain_gates: bool = False        # also fail on loosely matched findings
+    fail_on_new: bool = False            # exit 1 on new or worsened findings or a footprint gate
+    max_items: int = 20                  # rows per table in the comment
+    base_label: str = "the target branch"
+    report_url: str | None = None
+    max_flash_growth_bytes: int | None = None   # fail when flash grows by more than this vs the reference
+    max_ram_growth_bytes: int | None = None
+    status: bool = False                 # also set a commit status (GitHub: statuses, GitLab: statuses API)
+
+
+@dataclass
 class FwLensConfig:
     config_path: Path
     tool: ToolConfig
@@ -272,6 +288,7 @@ class FwLensConfig:
     cost_benefit: CostBenefitConfig = field(default_factory=CostBenefitConfig)
     rtos: RTOSConfig = field(default_factory=RTOSConfig)
     standards: StandardsConfig = field(default_factory=StandardsConfig)
+    pr_check: PRCheckConfig = field(default_factory=PRCheckConfig)
     # Function names treated as assertion calls for assert-coverage metrics. Extend
     # this with any project-specific assert macro or error-report function rather
     # than needing a code change. Note: a macro that expands to a conditional call
@@ -359,6 +376,7 @@ def load_config(config_path: Path) -> FwLensConfig:
     ewp_raw = proj_raw.get("ewp")
     source_dir_raw = proj_raw.get("source_dir")
     compile_commands_raw = proj_raw.get("compile_commands")
+    map_file_raw = proj_raw.get("map_file")
     mode_raw = proj_raw.get("mode")
 
     if not ewp_raw and not source_dir_raw and not compile_commands_raw and not mode_raw:
@@ -399,6 +417,7 @@ def load_config(config_path: Path) -> FwLensConfig:
         configuration=proj_raw.get("configuration", "Debug"),
         proj_dir=default_proj_dir,
         toolkit_dir=resolve(toolkit_dir_raw) if toolkit_dir_raw else None,
+        map_file=resolve(map_file_raw) if map_file_raw else None,
     )
 
     # Scope
@@ -549,6 +568,21 @@ def load_config(config_path: Path) -> FwLensConfig:
         imports=[(str(i["tool"]), resolve(i["path"])) for i in std_raw.get("imports", []) or []],
     )
 
+    pc_raw = raw.get("pr_check") or {}
+    defaults = PRCheckConfig()
+    pr_check = PRCheckConfig(
+        base=resolve(pc_raw["base"]) if pc_raw.get("base") else None,
+        base_ref=pc_raw.get("base_ref"),
+        uncertain_gates=bool(pc_raw.get("uncertain_gates", defaults.uncertain_gates)),
+        fail_on_new=bool(pc_raw.get("fail_on_new", defaults.fail_on_new)),
+        max_items=int(pc_raw.get("max_items", defaults.max_items)),
+        base_label=str(pc_raw.get("base_label", defaults.base_label)),
+        report_url=pc_raw.get("report_url"),
+        max_flash_growth_bytes=pc_raw.get("max_flash_growth_bytes"),
+        max_ram_growth_bytes=pc_raw.get("max_ram_growth_bytes"),
+        status=bool(pc_raw.get("status", defaults.status)),
+    )
+
     return FwLensConfig(
         config_path=config_path,
         tool=tool,
@@ -564,6 +598,7 @@ def load_config(config_path: Path) -> FwLensConfig:
         cost_benefit=cost_benefit,
         rtos=rtos,
         standards=standards,
+        pr_check=pr_check,
         assert_names=assert_names,
         warnings=load_warnings,
     )

@@ -29,6 +29,7 @@ _SECTIONS: dict[str, type] = {
     "cost_benefit": _cfg.CostBenefitConfig,
     "rtos": _cfg.RTOSConfig,
     "standards": _cfg.StandardsConfig,
+    "pr_check": _cfg.PRCheckConfig,
 }
 
 # Top-level keys that are not a section: FwLensConfig fields with a direct YAML key, and

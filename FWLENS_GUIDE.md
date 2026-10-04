@@ -392,9 +392,41 @@ Posting a note needs a token that can write notes: set a masked `GITLAB_TOKEN` v
 (a project access token with `api` scope). `CI_JOB_TOKEN` is used if it is the only token
 available, but GitLab usually does not allow it to create notes.
 
-Not included yet: restricting the report to files changed in the PR (issue #35), flash/RAM
-growth gates and a `pr_check` section in `config.yaml`. Rule violations from the MISRA/CERT
-work will use the same comparison.
+### Defaults in config.yaml
+
+The `pr_check` section holds the defaults for `compare` and `pr-comment`; any option on the
+command line overrides it.
+
+```yaml
+pr_check:
+  base: output/main-findings.json   # --base
+  base_ref: origin/main             # --base-ref (slower: analyses the merge-base in a worktree)
+  fail_on_new: true                 # exit 1 on new/worse findings or a footprint limit
+  uncertain_gates: false
+  max_items: 20
+  max_flash_growth_bytes: 2048      # needs project.map_file
+  max_ram_growth_bytes: 256
+  status: true                      # also set a commit status named "fwlens"
+```
+
+### Flash and RAM footprint
+
+Set `project.map_file` to the linker map and FWLens reads object-level `.text`/`.rodata`
+(flash) and `.data`/`.bss` (RAM) sizes, attaches them to the module whose file stem matches the
+object (`main.o` or `main.c.obj` to `main.c`), and adds `flash_bytes` and `ram_bytes` to
+`modules.csv` and the HTML overview. Only GCC-style map lines are verified; IAR maps are
+untested. The figures are per file, not per function.
+
+`--findings-json` records the totals, so a reference file written on the target branch lets
+`compare` and `pr-comment` show Flash and RAM deltas and fail on `max_flash_growth_bytes` /
+`max_ram_growth_bytes`. A reference made with `--base-ref` has no footprint unless the map
+file is committed, so the limits are then reported as not checked.
+
+`--status` (or `pr_check.status`) also sets a `fwlens` commit status. On GitHub the token needs
+`statuses: write`; on GitLab it needs `GITLAB_TOKEN`. A failure to set it is a warning only.
+
+Not included yet: restricting the report to files changed in the PR (issue #35). Rule
+violations from the MISRA/CERT work will use the same comparison.
 
 ---
 
