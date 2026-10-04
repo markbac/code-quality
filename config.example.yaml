@@ -167,6 +167,7 @@ thresholds:
   instability_zone_of_pain: 0.3      # I < this AND A < 0.3 = zone of pain
   instability_zone_of_uselessness: 0.7  # I > this AND A > 0.7 = zone of uselessness
   main_sequence_distance: 0.5        # |A + I - 1| > this = flagged
+  cohesion_min: 0.3                  # internal call cohesion below this = low cohesion
 
 # Known entry points -- excluded from dead code detection
 entry_points:
@@ -178,15 +179,19 @@ entry_points:
 
 # Output
 output:
-  # All paths relative to this config file's directory.
+  # These paths are relative to the directory you run fwlens from (not the config file).
   reports_dir: output/reports
   exports_dir: output/exports
   cache_dir: output/.cache
   db_path: output/fwlens.db
 
   # Formats to produce on 'report' command. Add 'plots' for standalone PNG charts,
-  # 'diagrams' for Mermaid architecture + dependency SVG.
+  # 'diagrams' for Mermaid architecture + dependency SVG, 'sarif' for SARIF findings,
+  # 'sbom' for a CycloneDX software bill of materials, 'cbom' for a cryptography bill of materials.
   formats: [html, csv, json]
+
+  # Files longer than this many lines are not embedded in the HTML source viewer.
+  # source_embed_loc_limit: 10000
 
   # Number of top offenders to show in console summary.
   top_n: 20
@@ -201,6 +206,11 @@ output:
 #   # hotspots. Override if your commit conventions differ from English fix/bug/defect/...
 #   # (e.g. a ticket-only convention, or a non-English team).
 #   fix_keywords: [fix, bug, defect, issue, resolve, patch, hotfix]
+
+# Cost-benefit estimate of static analysis (the unit costs it uses).
+# cost_benefit:
+#   cost_per_defect_static_usd: 100     # cost to fix a defect found by static analysis
+#   cost_per_defect_field_usd: 1000     # cost to fix the same defect after release
 
 # COCOMO effort/schedule estimate. Optional -- defaults to "embedded" mode.
 # estimation:
@@ -224,6 +234,10 @@ output:
 #   # queue_functions: [OS_QUEUE_Create]
 #   # event_functions: [OS_EVENT_Create, OS_EVENT_CreateEx]
 #   # rwlock_functions: [OS_RWLOCK_Create]
+#   # A called function whose name contains one of these (case-insensitive) is a wait or a signal;
+#   # signal is checked first:
+#   # wait_keywords: [Wait, Get, Receive, Take, Lock, Blocked]
+#   # signal_keywords: [Give, Put, Send, Unlock, Set, Pulse]
 #   # usage_functions: [OS_SEMAPHORE_TakeBlocked, OS_SEMAPHORE_Give, OS_MUTEX_LockBlocked, ...]
 #   #
 #   # If tasks are defined as a static const array of descriptor structs and created
@@ -269,6 +283,10 @@ output:
 #   base: output/main-findings.json
 #   base_ref: origin/main
 #   fail_on_new: true
+#   uncertain_gates: false          # also fail on loosely matched findings
+#   max_items: 20                   # rows per table in the comment
+#   base_label: "the target branch" # name used for the reference in the comment
+#   report_url: https://ci.example.com/job/123/artifacts/report.html
 #   max_flash_growth_bytes: 2048
 #   max_ram_growth_bytes: 256
 #   status: false
@@ -277,3 +295,24 @@ output:
 # match:
 #   similarity: 0.85        # above 0, at most 1; lower follows more heavily edited code
 #   report_uncertain: true  # false disables loose matching (edited code = resolved + new)
+
+# Software bill of materials (CycloneDX 1.6 JSON). `fwlens sbom` or `output.formats: [sbom]`.
+# Components are found from scope.sdk / scope.third_party_lib directories; versions and licences
+# are read from the tree and marked unknown when absent. Declare what cannot be detected:
+# sbom:
+#   application_version: "1.4.2"        # default: git describe, else unknown
+#   include_files: false                # list each source file with its SHA-256
+#   components:
+#     - name: FreeRTOS
+#       path: Lib/FreeRTOS              # relative to this file
+#       version: "10.4.3"
+#       license: MIT                    # SPDX id or expression
+#       supplier: Amazon
+#       purl: pkg:github/FreeRTOS/FreeRTOS-Kernel@V10.4.3
+#       description: Real-time kernel
+
+# Cryptography bill of materials (CycloneDX 1.6 JSON). `fwlens cbom` or `output.formats: [cbom]`.
+# Reports the algorithms, protocols and libraries the source names; detected usage only.
+# cbom:
+#   scan_scopes: [first_party]          # boundary classes whose code is scanned (add sdk, third_party_lib)
+#   extra_catalog_dirs: [./crypto]      # YAML catalogue files; an entry id replaces a bundled one

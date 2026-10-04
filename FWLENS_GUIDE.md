@@ -12,6 +12,8 @@
 - [GitLab integration](#gitlab-integration)
 - [PR / MR quality check](#pr--mr-quality-check)
 - [Coding standards (MISRA C, CERT C)](#coding-standards-misra-c-cert-c)
+- [Software bill of materials (SBOM)](#software-bill-of-materials-sbom)
+- [Cryptography bill of materials (CBOM)](#cryptography-bill-of-materials-cbom)
 - [Two-hash comparison](#two-hash-comparison)
 - [Project-wide auto-stub](#project-wide-auto-stub)
 - [Diagnostic clusters](#diagnostic-clusters)
@@ -83,9 +85,20 @@ Pass `-NoClean` to skip the automatic `.pyc` cache purge (faster re-runs when no
 | `export` | `analyze` + write CSV + JSON only |
 | `debug-parse` | Test libclang on a single in-scope file; auto-creates stub headers for missing IAR toolchain headers |
 | `debug` | Show EWP parse results and boundary classification without running analysis |
+| `init` | Write a starter `config.yaml`; `--type cmake\|make\|ewp\|directory\|auto` picks the template |
+| `doctor` | Check libclang, the compiler, git and print every resolved path |
+| `config-schema` | Print the JSON Schema for `config.yaml` (`-o FILE` writes it) |
+| `sbom` | Write a CycloneDX 1.6 software bill of materials -- see [SBOM](#software-bill-of-materials-sbom) |
+| `cbom` | Write a CycloneDX 1.6 cryptography bill of materials -- see [CBOM](#cryptography-bill-of-materials-cbom) |
+| `compare`, `pr-comment` | Compare with the target branch; post the result -- see [PR / MR quality check](#pr--mr-quality-check) |
+| `standards list\|validate\|report` | MISRA C and CERT C rules, deviations, compliance matrix |
+| `dump-ast` | Print the libclang AST for one file (see below) |
 
 `analyze` and `report` both accept `--baseline`, `--fail-on-breach`, `--update-baseline`,
 `--accept-all`, `--accept-id`, and `--prune` -- see [Baseline / breach gating](#baseline--breach-gating).
+They also accept `--github-annotations` (print workflow annotations for GitHub Actions) and
+`--fail-on-parse-error` (exit 1 when the share of files with fatal or error parse diagnostics is
+above `tool.parse_error_threshold`; the default `0` fails on any).
 `analyze`, `report`, and `export` all accept `--auto-stub` -- see
 [Project-wide auto-stub](#project-wide-auto-stub).
 
@@ -105,11 +118,18 @@ see [Architecture & call-graph diagrams](#architecture--call-graph-diagrams).
 
 ---
 
+#### `dump-ast`
+
+`fwlens dump-ast --file NAME` prints the libclang AST of one in-scope file, for checking what the
+analysis sees. `--depth N` limits the depth (default 6); `--var NAME` dumps the initialiser of a
+global (a dispatch table, say), `--fn NAME` the references inside a function, and `--find-refs
+NAME` searches every in-scope file for functions that reference a global.
+
 ### Checking config.yaml
 
 An unknown key (for example `cyclomatic_complexty` under `thresholds`) produces a warning that
 names it and suggests the closest known key; the run continues. Unsupported values in
-`output.formats` (`html`, `csv`, `json`, `plots`, `diagrams`, `sarif`) and `scope.analyse` stop the
+`output.formats` (`html`, `csv`, `json`, `plots`, `diagrams`, `sarif`, `sbom`, `cbom`) and `scope.analyse` stop the
 run with the list of valid values. If `config.yaml` is not in the working directory, FWLens looks
 for `config.yaml`, `.fwlens.yaml` or `fwlens.yaml` in each parent directory.
 
@@ -469,6 +489,8 @@ extracted is listed as moved, not as one fixed plus one new.
 | `--dry-run` | print the Markdown, post nothing |
 | `--no-update` | create a new comment each time instead of updating the existing one |
 | `--markdown FILE`, `--max-items N`, `--report-url URL` | output controls |
+| `--base-label TEXT` | how the reference is named in the comment (default "the target branch") |
+| `--max-flash-growth BYTES`, `--max-ram-growth BYTES` | fail when the footprint grows by more than this; need `project.map_file` |
 
 The comment is identified by a hidden marker, so re-running a pipeline updates it instead of
 adding another.
@@ -553,6 +575,8 @@ pr_check:
   base_ref: origin/main             # --base-ref (slower: analyses the merge-base in a worktree)
   fail_on_new: true                 # exit 1 on new/worse findings or a footprint limit
   uncertain_gates: false
+  base_label: the target branch     # --base-label
+  report_url: https://ci.example.com/job/1/artifacts/report.html   # --report-url
   max_items: 20
   max_flash_growth_bytes: 2048      # needs project.map_file
   max_ram_growth_bytes: 256
@@ -637,7 +661,8 @@ Engines: `ast` (a libclang cursor kind, optionally restricted to named callees),
 (call cycles, for recursion). Adding a rule that fits an engine is a YAML edit only. Files are
 validated on load with errors that name the file, rule and field, and
 `fwlens standards validate [FILES...]` checks rule and deviation files. `fwlens standards list`
-shows every rule, how it is checked and which are enabled.
+shows every rule, how it is checked and which are enabled; `--rule-dir DIR` adds a rule directory
+for that call.
 
 A `tool_map` section maps another tool's check ids onto rule ids. Common cppcheck MISRA and
 CERT ids and clang-tidy `cert-*` ids are recognised without it.
@@ -678,6 +703,7 @@ finding of its own, so it fails the gate.
 
 ```bash
 fwlens standards report --config config.yaml --output matrix.md      # or --format json
+fwlens standards report --config config.yaml --fail-on-violation      # exit 1 on any active finding or deviation problem
 ```
 
 One row per selected guideline: category, decidability and scope, status (violated, deviated,
@@ -720,6 +746,96 @@ This is a record of the position, not legal advice, and the question is **not se
   `standards.extra_rule_dirs` and drop the built-in file if that is the safer course.
 
 ---
+
+## Software bill of materials (SBOM)
+
+`fwlens sbom --config config.yaml` writes a [CycloneDX](https://cyclonedx.org) 1.6 JSON bill of
+materials to `<output.exports_dir>/sbom.cdx.json` (`--output FILE` overrides). Listing `sbom` in
+`output.formats` makes `fwlens report` write it too. It needs the project description only: no
+libclang run and no package manager.
+
+What goes in:
+
+- **Application**: the first-party sources and the headers in the include paths, as the
+  `firmware` component in `metadata`, with a SHA-256 over the sorted `path:sha256` lines of its
+  files. Its version is `sbom.application_version`, else `git describe`, else left out.
+- **Components**: one per directory directly below a `scope.sdk` or `scope.third_party_lib`
+  fragment (SDK directories are `framework`, the rest `library`), plus each `sbom.components`
+  entry. Files outside every scope list go to a component named after their top-level directory,
+  classified `unknown`.
+- **Version**, first match wins: a `VERSION` file, `library.json` or `package.json`, a version
+  macro in a header (`FOO_VERSION "1.2.3"` or a MAJOR/MINOR/PATCH set), `git describe` when the
+  directory is a git checkout. Otherwise the version is left out and
+  `fwlens:version-source` says `unknown`; it is never guessed.
+- **Licence**, first match wins: `SPDX-License-Identifier` headers, then a `LICENSE` or `COPYING`
+  file recognised by its text (MIT, BSD-2/3, ISC, Apache-2.0, MPL-2.0, GPL and LGPL). Otherwise
+  none is stated and `fwlens:license-source` says why.
+- **Dependencies**: between components, and from the application, where an `#include` name
+  resolves to exactly one owner.
+- **Linked**: with `project.map_file`, `fwlens:linked` is `true` or `false` per component by
+  whether any of its objects appear in the map; without it the value is `unknown`.
+
+```yaml
+sbom:
+  application_version: "1.4.2"
+  include_files: false          # true adds each source file with its SHA-256
+  components:                   # declare what cannot be detected; these win over detection
+    - name: FreeRTOS
+      path: Lib/FreeRTOS        # relative to config.yaml
+      version: "10.4.3"
+      license: MIT
+      supplier: Amazon
+      purl: pkg:github/FreeRTOS/FreeRTOS-Kernel@V10.4.3
+```
+
+> **Note:** this is an inventory of what is in the source tree, taken before the build
+> (`lifecycles: pre-build`). FWLens is not a package manager, so it cannot see how a binary was
+> assembled; whether a component is in the firmware needs `project.map_file`.
+
+## Cryptography bill of materials (CBOM)
+
+`fwlens cbom --config config.yaml` writes a CycloneDX 1.6 cryptography bill of materials to
+`<output.exports_dir>/cbom.cdx.json` (`--output FILE` overrides; `cbom` in `output.formats` does
+the same from `report`). Each algorithm or protocol the code names becomes a
+`cryptographic-asset` component with `cryptoProperties`, its occurrences (file and line, at most
+50, with the total in `fwlens:occurrence-count`), and the library that provides it.
+
+How it works: comments and string literals are removed from the source, then every identifier is
+matched against a catalogue of library functions and constants. Bundled coverage is Mbed TLS,
+OpenSSL, wolfSSL, TinyCrypt, libsodium, micro-ecc, the PSA Crypto API and the STM32 HAL crypto
+peripherals. Each asset has an evidence kind in `fwlens:evidence-kind`:
+
+| Kind | Meaning |
+|---|---|
+| `used` | an identifier from the catalogue appears in code |
+| `configured` | a catalogue macro such as `MBEDTLS_SHA256_C` is `#define`d |
+| `library-present` | a matching `#include` or library directory, with no algorithm seen (library components) |
+
+Key size and mode are read from names such as `EVP_aes_128_gcm`; a curve is taken from curve names
+in the same file. TLS cipher suite names (`..._TLS_..._WITH_...`) are collected on one protocol
+asset. `fwlens:weak` carries the reason on MD5, SHA-1, DES, 3DES, RC4, ECB mode, SSL 3.0, TLS 1.0 and
+1.1, and cipher suites using RC4, DES, 3DES, NULL, EXPORT or MD5.
+
+```yaml
+cbom:
+  scan_scopes: [first_party]       # boundary classes scanned; add sdk or third_party_lib to
+                                   # include library sources (they will then report themselves)
+  extra_catalog_dirs: [./crypto]   # more catalogue files, read after the bundled ones
+```
+
+A catalogue file names a `library` (`id`, `name`, `include_fragments`, `dir_names`) and a list of
+`entries`. An entry needs `id`, `name` and `identifiers` (a trailing `*` is a prefix) or
+`config_macros`, and may set `primitive`, `mode`, `parameter_set`, `curve`, `functions`, `weak`
+(a reason), `hardware`, `curve_aware`, `mode_from_name`, `bits_from_name` and, for protocols,
+`kind: protocol`, `protocol` and `version`. An entry with the same `id` in the same library
+replaces the bundled one. The bundled files in `fwlens/crypto/catalog/` are the reference, and
+a malformed file stops the run with its name and the field at fault.
+
+> **Warning:** the CBOM reports detected usage only and is not a complete inventory. A static scan
+> cannot see runtime configuration, the protocol version actually negotiated, key material,
+> hardware peripherals driven through raw registers, or calls made through function pointers and
+> wrapper layers. The document states this in `metadata.properties`. Read an empty result as "none
+> found by name", not "none present".
 
 ## Two-hash comparison
 
@@ -1635,7 +1751,19 @@ tool:
   libclang_path: C:\Program Files\LLVM\bin\libclang.dll
 ```
 
-Path to `libclang.dll`. Install LLVM from the official releases and point here.
+Path to `libclang.dll`. Install LLVM from the official releases and point here. Optional: without
+it FWLens uses `LIBCLANG_PATH` or the libclang bundled with the package.
+
+Other `tool` keys, all optional:
+
+| Key | Meaning |
+|---|---|
+| `target` | clang target; default `arm-none-eabi`, `native` for host builds |
+| `sysroot`, `system_include_dirs` | where the compiler's headers are; setting `system_include_dirs` skips auto-detection |
+| `clang_args` | extra arguments for every translation unit, e.g. `["-std=c11"]` |
+| `auto_detect_includes` | ask the compiler for its include paths (default `true`) |
+| `parse_error_threshold` | share of files with fatal or error diagnostics tolerated by `--fail-on-parse-error` (default `0.0`) |
+| `jobs`, `parse_timeout`, `parse_cache` | parallel parse workers, seconds per file, parse cache -- see [Commands](#commands) |
 
 ### `project`
 
@@ -1760,7 +1888,57 @@ thresholds:
   instability_zone_of_pain: 0.3
   instability_zone_of_uselessness: 0.7
   main_sequence_distance: 0.5
+  cohesion_min: 0.3                 # internal call cohesion below this = low cohesion
 ```
+
+### `output`
+
+```yaml
+output:
+  reports_dir: output/reports
+  exports_dir: output/exports
+  cache_dir: output/.cache
+  db_path: output/fwlens.db
+  formats: [html, csv, json]        # also plots, diagrams, sarif, sbom, cbom
+  top_n: 20
+  source_embed_loc_limit: 10000
+```
+
+`reports_dir` holds the HTML report, `exports_dir` the CSV, JSON, SARIF, SBOM and CBOM files,
+`cache_dir` the parse cache and `db_path` the [run history](#run-history-trends-and-the-ratchet).
+These paths are relative to the directory you run `fwlens` from. `top_n` is the number of top
+offenders in the console summary. A source file longer than `source_embed_loc_limit` lines is not
+embedded in the HTML source viewer.
+
+### `cost_benefit`
+
+```yaml
+cost_benefit:
+  cost_per_defect_static_usd: 100    # cost to fix a defect found by static analysis
+  cost_per_defect_field_usd: 1000    # cost to fix the same defect after release
+```
+
+The unit costs behind the cost-benefit estimate. Set them to your own figures.
+
+### `rtos`
+
+The task, semaphore, mutex, mailbox, queue, event and read-write lock creation functions
+(`task_functions`, `semaphore_functions`, `mutex_functions`, `mailbox_functions`,
+`queue_functions`, `event_functions`, `rwlock_functions`) are described in
+[RTOS task/synchronisation analysis](#rtos-tasksynchronisation-analysis). `wait_keywords`
+(default `Wait`, `Get`, `Receive`, `Take`, `Lock`, `Blocked`) and `signal_keywords` (default
+`Give`, `Put`, `Send`, `Unlock`, `Set`, `Pulse`) classify a called function as a wait or a signal
+when its name contains one of them, case-insensitively; signal is checked first.
+
+### `sbom` and `cbom`
+
+See [Software bill of materials](#software-bill-of-materials-sbom) and
+[Cryptography bill of materials](#cryptography-bill-of-materials-cbom).
+
+`pr_check`, `match`, `standards`, `git` and `estimation` are described in their own sections:
+[PR / MR quality check](#pr--mr-quality-check), [Moved and renamed code](#moved-and-renamed-code),
+[Coding standards](#coding-standards-misra-c-cert-c), [Git history warnings](#git-history-warnings)
+and [COCOMO effort estimate](#cocomo-effort-estimate).
 
 ---
 
