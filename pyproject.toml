@@ -61,8 +61,8 @@ where = ["."]
 include = ["fwlens*"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["."]
+testpaths = ["tests", "packages/py-doc2slides/tests", "packages/py-doclint/tests"]
+pythonpath = [".", "packages/py-doc2slides", "packages/py-doclint"]
 python_files = ["test_*.py"]
 
 [tool.ruff]
