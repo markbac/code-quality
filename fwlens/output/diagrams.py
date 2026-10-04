@@ -29,6 +29,14 @@ except ImportError:
 from fwlens.config import FwLensConfig
 from fwlens.model.project import ProjectModel, StateMachine
 
+
+def _pyplot():
+    """matplotlib is a declared dependency. Import it lazily with the headless backend."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    return plt
+
 _ZONE_CLASS = {
     "pain": "pain",
     "uselessness": "useless",
@@ -303,6 +311,7 @@ def generate_dependency_svg(model: ProjectModel, config: FwLensConfig) -> Path:
     out_dir = config.output.reports_dir / "diagrams"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "dependency_graph.svg"
+    plt = _pyplot()
 
     G = nx.DiGraph()
     G.add_nodes_from(fp_paths)
