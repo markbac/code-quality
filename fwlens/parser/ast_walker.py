@@ -783,38 +783,23 @@ def build_clang_args(tu_info: TranslationUnit, config: FwLensConfig) -> list[str
     # "incompatible redeclaration", regardless of how textbook-correct our signature
     # looks. This disables that recognition entirely so our own stub declarations are
     # authoritative, which is what we want anyway since we don't have real headers.
+    detected_includes: tuple[str, ...] = ()
+    detected_triple: str = ""
+    if config.tool.system_include_dirs:
+        sys_dirs = config.tool.system_include_dirs
+    elif config.tool.auto_detect_includes:
+        detected_includes, _compiler, detected_triple = detect_system_includes(
+            config.tool.target, str(config.tool.sysroot or "")
+        )
+        sys_dirs = [Path(d) for d in detected_includes]
+    else:
+        sys_dirs = []
+
     clang_args = [
-        "-x", "c", *target_args(config.tool.target), "-fno-builtin",
-        # Matches IAR's default enum packing (--enum_is_int is OFF by default in IAR --
-        # an enum takes the smallest type that fits its value range, not always a
-        # 4-byte int). Without this, any struct/static_assert relying on IAR's real
-        # enum size (e.g. `static_assert(sizeof(SomeEnumType) == 2, ...)`) fails under
-        # clang's default int-sized enums even though the real IAR build is correct.
+        "-x", "c", *target_args(config.tool.target, detected_triple), "-fno-builtin",
         "-fshort-enums",
-        # --target=arm-none-eabi predefines its own __ARM_ARCH (and related) macros
-        # from the target triple, before any of our -D flags below are even applied.
-        # iar_compat_defines then deliberately overrides several of them (__ARM_ARCH,
-        # __CORE__, the __ARMxxM__/__ARMxxEM__ family) to match the specific IAR
-        # target rather than clang's generic default -- that redefinition is the
-        # whole point, not a mistake. Each -D below is preceded by a matching -U for
-        # the same macro name (see the loop below) so there's no redefinition event
-        # for clang to warn about in the first place -- more surgical than disabling
-        # a whole warning class, which would also hide a genuine conflict between two
-        # of the project's own headers. (An earlier attempt at this used
-        # -Wno-builtin-macro-redefined, which doesn't apply here: that flag only
-        # covers clang's small set of dynamic compiler builtins like __LINE__/
-        # __FILE__/__has_feature -- target-predefined macros like __ARM_ARCH are
-        # ordinary #defines in the predefines buffer and fall under the general
-        # -Wmacro-redefined group instead, which -Wno-builtin-macro-redefined leaves
-        # untouched.)
     ]
 
-    # IAR compat defines -- entries starting with -U are undefines, rest are -D.
-    # Each -D is preceded by a -U for the same macro name so overriding a macro the
-    # target already predefines (__ARM_ARCH etc.) never triggers a redefinition
-    # warning -- see the clang_args comment above. -U on a macro that was never
-    # defined is a silent no-op, so this is always safe even for compat defines that
-    # don't collide with anything.
     for d in config.iar_compat_defines:
         if d.startswith("-U"):
             clang_args.append(d)
@@ -822,28 +807,17 @@ def build_clang_args(tu_info: TranslationUnit, config: FwLensConfig) -> list[str
             clang_args.append(f"-U{macro_name(d)}")
             clang_args.append(f"-D{d}")
 
-    # Project defines
     for d in tu_info.defines:
         clang_args.append(f"-D{d}")
 
-    # Include paths -- prepend iar_stubs/ (sits next to config.yaml) first so
-    # stub headers shadow any missing IAR toolchain headers like intrinsics.h.
     stubs_dir = config.config_path.parent / "iar_stubs"
     if stubs_dir.exists():
         clang_args.append(f"-I{stubs_dir}")
 
-    # System headers: explicit config wins, otherwise ask the matching compiler.
-    # The libclang wheel ships no resource headers, so without this stddef.h and
-    # friends are "not found" (issue #48).
     if config.tool.sysroot:
         clang_args.append(f"--sysroot={config.tool.sysroot}")
-    if config.tool.system_include_dirs:
-        for d in config.tool.system_include_dirs:
-            clang_args.append(f"-isystem{d}")
-    elif config.tool.auto_detect_includes:
-        detected, _compiler = detect_system_includes(config.tool.target, str(config.tool.sysroot or ""))
-        for d in detected:
-            clang_args.append(f"-isystem{d}")
+    for d in sys_dirs:
+        clang_args.append(f"-isystem{d}")
 
     # Inject LLVM bundled system headers so standard headers like string.h are found.
     if config.tool.libclang_path:
