@@ -17,9 +17,9 @@ import sys
 import tempfile
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Optional
 
 from fwlens.baseline import Breach
 from fwlens.identity import SCHEME, MatchResult, match_findings, migrate_legacy_id
@@ -150,14 +150,14 @@ def _name(b) -> str:
     return getattr(b, "function", None) or b.file
 
 
-def render_markdown(c: Comparison, *, max_items: int = 20, report_url: Optional[str] = None,
+def render_markdown(c: Comparison, *, max_items: int = 20, report_url: str | None = None,
                     base_label: str = "base") -> str:
     if c.reference_missing:
         out = [MARKER, "## FWLens quality check: no comparison", "",
-               f"No reference results were found for {base_label}, so this change cannot be compared "
-               f"and the check does not fail. The current checkout has {c.current_total} finding(s).",
-               "", "Publish a findings file from the target branch pipeline "
-               "(`fwlens analyze --findings-json findings.json`) and pass it with `--base`."]
+               (f"No reference results were found for {base_label}, so this change cannot be compared "
+               f"and the check does not fail. The current checkout has {c.current_total} finding(s)."),
+               "", ("Publish a findings file from the target branch pipeline "
+               "(`fwlens analyze --findings-json findings.json`) and pass it with `--base`.")]
         if report_url:
             out += ["", f"[Full report]({report_url})"]
         return "\n".join(out) + "\n"
@@ -216,15 +216,15 @@ def render_markdown(c: Comparison, *, max_items: int = 20, report_url: Optional[
 # ---------------------------------------------------------------------------
 
 class PostError(RuntimeError):
-    def __init__(self, message: str, status: Optional[int] = None):
+    def __init__(self, message: str, status: int | None = None):
         super().__init__(message)
         self.status = status
 
 
-Request = Callable[[str, str, dict, Optional[dict]], tuple[int, object]]
+Request = Callable[[str, str, dict, dict | None], tuple[int, object]]
 
 
-def _http(method: str, url: str, headers: dict, body: Optional[dict]) -> tuple[int, object]:
+def _http(method: str, url: str, headers: dict, body: dict | None) -> tuple[int, object]:
     data = json.dumps(body).encode("utf-8") if body is not None else None
     req = urllib.request.Request(url, data=data, method=method)
     for k, v in {**headers, "Content-Type": "application/json", "User-Agent": "fwlens"}.items():
@@ -239,10 +239,10 @@ def _http(method: str, url: str, headers: dict, body: Optional[dict]) -> tuple[i
         raise PostError(f"{method} {url} failed: {e.reason}") from e
 
 
-def _find_marked(request: Request, list_url: str, headers: dict, body_key: str) -> Optional[dict]:
+def _find_marked(request: Request, list_url: str, headers: dict, body_key: str) -> dict | None:
     page = 1
     while True:
-        status, items = request("GET", f"{list_url}{'&' if '?' in list_url else '?'}per_page=100&page={page}",
+        _status, items = request("GET", f"{list_url}{'&' if '?' in list_url else '?'}per_page=100&page={page}",
                                 headers, None)
         if not items:
             return None
@@ -254,7 +254,7 @@ def _find_marked(request: Request, list_url: str, headers: dict, body_key: str) 
         page += 1
 
 
-def post_github(markdown: str, *, update_existing: bool = True, pr: Optional[int] = None,
+def post_github(markdown: str, *, update_existing: bool = True, pr: int | None = None,
                 env=None, request: Request = _http) -> str:
     env = os.environ if env is None else env
     token, repo = env.get("GITHUB_TOKEN"), env.get("GITHUB_REPOSITORY")
@@ -275,7 +275,7 @@ def post_github(markdown: str, *, update_existing: bool = True, pr: Optional[int
     return "created"
 
 
-def post_gitlab(markdown: str, *, update_existing: bool = True, mr: Optional[int] = None,
+def post_gitlab(markdown: str, *, update_existing: bool = True, mr: int | None = None,
                 env=None, request: Request = _http) -> str:
     env = os.environ if env is None else env
     api, project = env.get("CI_API_V4_URL"), env.get("CI_PROJECT_ID")
@@ -298,7 +298,7 @@ def post_gitlab(markdown: str, *, update_existing: bool = True, mr: Optional[int
     return "created"
 
 
-def detect_platform(env=None) -> Optional[str]:
+def detect_platform(env=None) -> str | None:
     env = os.environ if env is None else env
     if env.get("GITHUB_ACTIONS", "").lower() == "true":
         return "github"

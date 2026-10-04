@@ -21,9 +21,9 @@ from __future__ import annotations
 import functools
 import hashlib
 import subprocess
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, Optional
 
 from fwlens.clones import _COMMENT_RE, _KEYWORDS, _TOKEN_RE
 
@@ -59,7 +59,7 @@ def to_posix(path) -> str:
 
 
 @functools.lru_cache(maxsize=32)
-def _git_toplevel(directory: str) -> Optional[str]:
+def _git_toplevel(directory: str) -> str | None:
     try:
         out = subprocess.run(["git", "-C", directory, "rev-parse", "--show-toplevel"],
                              capture_output=True, text=True, timeout=10)
@@ -82,7 +82,7 @@ def project_root(config) -> Path:
     return Path(top) if top else Path(config.config_path).parent
 
 
-def relative_posix(path, root: Optional[Path]) -> str:
+def relative_posix(path, root: Path | None) -> str:
     """Repo-relative, forward-slash path. Paths outside the root keep their full posix form."""
     p = Path(path)
     if root is not None:
@@ -157,7 +157,7 @@ def function_source(func, file_cache: dict) -> str:
 # Keys
 # ---------------------------------------------------------------------------
 
-def make_key(file: str, function: Optional[str], metric: str, ordinal: int = 1) -> str:
+def make_key(file: str, function: str | None, metric: str, ordinal: int = 1) -> str:
     if function is None:
         return f"{file}:{metric}"
     name = function if ordinal == 1 else f"{function}#{ordinal}"
@@ -188,7 +188,7 @@ def migrate_legacy_id(entry: dict) -> dict:
 @dataclass
 class Match:
     current: object                      # a Breach
-    base: Optional[dict]                 # matched base entry, None for new
+    base: dict | None                 # matched base entry, None for new
     status: str                          # new | unchanged | moved | uncertain
     tier: str = ""                       # key | content | shape | similar | contained
     note: str = ""
@@ -216,9 +216,7 @@ class MatchResult:
     def gating(self, uncertain_gates: bool = False) -> list[Match]:
         out = []
         for m in self.matches:
-            if m.status == NEW or m.worsened:
-                out.append(m)
-            elif m.status == UNCERTAIN and uncertain_gates:
+            if m.status == NEW or m.worsened or m.status == UNCERTAIN and uncertain_gates:
                 out.append(m)
         return out
 
@@ -238,7 +236,7 @@ def _containment(cur_fp: dict, base_fp: dict) -> float:
     return min(1.0, j * (na + nb) / ((1 + j) * na))
 
 
-def _order(item_file: str, item_line: Optional[int]) -> tuple:
+def _order(item_file: str, item_line: int | None) -> tuple:
     return (item_file, item_line or 0)
 
 
@@ -290,14 +288,14 @@ def match_findings(current: Iterable, base_entries: Iterable[dict], *,
         fp = current[ci].fingerprint
         if not fp.get("minhash"):
             continue
-        best, best_score, best_j = None, 0.0, 0.0
+        best, best_score, _best_j = None, 0.0, 0.0
         for bi in free_base(current[ci].metric):
             bfp = base[bi].get("fingerprint", {})
             j = _jaccard(fp["minhash"], bfp.get("minhash", []))
             kept = _containment(bfp, fp)          # share of the old body still present
             score = max(j, kept if kept >= edit_containment else 0.0)
             if score > best_score and (j >= similarity or kept >= edit_containment):
-                best, best_score, best_j = bi, score, j
+                best, best_score, _best_j = bi, score, j
         if best is not None:
             record(ci, best, UNCERTAIN, "similar", f"{best_score:.0%} of the previous body is still here")
 

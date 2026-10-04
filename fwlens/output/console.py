@@ -8,12 +8,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from rich import box
 from rich.console import Console
 from rich.table import Table
-from rich import box
 
 from fwlens.config import FwLensConfig
-from fwlens.model.project import FunctionMetrics, ModuleMetrics, ProjectModel
+from fwlens.model.project import ProjectModel
 
 console = Console()
 
@@ -298,7 +298,7 @@ def print_summary(model: ProjectModel, config: FwLensConfig) -> None:
         console.print(rt)
 
         if model.rtos_sync_objects:
-            console.print(f"\n[bold]RTOS Synchronisation Objects[/bold]")
+            console.print("\n[bold]RTOS Synchronisation Objects[/bold]")
             rst = Table(box=box.SIMPLE)
             rst.add_column("Object", style="cyan")
             rst.add_column("Kind")
@@ -373,7 +373,7 @@ def print_summary(model: ProjectModel, config: FwLensConfig) -> None:
     # Reliability growth (Goel-Okumoto)
     if model.reliability_growth:
         r = model.reliability_growth
-        console.print(f"\n[bold]Reliability Growth[/bold]  [dim](Goel-Okumoto NHPP fit "
+        console.print("\n[bold]Reliability Growth[/bold]  [dim](Goel-Okumoto NHPP fit "
                       "over fix-commit history)[/dim]")
         if r.trend == "insufficient_data":
             console.print(f"  [dim]{r.fix_commit_count} fix-flavoured commit(s) found -- "
@@ -390,7 +390,7 @@ def print_summary(model: ProjectModel, config: FwLensConfig) -> None:
 
     # Complexity-vs-defect correlation
     if model.defect_correlations:
-        console.print(f"\n[bold]Complexity-vs-Defect Correlation[/bold]  "
+        console.print("\n[bold]Complexity-vs-Defect Correlation[/bold]  "
                       "[dim](Spearman r against fix-commit touch count, this codebase)[/dim]")
         dct = Table(box=box.SIMPLE)
         dct.add_column("Metric", style="cyan")
@@ -404,7 +404,7 @@ def print_summary(model: ProjectModel, config: FwLensConfig) -> None:
     # Cost/benefit
     if model.cost_benefit:
         cb = model.cost_benefit
-        console.print(f"\n[bold]Cost/Benefit: Static vs. Field[/bold]  "
+        console.print("\n[bold]Cost/Benefit: Static vs. Field[/bold]  "
                       "[dim](placeholder cost figures unless configured -- see guide)[/dim]")
         console.print(
             f"  ~{cb.estimated_remaining_defects:.0f} estimated remaining defects  ->  "
@@ -486,7 +486,7 @@ def print_summary(model: ProjectModel, config: FwLensConfig) -> None:
     # Complexity trend in top hotspots (Ch.6)
     trends_with_data = [t for t in model.complexity_trends if t.trend != "insufficient_data"]
     if trends_with_data:
-        console.print(f"\n[bold]Complexity Trend in Top Hotspots[/bold]  "
+        console.print("\n[bold]Complexity Trend in Top Hotspots[/bold]  "
                       "[dim](sampled from git history -- see plots/complexity_trend.png)[/dim]")
         tt = Table(box=box.SIMPLE)
         tt.add_column("File", style="dim")
@@ -504,7 +504,7 @@ def print_summary(model: ProjectModel, config: FwLensConfig) -> None:
     if model.ownership_risks:
         top_owner = [m for m in model.ownership_risks if m.ownership_risk_score > 0][:top_n]
         if top_owner:
-            console.print(f"\n[bold]Ownership Risk (churn x diffuse authorship)[/bold]  "
+            console.print("\n[bold]Ownership Risk (churn x diffuse authorship)[/bold]  "
                           "[dim](frequently changed AND no clear main author)[/dim]")
             ot = Table(box=box.SIMPLE)
             ot.add_column("File", style="dim")
@@ -574,7 +574,7 @@ def print_summary(model: ProjectModel, config: FwLensConfig) -> None:
         key=lambda m: (m.max_ifdef_depth, m.distinct_feature_flags), reverse=True,
     )[:top_n]
     if complex_modules:
-        console.print(f"\n[bold]Preprocessor Complexity[/bold]")
+        console.print("\n[bold]Preprocessor Complexity[/bold]")
         pc = Table(box=box.SIMPLE)
         pc.add_column("File", style="dim")
         pc.add_column("Max #ifdef depth", justify="right")

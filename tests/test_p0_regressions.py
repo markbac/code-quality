@@ -4,13 +4,12 @@ Regression tests for the P0 bugs: #23 (CLI crash), #46 (CC inflation), #47 (HTML
 
 from html.parser import HTMLParser
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
 
 import main as fwlens_main
-from fwlens.config import FwLensConfig, ProjectConfig, ScopeConfig, ToolConfig, ThresholdConfig, OutputConfig
+from fwlens.config import FwLensConfig, OutputConfig, ProjectConfig, ScopeConfig, ThresholdConfig, ToolConfig
 
 
 def _config(tmp_path: Path, formats=("json",)) -> FwLensConfig:
@@ -107,8 +106,8 @@ class _DivBalance(HTMLParser):
 
 
 def test_html_report_divs_are_balanced(tmp_path):
-    from fwlens.output.html_report import generate_html_report
     from fwlens.model.project import ProjectModel
+    from fwlens.output.html_report import generate_html_report
 
     config = _config(tmp_path, formats=("html",))
     path = generate_html_report(ProjectModel(ewp_path=tmp_path / "x.ewp", configuration="Debug"), config)

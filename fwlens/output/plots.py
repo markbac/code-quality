@@ -11,8 +11,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import numpy as np
 import matplotlib
+import numpy as np
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
@@ -232,7 +233,8 @@ def _generate_commit_activity_calendar(model: ProjectModel, plots_dir: Path) -> 
     if not model.commit_activity:
         return
 
-    from datetime import date as _date, timedelta as _timedelta
+    from datetime import date as _date
+    from datetime import timedelta as _timedelta
 
     counts = {
         _date.fromisoformat(c.date): c.commit_count for c in model.commit_activity

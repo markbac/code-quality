@@ -13,7 +13,6 @@ from fwlens.libclang_locate import LibclangError, locate_libclang
 from fwlens.parser.compile_commands import extract_clang_flags
 from fwlens.sysinc import is_native, parse_include_search_list, target_args
 
-
 # --- #26 -----------------------------------------------------------------------
 
 def test_explicit_missing_libclang_path_is_an_error(tmp_path):
@@ -140,10 +139,11 @@ def test_parse_health_clean_run_passes():
 def test_native_target_finds_system_headers(tmp_path):
     """End to end: with target native the host compiler's headers are located."""
     import shutil
-    cindex = pytest.importorskip("clang.cindex")
+    pytest.importorskip("clang.cindex")
     if not shutil.which("gcc") and not shutil.which("cc") and not shutil.which("clang"):
         pytest.skip("no host C compiler to ask for include directories")
     from test_p0_regressions import _config
+
     from fwlens.config import ToolConfig
     from fwlens.parser.pipeline import run_pipeline
 

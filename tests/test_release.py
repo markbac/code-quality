@@ -4,6 +4,7 @@ Tests for release package verification and CLI entry points.
 
 import subprocess
 import sys
+
 from fwlens.cli.commands import __version__
 
 

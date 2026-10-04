@@ -6,14 +6,11 @@ Integrated Py-LogKit Logging Module with colorlog & standard fallback support.
 
 import logging
 import os
-import sys
-import json
-import time
 import socket
+import sys
 import threading
-from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler, SysLogHandler
-from typing import Optional, Dict, Any
-from functools import wraps
+from logging.handlers import RotatingFileHandler
+from typing import Any
 
 try:
     import colorlog
@@ -33,7 +30,7 @@ def set_log_context(**kwargs):
 def clear_log_context():
     _log_context.data = {}
 
-def get_log_context() -> Dict[str, Any]:
+def get_log_context() -> dict[str, Any]:
     context = getattr(_log_context, 'data', {}).copy()
     context.setdefault("user_id", "-")
     context.setdefault("session_id", "-")
@@ -91,7 +88,7 @@ class ContextFilter(logging.Filter):
             'STARTUP': '' if is_win else '🚀',
             'SHUTDOWN': '' if is_win else '🛑'
         }
-        setattr(record, 'emoji', emoji_map.get(record.levelname, ''))
+        record.emoji = emoji_map.get(record.levelname, '')
         return True
 
 class ContextualLoggerAdapter(logging.LoggerAdapter):
@@ -110,17 +107,17 @@ class ContextualLoggerAdapter(logging.LoggerAdapter):
         set_log_context(**combined_context)
         return self
 
-def setup_logging(name: Optional[str] = "QuectelDashboard",
+def setup_logging(name: str | None = "QuectelDashboard",
                   overwrite: bool = False,
                   to_console: bool = True,
                   to_file: bool = True,
-                  file_path: Optional[str] = "dashboard_serial.log",
+                  file_path: str | None = "dashboard_serial.log",
                   level: str = "INFO",
                   mode: str = "verbose",
                   rotation: str = "size",
                   max_bytes: int = 10*1024*1024,
                   backup_count: int = 3,
-                  context: Optional[dict] = None) -> logging.Logger:
+                  context: dict | None = None) -> logging.Logger:
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
     logger.handlers.clear()

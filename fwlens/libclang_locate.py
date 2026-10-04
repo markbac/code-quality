@@ -15,7 +15,6 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
 class LibclangError(RuntimeError):
@@ -24,11 +23,11 @@ class LibclangError(RuntimeError):
 
 @dataclass
 class LibclangLocation:
-    path: Optional[Path]   # None means "let the bindings search the system"
+    path: Path | None   # None means "let the bindings search the system"
     source: str            # "config" | "env" | "bundled" | "system"
 
 
-def _bundled_library() -> Optional[Path]:
+def _bundled_library() -> Path | None:
     try:
         import clang  # type: ignore
     except Exception:
@@ -43,7 +42,7 @@ def _bundled_library() -> Optional[Path]:
     return None
 
 
-def locate_libclang(configured: Optional[Path]) -> LibclangLocation:
+def locate_libclang(configured: Path | None) -> LibclangLocation:
     if configured:
         if not Path(configured).exists():
             raise LibclangError(

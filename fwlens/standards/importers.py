@@ -19,7 +19,6 @@ import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from fwlens.standards.rules import Rule, Standard
 
@@ -50,7 +49,7 @@ def candidate_ids(tool_id: str) -> list[str]:
     return out
 
 
-def map_to_rule(raw: RawFinding, standards: list[Standard]) -> Optional[Rule]:
+def map_to_rule(raw: RawFinding, standards: list[Standard]) -> Rule | None:
     for std in standards:
         mapped = std.tool_map.get(raw.tool, {}).get(raw.tool_id)
         if mapped and mapped in std.rules:
@@ -95,8 +94,7 @@ def parse_sarif(path: Path) -> list[RawFinding]:
             locs = res.get("locations") or [{}]
             phys = locs[0].get("physicalLocation", {})
             uri = phys.get("artifactLocation", {}).get("uri", "")
-            if uri.startswith("file://"):
-                uri = uri[len("file://"):]
+            uri = uri.removeprefix("file://")
             out.append(RawFinding("sarif", res.get("ruleId", ""), uri,
                                   int(phys.get("region", {}).get("startLine", 0) or 0),
                                   res.get("message", {}).get("text", "")))

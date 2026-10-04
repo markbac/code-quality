@@ -11,8 +11,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, Optional
 
 from fwlens.baseline import METRIC_INFO, Breach
 
@@ -61,7 +61,7 @@ def to_codequality(breaches: Iterable[Breach]) -> list[dict]:
 class Reporter:
     name = "base"
 
-    def emit(self, breaches: list[Breach], out_path: Optional[Path] = None) -> Optional[Path]:
+    def emit(self, breaches: list[Breach], out_path: Path | None = None) -> Path | None:
         raise NotImplementedError
 
 
@@ -73,7 +73,6 @@ class GitHubReporter(Reporter):
             line = f",line={b.line}" if b.line else ""
             text = b.description if b.kind == "rule" else f"{b.metric} is {b.value} (threshold {b.threshold})"
             print(f"::warning file={b.file}{line},title=FWLens Breach [{b.metric}]::{text}")
-        return None
 
 
 class GitLabReporter(Reporter):

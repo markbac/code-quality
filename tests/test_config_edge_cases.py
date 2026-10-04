@@ -2,9 +2,9 @@
 Tests for ConfigError and edge cases in config loading (#32).
 """
 
-from pathlib import Path
 import pytest
-from fwlens.config import load_config, ConfigError
+
+from fwlens.config import ConfigError, load_config
 
 
 def test_missing_config_raises_config_error(tmp_path):

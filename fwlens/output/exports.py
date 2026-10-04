@@ -11,7 +11,6 @@ from pathlib import Path
 from fwlens.config import FwLensConfig
 from fwlens.model.project import FunctionMetrics, ModuleMetrics, ProjectModel
 
-
 _FUNCTION_CSV_FIELDS = [
     "name", "file", "line", "loc",
     "cyclomatic_complexity", "cognitive_complexity", "block_depth",

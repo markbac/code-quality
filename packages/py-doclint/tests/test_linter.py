@@ -1,6 +1,5 @@
-import pytest
-from pathlib import Path
 from pydoclint import DocLinter
+
 
 def test_linter_glossary(tmp_path):
     md_file = tmp_path / "test.md"

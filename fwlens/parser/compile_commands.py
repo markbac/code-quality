@@ -20,10 +20,9 @@ import os
 import shlex
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from fwlens.config import FwLensConfig
-from fwlens.model.project import BoundaryClass, IARGroup
+from fwlens.model.project import IARGroup
 from fwlens.parser.ewp import TranslationUnit, _classify_boundary
 
 
@@ -60,7 +59,7 @@ def parse_compiler_flags(cmd_str_or_args: str | list[str], base_dir: Path) -> tu
             if idx + 1 < len(tokens):
                 idx += 1
                 defines.append(tokens[idx])
-        elif tok.startswith("-D") or tok.startswith("/D"):
+        elif tok.startswith(("-D", "/D")):
             val = tok[2:]
             if val:
                 defines.append(val)
@@ -71,12 +70,12 @@ def parse_compiler_flags(cmd_str_or_args: str | list[str], base_dir: Path) -> tu
                 p_str = tokens[idx]
                 p = Path(p_str) if Path(p_str).is_absolute() else (base_dir / p_str).resolve()
                 includes.append(p)
-        elif tok.startswith("-I") or tok.startswith("/I"):
+        elif tok.startswith(("-I", "/I")):
             p_str = tok[2:]
             if p_str:
                 p = Path(p_str) if Path(p_str).is_absolute() else (base_dir / p_str).resolve()
                 includes.append(p)
-        elif tok.startswith("-isystem") or tok.startswith("-iquote"):
+        elif tok.startswith(("-isystem", "-iquote")):
             prefix_len = 8
             p_str = tok[prefix_len:]
             if p_str:
@@ -106,7 +105,7 @@ def extract_clang_flags(cmd_str_or_args: str | list[str], base_dir: Path) -> lis
     idx = 0
     while idx < len(tokens):
         tok = tokens[idx]
-        if tok.startswith("-std=") or tok.startswith("--target=") or tok.startswith("-m"):
+        if tok.startswith(("-std=", "--target=", "-m")):
             out.append(tok)
         elif tok in ("-target", "--target") and idx + 1 < len(tokens):
             out.append(f"--target={tokens[idx + 1]}")

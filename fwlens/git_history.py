@@ -23,13 +23,16 @@ import subprocess
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from rich.console import Console
 
 from fwlens.config import FwLensConfig
 from fwlens.model.project import (
-    ChurnHeatmapCell, CommitActivityCell, CouplingPair, LayerCouplingPair, ProjectModel,
+    ChurnHeatmapCell,
+    CommitActivityCell,
+    CouplingPair,
+    LayerCouplingPair,
+    ProjectModel,
 )
 
 console = Console()
@@ -44,7 +47,7 @@ def _is_shallow_repo(git_root: Path) -> bool:
     return (git_root / ".git" / "shallow").exists()
 
 
-def _find_git_root(start: Path) -> Optional[Path]:
+def _find_git_root(start: Path) -> Path | None:
     try:
         result = subprocess.run(
             ["git", "-c", "core.quotePath=false", "-C", str(start), "rev-parse", "--show-toplevel"],
@@ -60,7 +63,7 @@ def _find_git_root(start: Path) -> Optional[Path]:
     return root
 
 
-def _commit_counts(git_root: Path, since: Optional[str]) -> dict[Path, int]:
+def _commit_counts(git_root: Path, since: str | None) -> dict[Path, int]:
     """One `git log --name-only` pass over the whole repo -> {absolute file path: commit count}."""
     cmd = ["git", "-c", "core.quotePath=false", "-C", str(git_root), "log", "--name-only", "--pretty=format:", "--no-renames"]
     if since:
@@ -85,7 +88,7 @@ def _commit_counts(git_root: Path, since: Optional[str]) -> dict[Path, int]:
     return counts
 
 
-def _commits_file_lists(git_root: Path, since: Optional[str]) -> list[list[Path]]:
+def _commits_file_lists(git_root: Path, since: str | None) -> list[list[Path]]:
     """One `git log --name-only` pass -> list of per-commit absolute file path lists."""
     cmd = ["git", "-c", "core.quotePath=false", "-C", str(git_root), "log", "--name-only", "--pretty=format:__FWLENS_COMMIT__",
            "--no-renames"]
@@ -118,7 +121,7 @@ def _commits_file_lists(git_root: Path, since: Optional[str]) -> list[list[Path]
     return commits
 
 
-def _commits_with_dates(git_root: Path, since: Optional[str]) -> list[tuple[datetime, list[Path]]]:
+def _commits_with_dates(git_root: Path, since: str | None) -> list[tuple[datetime, list[Path]]]:
     """One `git log --name-only` pass -> list of (commit author date, absolute file paths)."""
     cmd = ["git", "-c", "core.quotePath=false", "-C", str(git_root), "log", "--name-only",
            "--pretty=format:__FWLENS_COMMIT__%aI", "--no-renames"]
@@ -132,7 +135,7 @@ def _commits_with_dates(git_root: Path, since: Optional[str]) -> list[tuple[date
         return []
 
     commits: list[tuple[datetime, list[Path]]] = []
-    current_date: Optional[datetime] = None
+    current_date: datetime | None = None
     current_files: list[Path] = []
 
     for raw_line in result.stdout.splitlines():
@@ -159,7 +162,7 @@ def _commits_with_dates(git_root: Path, since: Optional[str]) -> list[tuple[date
     return commits
 
 
-def _commits_with_authors(git_root: Path, since: Optional[str]) -> list[tuple[str, list[Path]]]:
+def _commits_with_authors(git_root: Path, since: str | None) -> list[tuple[str, list[Path]]]:
     """One `git log --name-only` pass -> list of (author name, absolute file paths)."""
     cmd = ["git", "-c", "core.quotePath=false", "-C", str(git_root), "log", "--use-mailmap", "--name-only",
            "--pretty=format:__FWLENS_COMMIT__%aN", "--no-renames"]
@@ -173,7 +176,7 @@ def _commits_with_authors(git_root: Path, since: Optional[str]) -> list[tuple[st
         return []
 
     commits: list[tuple[str, list[Path]]] = []
-    current_author: Optional[str] = None
+    current_author: str | None = None
     current_files: list[Path] = []
 
     for raw_line in result.stdout.splitlines():
@@ -197,7 +200,7 @@ def _commits_with_authors(git_root: Path, since: Optional[str]) -> list[tuple[st
 
 
 def _file_commit_snapshots(
-    git_root: Path, abs_path: Path, since: Optional[str], max_samples: int,
+    git_root: Path, abs_path: Path, since: str | None, max_samples: int,
 ) -> list[tuple[datetime, str]]:
     """
     Commits touching a single file, oldest-first, down-sampled to at most max_samples
@@ -246,7 +249,7 @@ def _file_commit_snapshots(
     return [commits[i] for i in indices]
 
 
-def _show_file_at(git_root: Path, abs_path: Path, commit_hash: str) -> Optional[str]:
+def _show_file_at(git_root: Path, abs_path: Path, commit_hash: str) -> str | None:
     """`git show <hash>:<path>` -> file content at that commit, or None on failure."""
     try:
         rel_path = abs_path.resolve().relative_to(git_root)

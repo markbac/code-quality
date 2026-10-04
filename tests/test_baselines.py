@@ -6,7 +6,10 @@ import tempfile
 from pathlib import Path
 
 from fwlens.baseline import (
-    Breach, load_baseline, save_baseline, load_baselines_from_paths, compare_historical_baselines
+    Breach,
+    compare_historical_baselines,
+    load_baselines_from_paths,
+    save_baseline,
 )
 
 

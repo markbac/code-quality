@@ -10,9 +10,9 @@ Files are validated on load and every error names the file, the rule and the fie
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, Optional
 
 import yaml
 
@@ -38,7 +38,7 @@ class Rule:
     decidable: bool
     scope: str
     check_type: str
-    engine: Optional[str] = None
+    engine: str | None = None
     match: dict = field(default_factory=dict)
     cwe: list[str] = field(default_factory=list)
     notes: str = ""
@@ -59,7 +59,7 @@ class Standard:
     categories: list[str]
     rules: dict[str, Rule] = field(default_factory=dict)
     tool_map: dict[str, dict[str, str]] = field(default_factory=dict)
-    source: Optional[Path] = None
+    source: Path | None = None
 
 
 def _fail(path, where: str, message: str):

@@ -13,9 +13,8 @@ comment-block heuristic, same caveat as file_metrics.
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
-from fwlens.model.project import CommentedCodeBlock, ModuleMetrics, ProjectModel, TodoMarker
+from fwlens.model.project import CommentedCodeBlock, ProjectModel, TodoMarker
 
 _MARKER_RE = re.compile(r'(?://|/\*)\s*(TODO|FIXME|HACK|XXX)\b[:\-]?\s*(.*)', re.IGNORECASE)
 

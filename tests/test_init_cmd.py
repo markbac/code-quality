@@ -5,8 +5,8 @@ Tests for fwlens init command.
 import tempfile
 from pathlib import Path
 
-from fwlens.config import load_config
 from fwlens.cli.commands import _CONFIG_TEMPLATES
+from fwlens.config import load_config
 
 
 def test_init_templates_exist():

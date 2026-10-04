@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Optional
 
 from fwlens.identity import body_fingerprint, function_source
 from fwlens.standards.rules import Rule
@@ -25,9 +24,9 @@ class Hit:
     rule: Rule
     file: Path
     line: int
-    function: Optional[str]
+    function: str | None
     text: str
-    fingerprint: Optional[dict] = None   # overrides the statement fingerprint when set
+    fingerprint: dict | None = None   # overrides the statement fingerprint when set
 
 
 def _source_text(file_cache: dict, path: str, start: int, end: int) -> str:

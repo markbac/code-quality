@@ -1,7 +1,9 @@
 import argparse
 import sys
 from pathlib import Path
+
 from .linter import DocLinter
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -25,7 +27,7 @@ def main():
             print(issue)
     else:
         results = linter.lint_directory(target_path)
-        for path, issues in results.items():
+        for issues in results.values():
             total_issues += len(issues)
             for issue in issues:
                 print(issue)

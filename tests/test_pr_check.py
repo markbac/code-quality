@@ -13,8 +13,18 @@ import main as fwlens_main
 from fwlens.baseline import Breach, _assign_ordinals
 from fwlens.identity import body_fingerprint
 from fwlens.pr_check import (
-    MARKER, PostError, breaches_from_entries, compare, detect_platform, load_reference, no_reference,
-    post_github, post_gitlab, render_markdown, write_findings, write_github_step_summary,
+    MARKER,
+    PostError,
+    breaches_from_entries,
+    compare,
+    detect_platform,
+    load_reference,
+    no_reference,
+    post_github,
+    post_gitlab,
+    render_markdown,
+    write_findings,
+    write_github_step_summary,
 )
 
 BODY = """

@@ -22,7 +22,6 @@ from fwlens.model.project import (
     DeepIncludeChain,
     IncludeCycle,
     MissingIncludeGuard,
-    ModuleMetrics,
     ProjectModel,
     SelfInclude,
     UnusedInclude,

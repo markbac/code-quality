@@ -22,12 +22,13 @@ import json
 import zlib
 from pathlib import Path
 
-from jinja2 import Environment, BaseLoader
+from jinja2 import BaseLoader, Environment
 
 from fwlens.config import FwLensConfig
-from fwlens.model.project import FunctionMetrics, ModuleMetrics, ProjectModel
+from fwlens.model.project import ProjectModel
 from fwlens.output.diagrams import (
-    generate_architecture_svg_inline, generate_rtos_object_graph_svg_inline,
+    generate_architecture_svg_inline,
+    generate_rtos_object_graph_svg_inline,
     generate_state_machine_svg_inline,
 )
 
@@ -3565,7 +3566,7 @@ def _breach(value, threshold) -> bool:
 
 def _build_distributions(model: ProjectModel, config) -> list[dict]:
     """Build per-metric distribution data for the Distributions tab."""
-    from fwlens.stats.distributions import _fit_lognormal, _exceedance_probability
+    from fwlens.stats.distributions import _exceedance_probability, _fit_lognormal
 
     t = config.thresholds
     fp_funcs = model.first_party_functions()
@@ -4292,7 +4293,8 @@ def generate_html_report(model: ProjectModel, config: FwLensConfig):
     #     data is in commit_activity.csv regardless of this cap. ------------------------
     commit_activity_grid = None
     if model.commit_activity:
-        from datetime import date as _date, timedelta as _timedelta
+        from datetime import date as _date
+        from datetime import timedelta as _timedelta
         counts = {_date.fromisoformat(c.date): c.commit_count for c in model.commit_activity}
         last_day = max(counts)
         first_day = last_day - _timedelta(weeks=52)

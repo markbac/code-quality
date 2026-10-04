@@ -6,25 +6,22 @@ Loads and validates config.yaml, resolves all paths relative to the config file 
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 import yaml
 
 
 class ConfigError(ValueError):
     """Raised when config loading or validation fails."""
-    pass
 
 
 @dataclass
 class ToolConfig:
-    libclang_path: Optional[Path]
+    libclang_path: Path | None
     # clang --target. "native" (or "host") passes no --target and uses the host compiler's headers.
     target: str = "arm-none-eabi"
-    sysroot: Optional[Path] = None
+    sysroot: Path | None = None
     # Extra system include directories. When set, auto-detection is skipped.
     system_include_dirs: list[Path] = field(default_factory=list)
     # Extra arguments appended to every clang invocation (e.g. ["-std=c11"]).
@@ -38,13 +35,13 @@ class ToolConfig:
 
 @dataclass
 class ProjectConfig:
-    ewp: Optional[Path]
+    ewp: Path | None
     configuration: str
     proj_dir: Path
-    toolkit_dir: Optional[Path]
+    toolkit_dir: Path | None
     mode: str = "ewp"                    # "ewp" | "directory" | "compile_commands" | "cmake" | "make"
-    source_dir: Optional[Path] = None    # directory-mode root, glob'd for *.c
-    compile_commands: Optional[Path] = None  # path to compile_commands.json (CMake/Make)
+    source_dir: Path | None = None    # directory-mode root, glob'd for *.c
+    compile_commands: Path | None = None  # path to compile_commands.json (CMake/Make)
 
 
 @dataclass
@@ -99,7 +96,7 @@ class OutputConfig:
 class GitConfig:
     # How far back to count commits for churn/hotspot analysis, e.g. "180 days ago".
     # None (default) counts the full history. Ignored if the project isn't a git repo.
-    since: Optional[str] = None
+    since: str | None = None
     # Time bin size for the churn heatmap: "month" or "week".
     heatmap_bin: str = "month"
     # Commit-message keywords (case-insensitive) that classify a commit as a "fix" --
@@ -238,7 +235,7 @@ class StandardsConfig:
     """Optional coding-standard compliance (MISRA C, CERT C ...). Disabled unless ``enabled`` is set."""
     enabled: list[StandardSelection] = field(default_factory=list)
     extra_rule_dirs: list[Path] = field(default_factory=list)
-    deviations_file: Optional[Path] = None
+    deviations_file: Path | None = None
     imports: list[tuple[str, Path]] = field(default_factory=list)    # (tool, results file)
 
 
@@ -278,8 +275,7 @@ def macro_name(define_line: str) -> str:
     not two distinct entries, wherever compat-define lists get merged or
     deduplicated."""
     s = define_line.strip()
-    if s.startswith("-U"):
-        s = s[2:]
+    s = s.removeprefix("-U")
     for sep in ("(", "="):
         idx = s.find(sep)
         if idx != -1:

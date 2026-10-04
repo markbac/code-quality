@@ -2,8 +2,6 @@
 main.py -- CLI entrypoint wrapper for fwlens
 """
 
-import sys
-from fwlens import __version__
 import fwlens.cli.commands as _commands
 
 cli = _commands.cli

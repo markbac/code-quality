@@ -14,14 +14,12 @@ IAR compat defines are injected as clang args to prevent parse failures.
 from __future__ import annotations
 
 import math
-import os
 from pathlib import Path
-from typing import Optional
 
 _MODULE_VERSION = "ast_walker-0.5.1"  # fixed: defensive CursorKind access via getattr
 
 from fwlens.config import FwLensConfig, macro_name
-from fwlens.model.project import FunctionMetrics, GlobalAccess, GlobalVarInfo, ParameterInfo
+from fwlens.model.project import FunctionMetrics, GlobalVarInfo, ParameterInfo
 from fwlens.parser.ewp import TranslationUnit
 from fwlens.sysinc import detect_system_includes, target_args
 
@@ -33,7 +31,7 @@ def _ensure_clang(config: FwLensConfig):
     global _clang_available, _clang
     if _clang_available:
         return
-    from fwlens.libclang_locate import locate_libclang, LibclangError
+    from fwlens.libclang_locate import LibclangError, locate_libclang
     try:
         location = locate_libclang(config.tool.libclang_path)
     except LibclangError as e:
@@ -83,7 +81,7 @@ def _is_isr(cursor) -> bool:
     """Heuristic ISR detection: IAR attributes, _IRQHandler suffix, or a standard
     ARM Cortex-M exception/fault handler name."""
     name = cursor.spelling or ""
-    if name.endswith("IRQHandler") or name.endswith("_IRQHandler"):
+    if name.endswith(("IRQHandler", "_IRQHandler")):
         return True
     if name in _ISR_EXACT_NAMES:
         return True
@@ -554,8 +552,7 @@ class _FunctionVisitor:
         # Block depth tracking
         if ck in self._compound_stmt:
             self.current_depth += 1
-            if self.current_depth > self.max_depth:
-                self.max_depth = self.current_depth
+            self.max_depth = max(self.max_depth, self.current_depth)
 
         # Return statements
         if ck in self._return_stmt:
@@ -678,18 +675,18 @@ class _FunctionVisitor:
         N = N1 + N2
 
         if n < 2 or N == 0:
-            return dict(n1=n1, n2=n2, N1=N1, N2=N2,
-                        vocabulary=n, length=N,
-                        volume=0.0, difficulty=0.0, effort=0.0, bugs=0.0)
+            return {"n1": n1, "n2": n2, "N1": N1, "N2": N2,
+                        "vocabulary": n, "length": N,
+                        "volume": 0.0, "difficulty": 0.0, "effort": 0.0, "bugs": 0.0}
 
         V = N * math.log2(n)
         D = (n1 / 2.0) * (N2 / max(n2, 1))
         E = D * V
         B = V / 3000.0
 
-        return dict(n1=n1, n2=n2, N1=N1, N2=N2,
-                    vocabulary=n, length=N,
-                    volume=V, difficulty=D, effort=E, bugs=B)
+        return {"n1": n1, "n2": n2, "N1": N1, "N2": N2,
+                    "vocabulary": n, "length": N,
+                    "volume": V, "difficulty": D, "effort": E, "bugs": B}
 
     def collect(self) -> FunctionMetrics:
         self._extract_parameters()

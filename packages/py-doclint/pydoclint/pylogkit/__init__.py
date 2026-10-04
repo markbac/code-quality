@@ -1,3 +1,3 @@
-from .log_setup import setup_logging, ContextualLoggerAdapter, set_log_context, clear_log_context
+from .log_setup import ContextualLoggerAdapter, clear_log_context, set_log_context, setup_logging
 
-__all__ = ["setup_logging", "ContextualLoggerAdapter", "set_log_context", "clear_log_context"]
+__all__ = ["ContextualLoggerAdapter", "clear_log_context", "set_log_context", "setup_logging"]

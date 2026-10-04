@@ -20,12 +20,18 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 from fwlens.config import FwLensConfig
 from fwlens.identity import (
-    SCHEME, MatchResult, body_fingerprint, function_source, make_key, match_findings,
-    migrate_legacy_id, project_root, relative_posix, to_posix,
+    SCHEME,
+    MatchResult,
+    body_fingerprint,
+    function_source,
+    make_key,
+    match_findings,
+    migrate_legacy_id,
+    project_root,
+    relative_posix,
 )
 from fwlens.model.project import ProjectModel
 
@@ -71,14 +77,14 @@ class Breach:
     metric: str
     value: float
     threshold: float
-    line: Optional[int] = None        # location only, not part of the identity
-    function: Optional[str] = None
+    line: int | None = None        # location only, not part of the identity
+    function: str | None = None
     fingerprint: dict = field(default_factory=dict)
     # Coding-standard findings (kind "rule"): category such as mandatory/required/advisory,
     # the rule title, and the deviation that covers the finding, if any
-    category: Optional[str] = None
-    description: Optional[str] = None
-    deviation: Optional[str] = None
+    category: str | None = None
+    description: str | None = None
+    deviation: str | None = None
 
     def to_dict(self) -> dict:
         d = {

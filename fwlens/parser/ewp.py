@@ -17,11 +17,9 @@ Handles:
 
 from __future__ import annotations
 
-import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 from fwlens.config import FwLensConfig
 from fwlens.model.project import BoundaryClass, IARGroup
@@ -33,7 +31,7 @@ class TranslationUnit:
     defines: list[str]
     include_paths: list[Path]
     boundary_class: BoundaryClass
-    iar_group: Optional[str]
+    iar_group: str | None
     # Extra clang flags taken from a compile database entry (-std=, -m*, -include, --target=)
     extra_args: list[str] = field(default_factory=list)
 
@@ -47,7 +45,7 @@ class EWPParseResult:
     configuration_name: str
 
 
-def _expand_path(raw: str, proj_dir: Path, toolkit_dir: Optional[Path]) -> Optional[Path]:
+def _expand_path(raw: str, proj_dir: Path, toolkit_dir: Path | None) -> Path | None:
     """
     Expand IAR workspace variables and normalise to a Path.
     Returns None if the path cannot be resolved (e.g. unknown variable).
@@ -153,7 +151,7 @@ def _extract_defines(settings_el: ET.Element) -> list[str]:
 
 
 def _extract_includes(settings_el: ET.Element, proj_dir: Path,
-                      toolkit_dir: Optional[Path]) -> list[Path]:
+                      toolkit_dir: Path | None) -> list[Path]:
     includes = []
     for opt in settings_el.iter("option"):
         name_el = opt.find("name")
@@ -184,10 +182,10 @@ def _resolve_no_x_defines(defines: list[str]) -> list[str]:
 
 def _walk_groups(
     el: ET.Element,
-    parent_name: Optional[str],
+    parent_name: str | None,
     groups: dict[str, IARGroup],
     proj_dir: Path,
-    toolkit_dir: Optional[Path],
+    toolkit_dir: Path | None,
     global_defines: list[str],
     global_includes: list[Path],
     config: FwLensConfig,
@@ -201,9 +199,8 @@ def _walk_groups(
 
             if group_name not in groups:
                 groups[group_name] = IARGroup(name=group_name, parent=parent_name)
-            if parent_name and parent_name in groups:
-                if group_name not in groups[parent_name].children:
-                    groups[parent_name].children.append(group_name)
+            if parent_name and parent_name in groups and group_name not in groups[parent_name].children:
+                groups[parent_name].children.append(group_name)
 
             _walk_groups(child, group_name, groups, proj_dir, toolkit_dir,
                          global_defines, global_includes, config, translation_units)

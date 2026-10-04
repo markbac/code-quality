@@ -6,12 +6,10 @@ All analysis results are stored in these dataclasses and passed between pipeline
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 
 class BoundaryClass(str, Enum):
@@ -31,10 +29,10 @@ class AnalysisScope(str, Enum):
 @dataclass
 class IARGroup:
     name: str
-    parent: Optional[str] = None
+    parent: str | None = None
     children: list[str] = field(default_factory=list)
     files: list[Path] = field(default_factory=list)
-    inferred_layer: Optional[str] = None
+    inferred_layer: str | None = None
 
 
 @dataclass
@@ -101,7 +99,7 @@ class FunctionMetrics:
     param_mutation_rate: float = 0.0
     structural_debt_index: float = 0.0
     # Stack
-    stack_depth_estimate: Optional[int] = None
+    stack_depth_estimate: int | None = None
     stack_estimable: bool = True
     # Dead code
     is_dead_candidate: bool = False
@@ -142,7 +140,7 @@ class ModuleMetrics:
     path: Path
     boundary_class: BoundaryClass = BoundaryClass.UNKNOWN
     iar_groups: list[str] = field(default_factory=list)
-    layer: Optional[str] = None
+    layer: str | None = None
     file_scope_fn_refs: list[str] = field(default_factory=list)  # functions referenced in global initialisers
     loc: int = 0
     function_count: int = 0
@@ -178,7 +176,7 @@ class ModuleMetrics:
     header_source_coherence: float = 1.0
     include_depth: int = 0
     # SCC
-    scc_id: Optional[int] = None
+    scc_id: int | None = None
     in_cycle: bool = False
     # Type declaration count (struct/enum/typedef/union defined in this file)
     type_decl_count: int = 0
@@ -271,7 +269,7 @@ class StackRisk:
     file: Path
     line: int
     is_isr: bool
-    stack_depth_estimate: Optional[int]
+    stack_depth_estimate: int | None
     stack_estimable: bool
 
 
@@ -443,11 +441,11 @@ class RTOSTask:
     name: str                          # resolved string literal if available, else the TCB var name
     tcb_var: str
     priority_expr: str                 # raw text of the priority argument
-    priority_value: Optional[int]      # resolved only if priority_expr was a plain integer literal
+    priority_value: int | None      # resolved only if priority_expr was a plain integer literal
     entry_function: str
     stack_expr: str                    # raw text of the stack pointer/array argument
     stack_size_expr: str
-    stack_size_value: Optional[int]    # resolved only if stack_size_expr was a plain integer literal
+    stack_size_value: int | None    # resolved only if stack_size_expr was a plain integer literal
     creation_function: str
     file: Path
     line: int
@@ -599,13 +597,13 @@ class ProjectModel:
     # usually one shared root cause, not N independent problems (fwlens.diagnostic_clusters)
     diagnostic_clusters: list = field(default_factory=list)
     # COCOMO effort/schedule estimate (fwlens.effort_estimate)
-    effort_estimate: Optional[EffortEstimate] = None
+    effort_estimate: EffortEstimate | None = None
     # Goel-Okumoto reliability growth fit over fix-commit history (fwlens.reliability)
-    reliability_growth: Optional[ReliabilityGrowth] = None
+    reliability_growth: ReliabilityGrowth | None = None
     # Complexity-vs-defect correlation and root-cause categorisation (fwlens.defect_analysis)
     defect_correlations: list[DefectCorrelation] = field(default_factory=list)
     # Static-vs-field cost/benefit estimate (fwlens.cost_benefit)
-    cost_benefit: Optional[CostBenefitEstimate] = None
+    cost_benefit: CostBenefitEstimate | None = None
     # RTOS task/synchronisation analysis (fwlens.rtos_analysis)
     rtos_kind: str = "none"
     rtos_tasks: list[RTOSTask] = field(default_factory=list)

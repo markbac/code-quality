@@ -5,18 +5,24 @@ path handling (#28). The numbered tests follow the acceptance list in issue #53.
 
 import json
 from pathlib import Path
-from types import SimpleNamespace
-
-import pytest
 
 from fwlens.baseline import (
-    METRIC_INFO, Breach, _assign_ordinals, classify_against_baseline, diff_against_baseline,
-    load_baseline, save_baseline, update_baseline,
+    METRIC_INFO,
+    Breach,
+    _assign_ordinals,
+    classify_against_baseline,
+    diff_against_baseline,
+    load_baseline,
+    update_baseline,
 )
 from fwlens.identity import (
-    body_fingerprint, make_key, match_findings, relative_posix, statement_fingerprint,
+    body_fingerprint,
+    make_key,
+    match_findings,
+    relative_posix,
+    statement_fingerprint,
 )
-from fwlens.output.sarif import build_rules, breach_to_result, rule_id, tool_version
+from fwlens.output.sarif import breach_to_result, build_rules, rule_id, tool_version
 
 FUNC = """
 int process(int a, int b)

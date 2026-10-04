@@ -15,14 +15,17 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
 from fwlens.config import FwLensConfig
 from fwlens.model.project import (
-    BoundaryClass, FunctionMetrics, GlobalVarInfo,
-    ModuleMetrics, ProjectModel,
+    BoundaryClass,
+    FunctionMetrics,
+    GlobalVarInfo,
+    ModuleMetrics,
+    ProjectModel,
 )
-from fwlens.parser.ewp import parse_ewp, TranslationUnit
+from fwlens.parser.ewp import parse_ewp
 
 console = Console()
 
@@ -48,10 +51,11 @@ def _worker(args: tuple) -> tuple:
 
     try:
         from pathlib import Path
+
         from fwlens.config import load_config
-        from fwlens.parser.ewp import TranslationUnit
         from fwlens.model.project import BoundaryClass
         from fwlens.parser.ast_walker import walk_translation_unit
+        from fwlens.parser.ewp import TranslationUnit
 
         config = load_config(Path(config_path_str))
 
@@ -147,7 +151,7 @@ def run_pipeline(config: FwLensConfig, jobs: Optional[int] = None) -> ProjectMod
     # Resolve libclang once, with the same rules the parser uses, before spawning workers.
     # A wrong explicit path is an error: an empty model could otherwise pass a breach
     # gate with nothing analysed (issue #26).
-    from fwlens.libclang_locate import locate_libclang, LibclangError
+    from fwlens.libclang_locate import LibclangError, locate_libclang
     try:
         location = locate_libclang(config.tool.libclang_path)
     except LibclangError as e:
@@ -339,7 +343,7 @@ def run_pipeline(config: FwLensConfig, jobs: Optional[int] = None) -> ProjectMod
         from collections import Counter
         type_counts = Counter(e["error_type"] for e in parse_errors)
 
-        console.print(f"\n[red][fwlens] Parse failures by type:[/red]")
+        console.print("\n[red][fwlens] Parse failures by type:[/red]")
         type_colours = {
             "libclang-unknown-kind": "yellow",
             "missing-header":        "yellow",
@@ -384,15 +388,15 @@ def run_pipeline(config: FwLensConfig, jobs: Optional[int] = None) -> ProjectMod
             )
         if "missing-header" in type_counts:
             console.print(
-                f"\n  [yellow]Hint[/yellow] [bold]missing-header[/bold]: "
-                f"Run [cyan].\\Run-FwLens.ps1 debug-parse[/cyan] -- "
-                f"missing headers can be auto-stubbed."
+                "\n  [yellow]Hint[/yellow] [bold]missing-header[/bold]: "
+                "Run [cyan].\\Run-FwLens.ps1 debug-parse[/cyan] -- "
+                "missing headers can be auto-stubbed."
             )
         if "import-error" in type_counts:
             console.print(
-                f"\n  [red]Hint[/red] [bold]import-error[/bold]: "
-                f"A worker process could not import fwlens. "
-                f"Check your .venv is active and fwlens is installed."
+                "\n  [red]Hint[/red] [bold]import-error[/bold]: "
+                "A worker process could not import fwlens. "
+                "Check your .venv is active and fwlens is installed."
             )
 
     if parse_ok == 0 and len(in_scope) > 0:

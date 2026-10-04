@@ -1,8 +1,10 @@
-import os
 import argparse
+import os
 import sys
 from pathlib import Path
+
 from .converter import SlidesConverter
+
 
 def main():
     parser = argparse.ArgumentParser(

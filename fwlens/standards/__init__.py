@@ -20,7 +20,7 @@ from fwlens.standards.engines import Hit, run_ast_engines, run_callgraph_engine
 from fwlens.standards.importers import RawFinding, map_to_rule, read_import
 from fwlens.standards.rules import Rule, RuleFileError, Standard, load_standards
 
-__all__ = ["run_standards", "StandardsResult", "select_rules", "RuleFileError", "load_standards"]
+__all__ = ["RuleFileError", "StandardsResult", "load_standards", "run_standards", "select_rules"]
 
 CATEGORY_LEVEL = {"mandatory": "error", "required": "warning", "advisory": "note"}
 
@@ -55,7 +55,7 @@ def select_rules(standards: dict[str, Standard], selections: list[StandardSelect
     return rules
 
 
-def _enclosing_function(model: ProjectModel, file: Path, line: int) -> Optional[str]:
+def _enclosing_function(model: ProjectModel, file: Path, line: int) -> str | None:
     best = None
     for f in model.first_party_functions():
         if Path(f.file) == file and f.line <= line < f.line + max(f.loc, 1):
@@ -64,8 +64,8 @@ def _enclosing_function(model: ProjectModel, file: Path, line: int) -> Optional[
     return best.name if best else None
 
 
-def _finding(rule: Rule, root: Path, file: Path, line: int, function: Optional[str], text: str,
-             fingerprint: Optional[dict] = None) -> Breach:
+def _finding(rule: Rule, root: Path, file: Path, line: int, function: str | None, text: str,
+             fingerprint: dict | None = None) -> Breach:
     return Breach("", "rule", relative_posix(file, root), rule.key, 1.0, 0.0, line=line, function=function,
                   fingerprint=fingerprint or statement_fingerprint(text), category=rule.category,
                   description=rule.title)
@@ -79,8 +79,8 @@ def _native_hits(model: ProjectModel, config: FwLensConfig, rules: list[Rule]) -
     file_cache: dict = {}
     ast_rules = [r for r in native if r.engine in ("ast", "compound_body")]
     if ast_rules:
-        from fwlens.parser.ast_walker import _ensure_clang, build_clang_args
         import fwlens.parser.ast_walker as walker
+        from fwlens.parser.ast_walker import _ensure_clang, build_clang_args
         _ensure_clang(config)
         ci = walker._clang
         first_party = {Path(m.path) for m in model.first_party_modules()}

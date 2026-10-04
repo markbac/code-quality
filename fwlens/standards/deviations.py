@@ -19,7 +19,6 @@ import fnmatch
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import Optional
 
 import yaml
 
@@ -36,7 +35,7 @@ class Deviation:
     approved_by: str = ""
     paths: list[str] = field(default_factory=list)
     functions: list[str] = field(default_factory=list)
-    expires: Optional[date] = None
+    expires: date | None = None
 
     @property
     def key(self) -> str:
@@ -87,9 +86,7 @@ def covers(dev: Deviation, finding) -> bool:
         return False
     if dev.paths and not any(fnmatch.fnmatch(finding.file, pat) for pat in dev.paths):
         return False
-    if dev.functions and finding.function not in dev.functions:
-        return False
-    return True
+    return not (dev.functions and finding.function not in dev.functions)
 
 
 @dataclass
@@ -100,7 +97,7 @@ class DeviationOutcome:
 
 
 def apply_deviations(findings: list, deviations: list[Deviation], standards: dict[str, Standard],
-                     today: Optional[date] = None) -> DeviationOutcome:
+                     today: date | None = None) -> DeviationOutcome:
     today = today or date.today()
     out = DeviationOutcome()
     problems_seen: set[tuple[str, str]] = set()

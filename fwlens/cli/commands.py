@@ -23,7 +23,7 @@ console = Console()
 
 
 def _load_config_safe(config_path: Path):
-    from fwlens.config import load_config, ConfigError
+    from fwlens.config import ConfigError, load_config
     try:
         return load_config(config_path)
     except ConfigError as e:
@@ -32,28 +32,30 @@ def _load_config_safe(config_path: Path):
 
 
 def _run_pipeline(config_path: Path, auto_stub: bool = False):
-    from fwlens.config import load_config
-    from fwlens.parser.pipeline import run_pipeline
-    from fwlens.metrics.aggregates import run_aggregation
-    from fwlens.graph.engines import run_graph_engine
-    from fwlens.stats.distributions import run_stats_engine
-    from fwlens.git_history import (
-        compute_hotspots, compute_change_coupling, compute_churn_heatmap,
-        compute_architecture_coupling, compute_commit_activity,
-    )
-    from fwlens.tech_debt import run_tech_debt_scan
     from fwlens.clones import detect_clones
-    from fwlens.risk import compute_composite_risk
-    from fwlens.effort_estimate import compute_effort_estimate
-    from fwlens.reliability import compute_reliability_growth, compute_bugfix_hotspots
-    from fwlens.defect_analysis import compute_defect_correlation
+    from fwlens.complexity_trend import compute_complexity_trends
     from fwlens.cost_benefit import compute_cost_benefit
+    from fwlens.defect_analysis import compute_defect_correlation
+    from fwlens.effort_estimate import compute_effort_estimate
+    from fwlens.git_history import (
+        compute_architecture_coupling,
+        compute_change_coupling,
+        compute_churn_heatmap,
+        compute_commit_activity,
+        compute_hotspots,
+    )
+    from fwlens.graph.engines import run_graph_engine
+    from fwlens.hotspot_names import flag_hotspot_names
+    from fwlens.metrics.aggregates import run_aggregation
+    from fwlens.ownership import compute_ownership
+    from fwlens.parser.pipeline import run_pipeline
+    from fwlens.preflight import print_preflight_issues, run_post_scan_preflight, run_static_preflight
+    from fwlens.reliability import compute_bugfix_hotspots, compute_reliability_growth
+    from fwlens.risk import compute_composite_risk
     from fwlens.rtos_analysis import run_rtos_analysis
     from fwlens.state_machines import detect_state_machines
-    from fwlens.ownership import compute_ownership
-    from fwlens.hotspot_names import flag_hotspot_names
-    from fwlens.complexity_trend import compute_complexity_trends
-    from fwlens.preflight import run_static_preflight, run_post_scan_preflight, print_preflight_issues
+    from fwlens.stats.distributions import run_stats_engine
+    from fwlens.tech_debt import run_tech_debt_scan
 
     config = _load_config_safe(config_path)
 
@@ -187,7 +189,6 @@ thresholds:
 @click.group()
 def cli():
     """fwlens -- Embedded C Architecture & Static Analysis Platform."""
-    pass
 
 
 @cli.command()
@@ -224,13 +225,10 @@ def doctor(config: str):
 
     # 1. Python version check
     py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
-    if sys.version_info >= (3, 10):
-        console.print(f"  [green]✓[/green] Python version: {py_ver} (>= 3.10)")
-    else:
-        console.print(f"  [red]✗[/red] Python version: {py_ver} (requires Python 3.10+)")
+    console.print(f"  [green]✓[/green] Python version: {py_ver} (>= 3.10)")
 
     # 2. Config & libclang check
-    from fwlens.libclang_locate import locate_libclang, LibclangError
+    from fwlens.libclang_locate import LibclangError, locate_libclang
     cfg_path = Path(config)
     libclang_path = None
     target = "native"
@@ -362,7 +360,10 @@ def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
                       prune=False, gitlab_codequality=None, findings_json=None):
     """Compute breaches and either update the baseline or gate on it. Returns True to fail the run."""
     from fwlens.baseline import (
-        classify_against_baseline, compute_breaches, load_baseline, update_baseline,
+        classify_against_baseline,
+        compute_breaches,
+        load_baseline,
+        update_baseline,
     )
     from fwlens.output.console import print_baseline_summary
 
@@ -450,8 +451,8 @@ def report(config_path: str, auto_stub, fail_on_parse_error, baseline_path, fail
            gitlab_codequality, findings_json):
     """Run analysis and generate HTML report + exports."""
     from fwlens.output.console import print_summary
-    from fwlens.output.html_report import generate_html_report
     from fwlens.output.exports import export_csv, export_json
+    from fwlens.output.html_report import generate_html_report
 
     model, config = _run_pipeline(Path(config_path), auto_stub=auto_stub)
     print_summary(model, config)
@@ -533,7 +534,11 @@ def _build_comparison(config_path, base_path, base_ref, current_path, uncertain_
     from fwlens.baseline import compute_breaches
     from fwlens.identity import project_root
     from fwlens.pr_check import (
-        breaches_from_entries, compare, findings_at_ref, load_reference, no_reference,
+        breaches_from_entries,
+        compare,
+        findings_at_ref,
+        load_reference,
+        no_reference,
     )
 
     if current_path:
@@ -590,7 +595,11 @@ def pr_comment(config_path, base_path, base_ref, current_path, markdown_path, ma
                fail_on_new, report_url, base_label, post_to, dry_run, pr_number, no_update):
     """Post (or update) one quality-check comment on the current PR / MR."""
     from fwlens.pr_check import (
-        PostError, detect_platform, post_github, post_gitlab, write_github_step_summary,
+        PostError,
+        detect_platform,
+        post_github,
+        post_gitlab,
+        write_github_step_summary,
     )
     comparison = _build_comparison(config_path, base_path, base_ref, current_path, uncertain_gates)
     md = _render_and_write(comparison, markdown_path, max_items, report_url, base_label)
@@ -627,8 +636,9 @@ def standards_group():
 @click.option("--rule-dir", "rule_dirs", multiple=True, type=click.Path(), help="Extra directory of rule files.")
 def standards_list(config_path, rule_dirs):
     """List known rules, how each is checked, and which are enabled."""
-    from fwlens.standards import RuleFileError, load_standards, select_rules
     from rich.table import Table
+
+    from fwlens.standards import RuleFileError, load_standards, select_rules
     extra = [Path(d) for d in rule_dirs]
     selected = set()
     if config_path:
@@ -656,10 +666,11 @@ def standards_list(config_path, rule_dirs):
 @click.argument("paths", nargs=-1, type=click.Path(exists=True))
 def standards_validate(paths):
     """Validate rule files and deviation files (default: the built-in rule files)."""
+    import yaml as _yaml
+
     from fwlens.standards import RuleFileError, load_standards
     from fwlens.standards.deviations import load_deviations
     from fwlens.standards.rules import BUILTIN_DIR, load_standard_file
-    import yaml as _yaml
 
     files: list[Path] = []
     for p in (paths or [str(BUILTIN_DIR)]):
@@ -746,8 +757,8 @@ def diff_breach(config_path: str, from_json_path: str, to_json_path: str, fail_o
       git checkout feature-branch  &&  fwlens export --config config.yaml
       fwlens diff-breach --from-json main.json --to-json output/exports/fwlens_results.json --fail-on-breach
     """
-    from fwlens.config import load_config
     from fwlens.baseline import compute_breaches_from_json, diff_against_baseline
+    from fwlens.config import load_config
     from fwlens.output.console import print_baseline_summary
 
     config = load_config(Path(config_path))
@@ -802,11 +813,13 @@ def call_graph(config_path: str, function_name: str, direction: str, depth: int)
 @click.option("--n", default=20, help="Number of sample paths to show per class")
 def debug(config_path: str, n: int):
     """Show EWP parse results and boundary classification without running analysis."""
+    from collections import Counter
+
+    from rich import box
+    from rich.table import Table
+
     from fwlens.config import load_config
     from fwlens.parser.ewp import parse_ewp
-    from collections import Counter
-    from rich.table import Table
-    from rich import box
 
     config = load_config(Path(config_path))
     if config.project.mode == "directory":
@@ -864,10 +877,14 @@ def debug(config_path: str, n: int):
         match_fp  = seg.lower() in [f.lower() for f in config.scope.first_party]
         match_sdk = seg.lower() in [f.lower() for f in config.scope.sdk]
         match_lib = seg.lower() in [f.lower() for f in config.scope.third_party_lib]
-        if match_fp:     label = " [green]<-- first_party[/green]"
-        elif match_sdk:  label = " [blue]<-- sdk[/blue]"
-        elif match_lib:  label = " [yellow]<-- lib[/yellow]"
-        else:            label = " [red]<-- NO MATCH[/red]"
+        if match_fp:
+            label = " [green]<-- first_party[/green]"
+        elif match_sdk:
+            label = " [blue]<-- sdk[/blue]"
+        elif match_lib:
+            label = " [yellow]<-- lib[/yellow]"
+        else:
+            label = " [red]<-- NO MATCH[/red]"
         console.print(f"  {seg:40s} {count:4d}{label}")
 
     if not_under_proj:
@@ -898,17 +915,17 @@ def debug(config_path: str, n: int):
               help="Specific .c file to test (default: first in-scope file)")
 def debug_parse(config_path: str, target_file: str):
     """Test libclang on a single file and show exactly what happens."""
+    import traceback
+
+    import fwlens.parser.ast_walker as _walker_mod
+    import fwlens.parser.ewp as _ewp_mod
     from fwlens.config import load_config
     from fwlens.parser.ewp import parse_ewp
-    from fwlens.model.project import BoundaryClass
-    import fwlens.parser.ewp as _ewp_mod
-    import fwlens.parser.ast_walker as _walker_mod
-    import traceback
 
     _print_header("debug-parse", config_path)
 
     # Show which module files are actually loaded (confirms no stale .pyc)
-    console.print(f"\n[bold]0. Module paths (confirms no stale .pyc)[/bold]")
+    console.print("\n[bold]0. Module paths (confirms no stale .pyc)[/bold]")
     console.print(f"  ewp.py      : [dim]{_ewp_mod.__file__}[/dim]")
     console.print(f"  ast_walker  : [dim]{_walker_mod.__file__}[/dim]")
 
@@ -1152,16 +1169,16 @@ def debug_parse(config_path: str, target_file: str):
             break
 
         # Re-run with updated stubs dir (already on clang_args from first pass)
-        console.print(f"  [cyan]  Re-parsing with updated stubs...[/cyan]")
+        console.print("  [cyan]  Re-parsing with updated stubs...[/cyan]")
 
     # Final summary
-    console.print(f"\n  [bold]Final parse result[/bold]")
+    console.print("\n  [bold]Final parse result[/bold]")
     if other_errors:
         console.print(f"  [red]{len(other_errors)} unfixable error(s):[/red]")
         for d in other_errors[:10]:
             console.print(f"    [red]{d.location.file}:{d.location.line}: {d.spelling}[/red]")
     else:
-        console.print(f"  [green]0 unfixable errors[/green]")
+        console.print("  [green]0 unfixable errors[/green]")
 
     if warnings:
         console.print(f"  [dim]{len(warnings)} warning(s) (ignored)[/dim]")
@@ -1188,8 +1205,8 @@ def debug_parse(config_path: str, target_file: str):
         arch_adds = [a for a in clang_args if 'ARM7EM' in a or 'ARM6M' in a or 'ARM8M' in a]
         if arch_adds:
             console.print(
-                f"\n[yellow]Tip: add these to iar_compat_defines in config.yaml "
-                f"to avoid re-detecting each run:[/yellow]"
+                "\n[yellow]Tip: add these to iar_compat_defines in config.yaml "
+                "to avoid re-detecting each run:[/yellow]"
             )
             for a in arch_adds:
                 console.print(f"  - {a.lstrip('-D')}")
@@ -1234,10 +1251,10 @@ def dump_ast(config_path: str, target_file: str, var_name: str, fn_name: str,
         .\\\\Run-FwLens.ps1 dump-ast --find-refs ATCommandTable
         .\\\\Run-FwLens.ps1 dump-ast --file ATCommands.c --depth 4
     """
+    import clang.cindex as ci
+
     from fwlens.config import load_config
     from fwlens.parser.ewp import parse_ewp
-    from fwlens.model.project import BoundaryClass
-    import clang.cindex as ci
 
     _print_header("dump-ast", config_path)
 
@@ -1419,7 +1436,7 @@ def dump_ast(config_path: str, target_file: str, var_name: str, fn_name: str,
                 console.print("  global variable rather than referenced directly by a function.")
                 console.print("  The dispatch happens when the container variable is traversed at runtime.")
             else:
-                console.print(f"  [yellow]Not found in VAR_DECL initialisers either.[/yellow]")
+                console.print("  [yellow]Not found in VAR_DECL initialisers either.[/yellow]")
                 console.print("  This table is genuinely unreferenced in the analysed scope.")
                 console.print("  Possible causes:")
                 console.print("    - The dispatcher is in SDK/Lib scope (not analysed)")
@@ -1501,7 +1518,7 @@ def dump_ast(config_path: str, target_file: str, var_name: str, fn_name: str,
         elif "VAR_DECL" in kind_name or "FUNCTION_DECL" in kind_name:
             style = "[green]"
 
-        end_style = style.replace("[", "[/") if style else ""
+        style.replace("[", "[/") if style else ""
         console.print(
             f"{prefix}{style}{kind_name}[/] "
             f"'{spelling}'{ref_info}[dim]{loc}[/dim]"
@@ -1600,9 +1617,8 @@ def dump_ast(config_path: str, target_file: str, var_name: str, fn_name: str,
                         dr_ck   = getattr(ci.CursorKind, 'DECL_REF_EXPR', None)
                         var_ck  = getattr(ci.CursorKind, 'VAR_DECL', None)
                         fn_ck2  = getattr(ci.CursorKind, 'FUNCTION_DECL', None)
-                        if call_ck and ck == call_ck:
-                            if not c.spelling:
-                                indirect += 1
+                        if call_ck and ck == call_ck and not c.spelling:
+                            indirect += 1
                         if dr_ck and ck == dr_ck:
                             try:
                                 ref = c.referenced
@@ -1625,19 +1641,18 @@ def dump_ast(config_path: str, target_file: str, var_name: str, fn_name: str,
 
                     _walk_fn(cursor)
 
-                    console.print(f"  [bold]VAR_DECL references (global_reads candidates):[/bold]")
+                    console.print("  [bold]VAR_DECL references (global_reads candidates):[/bold]")
                     if var_refs:
-                        for name, lk, line in sorted(set(
-                                (n, l, ln) for n, l, ln in var_refs)):
+                        for name, lk, line in sorted(set(var_refs)):
                             include = lk in ("internal", "external", "unique_ext")
                             mark = "[green]✓ included[/green]" if include else "[red]✗ excluded (no_link)[/red]"
                             console.print(f"    '{name}'  linkage={lk}  line={line}  {mark}")
                     else:
                         console.print("    (none)")
 
-                    console.print(f"\n  [bold]FUNCTION_DECL references (direct callees):[/bold]")
+                    console.print("\n  [bold]FUNCTION_DECL references (direct callees):[/bold]")
                     if fn_refs:
-                        for name, line in sorted(set((n, ln) for n, ln in fn_refs)):
+                        for name, line in sorted(set(fn_refs)):
                             console.print(f"    '{name}'  line={line}")
                     else:
                         console.print("    (none)")

@@ -1,12 +1,10 @@
-import os
 import re
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Any
 
 from pptx import Presentation
-from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
-from pptx.enum.text import PP_ALIGN
+from pptx.util import Pt
 
 from .pylogkit import setup_logging
 
@@ -18,10 +16,10 @@ class SlidesConverter:
     Improved functioning based on createdocs learnings.
     """
 
-    def __init__(self, template_path: Optional[Path] = None):
+    def __init__(self, template_path: Path | None = None):
         self.template_path = Path(template_path) if template_path else None
 
-    def _split_into_slides(self, md_content: str) -> List[Dict[str, Any]]:
+    def _split_into_slides(self, md_content: str) -> list[dict[str, Any]]:
         """
         Splits Markdown content into individual slides using '---' rules or '#' headers.
         """
@@ -73,7 +71,7 @@ class SlidesConverter:
         md_content = md_path.read_text(encoding="utf-8")
         slides = self._split_into_slides(md_content)
 
-        blank_slide_layout = prs.slide_layouts[6] if len(prs.slide_layouts) > 6 else prs.slide_layouts[0]
+        prs.slide_layouts[6] if len(prs.slide_layouts) > 6 else prs.slide_layouts[0]
         title_slide_layout = prs.slide_layouts[0]
         content_slide_layout = prs.slide_layouts[1] if len(prs.slide_layouts) > 1 else prs.slide_layouts[0]
 
@@ -130,7 +128,7 @@ class SlidesConverter:
                             code_buf.append(line)
                             continue
 
-                        if stripped.startswith("- ") or stripped.startswith("* "):
+                        if stripped.startswith(("- ", "* ")):
                             p = tf.add_paragraph()
                             p.text = stripped[2:]
                             p.level = 0

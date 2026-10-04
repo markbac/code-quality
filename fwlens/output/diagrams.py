@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Optional
 
 try:
     import networkx as nx
@@ -68,7 +67,7 @@ def _xml_escape(text: str) -> str:
 
 
 def generate_architecture_svg_inline(model: ProjectModel, config: FwLensConfig,
-                                      source_index: Optional[dict] = None) -> str:
+                                      source_index: dict | None = None) -> str:
     """
     Return raw <svg>...</svg> markup for embedding directly inline in the HTML report
     (not written to a file) -- modules grouped into horizontal bands by architecture
@@ -79,7 +78,7 @@ def generate_architecture_svg_inline(model: ProjectModel, config: FwLensConfig,
     is inlined into the page DOM rather than referenced as an external image.
     """
     source_index = source_index or {}
-    dep_graph: Optional[nx.DiGraph] = getattr(model, "_module_dep_graph", None)
+    dep_graph: nx.DiGraph | None = getattr(model, "_module_dep_graph", None)
     fp_modules = model.first_party_modules()
     fp_paths = {str(m.path) for m in fp_modules}
     module_by_path = {str(m.path): m for m in fp_modules}
@@ -244,7 +243,7 @@ def generate_architecture_diagram(model: ProjectModel, config: FwLensConfig) -> 
     Write a whole-codebase Mermaid flowchart to <reports_dir>/diagrams/architecture.md,
     modules grouped by layer, coloured by zone. Returns the written path.
     """
-    dep_graph: Optional[nx.DiGraph] = getattr(model, "_module_dep_graph", None)
+    dep_graph: nx.DiGraph | None = getattr(model, "_module_dep_graph", None)
     fp_modules = model.first_party_modules()
     fp_paths = {str(m.path) for m in fp_modules}
     module_by_path = {str(m.path): m for m in fp_modules}
@@ -296,7 +295,7 @@ def generate_architecture_diagram(model: ProjectModel, config: FwLensConfig) -> 
 
 def generate_dependency_svg(model: ProjectModel, config: FwLensConfig) -> Path:
     """Write the module dependency graph as an SVG to <reports_dir>/diagrams/dependency_graph.svg."""
-    dep_graph: Optional[nx.DiGraph] = getattr(model, "_module_dep_graph", None)
+    dep_graph: nx.DiGraph | None = getattr(model, "_module_dep_graph", None)
     fp_modules = model.first_party_modules()
     fp_paths = {str(m.path) for m in fp_modules}
     module_by_path = {str(m.path): m for m in fp_modules}
@@ -472,17 +471,17 @@ def generate_rtos_object_graph_svg_inline(model: ProjectModel) -> str:
     total_w = ox + OBJ_W + MARGIN
 
     parts = [
-        f'<svg viewBox="0 0 {total_w} {total_h}" width="100%" '
+        (f'<svg viewBox="0 0 {total_w} {total_h}" width="100%" '
         f'style="max-width:{total_w}px;background:#111827;border-radius:8px" '
-        f'xmlns="http://www.w3.org/2000/svg">',
-        '<defs>'
+        f'xmlns="http://www.w3.org/2000/svg">'),
+        ('<defs>'
         '<marker id="rtos-wait" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" '
         'markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f59e0b"/></marker>'
         '<marker id="rtos-signal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" '
         'markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#22c55e"/></marker>'
         '<marker id="rtos-other" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" '
         'markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#64748b"/></marker>'
-        '</defs>',
+        '</defs>'),
     ]
 
     seen = set()
@@ -494,7 +493,7 @@ def generate_rtos_object_graph_svg_inline(model: ProjectModel) -> str:
             continue
         seen.add(key)
         tx, ty, tw, th = task_pos[u.task_name]
-        ox_, oy, ow, oh = obj_pos[u.object_var]
+        ox_, oy, _ow, oh = obj_pos[u.object_var]
         x1, y1 = tx + tw, ty + th / 2
         x2, y2 = ox_, oy + oh / 2
         colour = {"wait": "#f59e0b", "signal": "#22c55e"}.get(u.access_kind, "#64748b")
@@ -568,11 +567,11 @@ def generate_state_machine_svg_inline(sm: StateMachine) -> str:
 
     total = int(2 * (R + NODE_R + 20))
     parts = [
-        f'<svg viewBox="0 0 {total} {total}" width="100%" '
+        (f'<svg viewBox="0 0 {total} {total}" width="100%" '
         f'style="max-width:{min(total, 520)}px;background:#111827;border-radius:8px" '
-        f'xmlns="http://www.w3.org/2000/svg">',
-        '<defs><marker id="sm-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" '
-        'markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#64748b"/></marker></defs>',
+        f'xmlns="http://www.w3.org/2000/svg">'),
+        ('<defs><marker id="sm-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" '
+        'markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#64748b"/></marker></defs>'),
     ]
 
     for frm, to in sm.transitions:

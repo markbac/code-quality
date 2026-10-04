@@ -15,14 +15,19 @@ Builds and analyses:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import networkx as nx
 
 from fwlens.config import FwLensConfig
 from fwlens.model.project import (
-    ArchitectureViolation, DispatchTable, FunctionMetrics, GlobalVarInfo,
-    GroupDirMismatch, ISRRisk, ModuleMetrics, ProjectModel, StackRisk,
+    ArchitectureViolation,
+    DispatchTable,
+    FunctionMetrics,
+    GlobalVarInfo,
+    GroupDirMismatch,
+    ISRRisk,
+    ProjectModel,
+    StackRisk,
 )
 
 
@@ -131,11 +136,11 @@ def compute_module_coupling(model: ProjectModel, module_dep_graph: nx.DiGraph) -
     I = Ce / (Ca + Ce)
     D = |A + I - 1|
     """
-    nodes = list(module_dep_graph.nodes())
+    list(module_dep_graph.nodes())
     in_deg = dict(module_dep_graph.in_degree())   # Ca (afferent)
     out_deg = dict(module_dep_graph.out_degree())  # Ce (efferent)
 
-    path_to_module = {m.path: m for m in model.modules}
+    {m.path: m for m in model.modules}
 
     for m in model.modules:
         key = str(m.path)
@@ -442,7 +447,6 @@ def detect_arch_violations(
     (upward), or skips one or more layers (skipped).
     Unknown-layer modules are excluded from violation detection.
     """
-    from fwlens.model.project import ArchitectureViolation
 
     # Build layer rank map: layer name -> integer rank (0 = lowest)
     layer_rank: dict[str, int] = {

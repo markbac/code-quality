@@ -13,17 +13,16 @@ import yaml
 from click.testing import CliRunner
 
 import main as fwlens_main
-from fwlens.baseline import Breach, _assign_ordinals, compute_breaches
-from fwlens.config import StandardSelection, StandardsConfig, ToolConfig
+from fwlens.baseline import Breach, compute_breaches
+from fwlens.config import StandardsConfig, StandardSelection, ToolConfig
 from fwlens.identity import match_findings
 from fwlens.output.reporters import severity_for, to_codequality
-from fwlens.output.sarif import build_rules, breach_to_result, rule_id
+from fwlens.output.sarif import breach_to_result, build_rules, rule_id
 from fwlens.standards import run_standards, select_rules
 from fwlens.standards.deviations import apply_deviations, load_deviations
 from fwlens.standards.importers import RawFinding, candidate_ids, map_to_rule, read_import
 from fwlens.standards.matrix import DISCLAIMER, build_matrix, render_json, render_markdown
-from fwlens.standards.rules import BUILTIN_DIR, RuleFileError, load_standard_file, load_standards, parse_standard
-
+from fwlens.standards.rules import BUILTIN_DIR, RuleFileError, load_standards, parse_standard
 
 # --- rule files ---------------------------------------------------------------------
 
@@ -138,10 +137,11 @@ out:
 @pytest.fixture
 def parsed(tmp_path):
     """A parsed model for C_SOURCE using the bundled libclang and the host headers."""
-    cindex = pytest.importorskip("clang.cindex")
+    pytest.importorskip("clang.cindex")
     if not any(shutil.which(c) for c in ("gcc", "cc", "clang")):
         pytest.skip("no host compiler for system headers")
     from test_p0_regressions import _config
+
     from fwlens.parser.pipeline import run_pipeline
 
     (tmp_path / "app.c").write_text(C_SOURCE)

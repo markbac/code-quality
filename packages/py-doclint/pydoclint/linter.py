@@ -1,7 +1,6 @@
 import os
 import re
 from pathlib import Path
-from typing import List, Dict, Any, Optional
 
 from .pylogkit import setup_logging
 
@@ -41,12 +40,12 @@ class DocLinter:
     Technical Writing Style & Glossary Validator for Markdown repositories.
     """
 
-    def __init__(self, glossary: Optional[Dict[str, List[str]]] = None):
+    def __init__(self, glossary: dict[str, list[str]] | None = None):
         self.glossary = glossary or DEFAULT_GLOSSARY
 
-    def lint_file(self, file_path: Path) -> List[LintIssue]:
+    def lint_file(self, file_path: Path) -> list[LintIssue]:
         file_path = Path(file_path).resolve()
-        issues: List[LintIssue] = []
+        issues: list[LintIssue] = []
 
         if not file_path.exists():
             logger.error(f"File not found: {file_path}")
@@ -108,13 +107,13 @@ class DocLinter:
         logger.info(f"Linted {file_path.name}: {len(issues)} issue(s) found.")
         return issues
 
-    def lint_directory(self, search_dir: Path) -> Dict[str, List[LintIssue]]:
+    def lint_directory(self, search_dir: Path) -> dict[str, list[LintIssue]]:
         search_dir = Path(search_dir).resolve()
         results = {}
 
         for root, _, files in os.walk(search_dir):
             for file in files:
-                if file.endswith(".md") or file.endswith(".markdown"):
+                if file.endswith((".md", ".markdown")):
                     p = Path(root) / file
                     issues = self.lint_file(p)
                     if issues:

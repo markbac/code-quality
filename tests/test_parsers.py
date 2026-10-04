@@ -6,13 +6,13 @@ import json
 import tempfile
 from pathlib import Path
 
-from fwlens.config import FwLensConfig, ProjectConfig, ScopeConfig, ToolConfig, ThresholdConfig, OutputConfig
+from fwlens.config import FwLensConfig, OutputConfig, ProjectConfig, ScopeConfig, ThresholdConfig, ToolConfig
 from fwlens.parser.compile_commands import parse_compile_commands, parse_compiler_flags
 from fwlens.parser.dirscan import scan_directory
 
 
 def test_parse_compiler_flags():
-    base_dir = Path(".").resolve()
+    base_dir = Path.cwd()
     cmd_str = "gcc -I/usr/include -Irelative/inc -DFOO -DBAR=42 -isystem /system/inc -c src/main.c"
     defines, includes = parse_compiler_flags(cmd_str, base_dir)
 

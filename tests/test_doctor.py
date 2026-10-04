@@ -3,6 +3,7 @@ Tests for fwlens doctor command (Issue #40).
 """
 
 from click.testing import CliRunner
+
 from fwlens.cli.commands import cli
 
 

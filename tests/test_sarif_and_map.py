@@ -4,10 +4,8 @@ Tests for SARIF 2.1.0 exporter and Linker mapfile parser.
 
 import tempfile
 from pathlib import Path
+
 from fwlens.parser.mapfile import parse_linker_mapfile
-from fwlens.output.sarif import generate_sarif_report
-from fwlens.config import FwLensConfig, ProjectConfig, ScopeConfig, ToolConfig, ThresholdConfig, OutputConfig
-from fwlens.model.project import ProjectModel
 
 
 def test_linker_mapfile_parsing():

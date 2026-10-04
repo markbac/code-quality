@@ -2,8 +2,8 @@
 CLI smoke tests and end-to-end integration tests (Issue #34).
 """
 
-from pathlib import Path
 from click.testing import CliRunner
+
 from fwlens.cli.commands import cli
 
 

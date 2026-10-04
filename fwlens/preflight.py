@@ -33,7 +33,7 @@ class PreflightIssue:
 def run_static_preflight(config: FwLensConfig) -> list[PreflightIssue]:
     issues: list[PreflightIssue] = []
 
-    from fwlens.libclang_locate import locate_libclang, LibclangError
+    from fwlens.libclang_locate import LibclangError, locate_libclang
     try:
         locate_libclang(config.tool.libclang_path)
     except LibclangError as e:

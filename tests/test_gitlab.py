@@ -10,8 +10,13 @@ import yaml
 
 from fwlens.baseline import Breach
 from fwlens.output.reporters import (
-    GitHubReporter, GitLabReporter, default_gitlab_report_path, fingerprint_for, running_on_gitlab,
-    severity_for, to_codequality,
+    GitHubReporter,
+    GitLabReporter,
+    default_gitlab_report_path,
+    fingerprint_for,
+    running_on_gitlab,
+    severity_for,
+    to_codequality,
 )
 
 REQUIRED = {"description", "check_name", "fingerprint", "severity", "location"}
@@ -102,6 +107,7 @@ def test_gitlab_environment_detection(monkeypatch, tmp_path):
 
 def test_project_root_prefers_ci_project_dir(monkeypatch, tmp_path):
     from types import SimpleNamespace
+
     from fwlens.identity import project_root
     monkeypatch.setenv("CI_PROJECT_DIR", str(tmp_path))
     cfg = SimpleNamespace(project=SimpleNamespace(source_dir=Path("/x"), proj_dir=Path("/x")),

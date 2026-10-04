@@ -9,7 +9,6 @@ structural debt index (percentile-rank composite).
 from __future__ import annotations
 
 import math
-from typing import Optional
 
 try:
     import numpy as np
@@ -19,8 +18,7 @@ except ImportError:
     stats = None
 
 from fwlens.config import FwLensConfig, ThresholdConfig
-from fwlens.model.project import FunctionMetrics, ModuleMetrics, ProjectModel
-
+from fwlens.model.project import FunctionMetrics, ProjectModel
 
 _FUNCTION_METRICS = [
     "cyclomatic_complexity",

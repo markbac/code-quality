@@ -1,6 +1,5 @@
-import pytest
-from pathlib import Path
 from pydoc2slides import SlidesConverter
+
 
 def test_slides_conversion(tmp_path):
     md_file = tmp_path / "deck.md"

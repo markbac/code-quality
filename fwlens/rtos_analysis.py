@@ -25,14 +25,17 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Optional
 
 import networkx as nx
 
 from fwlens.config import FwLensConfig
 from fwlens.model.project import (
-    ProjectModel, RTOSInversionRisk, RTOSObjectUsage, RTOSPriorityCollision,
-    RTOSSyncObject, RTOSTask,
+    ProjectModel,
+    RTOSInversionRisk,
+    RTOSObjectUsage,
+    RTOSPriorityCollision,
+    RTOSSyncObject,
+    RTOSTask,
 )
 
 
@@ -46,7 +49,7 @@ def _normalise_var(text: str) -> str:
     return t
 
 
-def _try_int(text: str) -> Optional[int]:
+def _try_int(text: str) -> int | None:
     """
     Parse a call argument as an integer literal, tolerant of a leading C-style cast.
     libclang expands macros before fwlens ever sees the AST, so a literal passed through
@@ -177,7 +180,7 @@ def _compute_unused(
     return [o for o in sync_objects if o.var_name not in used_vars]
 
 
-def _build_task_from_table_entry(entry: dict, field_map: dict) -> Optional[RTOSTask]:
+def _build_task_from_table_entry(entry: dict, field_map: dict) -> RTOSTask | None:
     """
     Turn one recovered task-table entry ({fields: {member_name: value_text}, ...})
     into an RTOSTask using the configured struct-member-name mapping
@@ -295,7 +298,7 @@ def run_rtos_analysis(model: ProjectModel, config: FwLensConfig) -> None:
 
     # Attribute each usage call site to every task whose entry function can reach it,
     # via the call graph the graph engine already built.
-    call_graph: Optional[nx.DiGraph] = getattr(model, "_call_graph", None)
+    call_graph: nx.DiGraph | None = getattr(model, "_call_graph", None)
     func_to_tasks: dict[str, list[str]] = {}
     if call_graph is not None:
         for t in tasks:

@@ -29,7 +29,6 @@ from __future__ import annotations
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 from scipy.optimize import curve_fit
@@ -41,7 +40,7 @@ from fwlens.model.project import ProjectModel, ReliabilityGrowth
 _MIN_FIX_COMMITS = 8
 
 
-def fetch_fix_commits(git_root: Path, since: Optional[str], keywords: list[str]) -> list[dict]:
+def fetch_fix_commits(git_root: Path, since: str | None, keywords: list[str]) -> list[dict]:
     """
     One `git log --name-only` pass -> list of {date, subject, files} for every commit
     whose message matches a fix-flavoured keyword. Shared by fwlens.reliability (dates
@@ -64,7 +63,7 @@ def fetch_fix_commits(git_root: Path, since: Optional[str], keywords: list[str])
         return []
 
     commits: list[dict] = []
-    current: Optional[dict] = None
+    current: dict | None = None
 
     for raw_line in result.stdout.splitlines():
         line = raw_line.rstrip("\n")
@@ -74,7 +73,7 @@ def fetch_fix_commits(git_root: Path, since: Optional[str], keywords: list[str])
             rest = line[len("__FWLENS_COMMIT__"):]
             date_str, _, subject = rest.partition("\x1f")
             try:
-                dt: Optional[datetime] = datetime.fromisoformat(date_str)
+                dt: datetime | None = datetime.fromisoformat(date_str)
             except ValueError:
                 dt = None
             current = {"date": dt, "subject": subject, "files": []}
@@ -93,7 +92,7 @@ def fetch_fix_commits(git_root: Path, since: Optional[str], keywords: list[str])
     return commits
 
 
-def _fix_commit_dates(git_root: Path, since: Optional[str], keywords: list[str]) -> list[datetime]:
+def _fix_commit_dates(git_root: Path, since: str | None, keywords: list[str]) -> list[datetime]:
     dates = [c["date"] for c in fetch_fix_commits(git_root, since, keywords) if c["date"] is not None]
     dates.sort()
     return dates
@@ -109,7 +108,7 @@ def _goel_okumoto(t, a, b):
     return a * (1.0 - np.exp(-b * t))
 
 
-def _fit_goel_okumoto(dates: list[datetime]) -> Optional[tuple[float, float, float]]:
+def _fit_goel_okumoto(dates: list[datetime]) -> tuple[float, float, float] | None:
     """Returns (a, b, r_squared), or None if the fit doesn't converge."""
     if len(dates) < _MIN_FIX_COMMITS:
         return None
