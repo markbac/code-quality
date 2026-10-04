@@ -60,6 +60,8 @@ class ProjectConfig:
     source_dir: Path | None = None    # directory-mode root, glob'd for *.c
     compile_commands: Path | None = None  # path to compile_commands.json (CMake/Make)
     map_file: Path | None = None          # linker map file (IAR or GCC) for flash/RAM footprint
+    include_dirs: list[Path] = field(default_factory=list)   # directory mode: explicit include path, in order
+    include_mode: str = "all"            # directory mode: "all" header dirs | "used" (only dirs reached by #include)
 
 
 @dataclass
@@ -391,6 +393,11 @@ def load_config(config_path: Path) -> FwLensConfig:
     else:
         mode = "ewp"
 
+    include_mode = str(proj_raw.get("include_mode", "all")).lower()
+    if include_mode not in ("all", "used"):
+        raise ConfigError(f"project.include_mode must be 'all' or 'used', not '{include_mode}'")
+    include_dirs = [resolve(d) for d in proj_raw.get("include_dirs") or []]
+
     ewp_path = resolve(ewp_raw) if ewp_raw else None
     source_dir_path = resolve(source_dir_raw) if source_dir_raw else None
     compile_commands_path = resolve(compile_commands_raw) if compile_commands_raw else None
@@ -418,6 +425,8 @@ def load_config(config_path: Path) -> FwLensConfig:
         proj_dir=default_proj_dir,
         toolkit_dir=resolve(toolkit_dir_raw) if toolkit_dir_raw else None,
         map_file=resolve(map_file_raw) if map_file_raw else None,
+        include_dirs=include_dirs,
+        include_mode=include_mode,
     )
 
     # Scope

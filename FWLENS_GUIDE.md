@@ -143,9 +143,21 @@ scope:
 against the bare file or directory name), for example `exclude: ["test/*", "*_generated.c"]`.
 `.git`, `build`, `__pycache__`, `.cache`, `node_modules` and `.pytest_cache` are always skipped.
 
-fwlens recursively globs `*.c` under `source_dir` and adds every directory that contains a
-header as an include path for every file -- there's no compile database in this mode, so
-this is intentionally blunt rather than per-file precise. Boundary classification
+fwlens recursively globs `*.c` under `source_dir`. There is no compile database in this mode,
+so include paths are per project, not per file. Three keys control them (all under `project:`):
+
+| Key | Meaning |
+| --- | --- |
+| `source_dir` | Root that is searched for `*.c` and `*.h`. |
+| `include_dirs` | Explicit include path, in search order. Use it to pick one of several ports. Default: none. |
+| `include_mode` | `all` (default) adds every directory that holds a header. `used` adds only directories reached by an `#include` from the in-scope `.c` files, following headers transitively. Ignored when `include_dirs` is set. |
+
+and `scope.exclude` (above) leaves paths out of the scan altogether.
+
+When an included header name exists in several directories, fwlens prints one warning naming
+the copy that is found first and the ones that are ignored, for example
+`Header 'portmacro.h' exists in 3 directories; 'ports/a' wins (searched first), ignored: 'ports/b'`.
+Choose the port with `include_dirs` (or exclude the others) to silence it. Boundary classification
 (`first_party`/`sdk`/`third_party_lib`) uses the same `scope` config as EWP mode, matched
 against each file's path segments; a file under no configured path defaults to
 `first_party`. There's no IAR group tree in directory mode, so architecture layer

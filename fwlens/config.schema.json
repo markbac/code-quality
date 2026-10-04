@@ -99,6 +99,15 @@
             "string",
             "null"
           ]
+        },
+        "include_dirs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "include_mode": {
+          "type": "string"
         }
       },
       "additionalProperties": false
