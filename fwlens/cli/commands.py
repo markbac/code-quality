@@ -1246,8 +1246,8 @@ def debug_parse(config_path: str, target_file: str):
         )
 
 @cli.command(name="dump-ast")
-@click.option("--config", "config_path", default="fwlens_config.yaml",
-              type=click.Path(exists=True), help="Path to fwlens_config.yaml")
+@click.option("--config", "config_path", default="config.yaml",
+              type=click.Path(exists=True), help="Path to config.yaml")
 @click.option("--file", "target_file", default=None,
               help="Name (or partial path) of the .c file to parse")
 @click.option("--var", "var_name", default=None,

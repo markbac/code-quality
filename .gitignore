@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# FWLens run output (reports, exports, cache). Generated, may contain local paths.
+output/

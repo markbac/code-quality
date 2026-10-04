@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=77.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,8 @@ version = "0.29.0"
 description = "Embedded C Architecture & Static Analysis Platform"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
   { name = "markbac", email = "markbac@github.com" }
 ]
@@ -23,7 +24,6 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 dependencies = [
@@ -36,8 +36,6 @@ dependencies = [
     "networkx>=3.0",
     "scipy>=1.11",
     "numpy>=1.24",
-    "python-pptx>=1.0.0",
-    "colorlog>=6.7.0",
 ]
 
 [project.optional-dependencies]
@@ -47,18 +45,17 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.0.0",
     "build>=1.0.0",
+    # Only needed to run the tests of packages/py-doc2slides and packages/py-doclint,
+    # which the root pytest configuration collects.
     "python-pptx>=1.0.0",
     "colorlog>=6.7.0",
 ]
 
 [project.scripts]
-fwlens = "main:cli"
-
-[tool.setuptools]
-py-modules = ["main"]
+fwlens = "fwlens.cli:main"
 
 [tool.setuptools.package-data]
-fwlens = ["arch.yaml", "output/vendor/*", "standards/builtin/*.yaml"]
+fwlens = ["output/vendor/*", "output/templates/*", "standards/builtin/*.yaml"]
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -1,5 +1,7 @@
 """
-main.py -- CLI entrypoint wrapper for fwlens
+main.py -- repository-level convenience wrapper: `python main.py report`.
+
+Not packaged. The installed command is `fwlens` (entry point fwlens.cli:main).
 """
 
 import fwlens.cli.commands as _commands
@@ -7,11 +9,10 @@ import fwlens.cli.commands as _commands
 cli = _commands.cli
 main = _commands.main
 
+
 def __getattr__(name: str):
     return getattr(_commands, name)
 
-def __setattr__(name: str, value):
-    setattr(_commands, name, value)
 
 if __name__ == "__main__":
     cli()

@@ -66,6 +66,11 @@ scope:
   # Set to [first_party, third_party_lib, sdk] to analyse everything.
   analyse: [first_party]
 
+  # Directory mode only: files and directories to leave out of the scan. Each entry is a
+  # glob matched against the path relative to project.source_dir, or against the bare name.
+  # .git, build, __pycache__, .cache, node_modules and .pytest_cache are always skipped.
+  # exclude: ["test/*", "*_generated.c"]
+
 # IAR compatibility defines injected into every libclang translation unit.
 # These prevent parse failures on IAR-specific syntax.
 iar_compat_defines:

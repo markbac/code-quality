@@ -30,13 +30,10 @@ For hosts without an LLVM install, FWLens finds system headers by asking your C 
 
 ### Configuration Options
 
-Copy `config.example.yaml` to `config.yaml` and choose your build system:
+Copy `config.example.yaml` to `config.yaml` and choose your build system. Input paths are relative to the config file; `output.*` paths are relative to the directory you run FWLens from.
 
 #### Option A: CMake or Make (`compile_commands.json`)
 ```yaml
-tool:
-  libclang_path: C:\Program Files\LLVM\bin\libclang.dll
-
 project:
   compile_commands: build/compile_commands.json
   mode: cmake   # or 'make'
@@ -44,9 +41,6 @@ project:
 
 #### Option B: IAR Embedded Workbench (`.ewp`)
 ```yaml
-tool:
-  libclang_path: C:\Program Files\LLVM\bin\libclang.dll
-
 project:
   ewp: path/to/your/project.ewp
   configuration: Release
@@ -56,26 +50,37 @@ project:
 #### Option C: Directory Scan Mode
 ```yaml
 project:
-  source_dir: C:\Projects\my-embedded-library
+  source_dir: src
 ```
+
+To use a full LLVM install instead of the bundled libclang, add `tool.libclang_path` (or set `LIBCLANG_PATH`).
 
 ### Usage
 
-Run FWLens analysis using Python:
+Check the environment, then analyse:
 
 ```bash
-python main.py report --config config.yaml
+fwlens doctor --config config.yaml     # libclang, compiler, git, resolved paths
+fwlens analyze --config config.yaml    # console summary
+fwlens report --config config.yaml     # HTML report plus CSV and JSON exports
 ```
 
-Or using PowerShell runner:
+`python main.py report` does the same from a checkout, and `.\Run-FwLens.ps1 report` wraps it for PowerShell.
 
-```powershell
-.\Run-FwLens.ps1 report
-```
+Useful options on `analyze`, `report` and `export`: `--jobs/-j`, `--timeout` and `--no-cache` for parsing, `--auto-stub` for missing toolchain headers, and `--fail-on-parse-error`.
 
-Run tests:
+### Quality gates and CI
+
+- **Baselines**: `--baseline baseline.json` with `--fail-on-breach` fails only on new or worsened breaches; `--update-baseline` records the current state.
+- **GitHub and GitLab**: `--github-annotations`, `--gitlab-codequality`, `--findings-json`, and `fwlens pr-comment` for pull and merge requests. See the guide for the GitHub Action and GitLab template.
+- **Coding standards**: `fwlens standards list`, `validate` and `report` check MISRA C and CERT C rules, with deviations and a compliance matrix.
+
+Git-history metrics (hotspots, coupling, ownership) need full history; use `fetch-depth: 0` with `actions/checkout`.
+
+### Tests
 
 ```bash
+pip install -e .[dev]
 pytest
 ```
 

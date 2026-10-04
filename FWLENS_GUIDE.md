@@ -127,6 +127,10 @@ scope:
 .\Run-FwLens.ps1 analyze --config config.yaml
 ```
 
+`scope.exclude` is a list of globs matched against each path relative to `source_dir` (or
+against the bare file or directory name), for example `exclude: ["test/*", "*_generated.c"]`.
+`.git`, `build`, `__pycache__`, `.cache`, `node_modules` and `.pytest_cache` are always skipped.
+
 fwlens recursively globs `*.c` under `source_dir` and adds every directory that contains a
 header as an include path for every file -- there's no compile database in this mode, so
 this is intentionally blunt rather than per-file precise. Boundary classification
@@ -952,20 +956,6 @@ alone: it can be deleted outright rather than merged with its live counterpart.
 
 Surfaced in the console summary (dead-flagged pairs listed first with a `[dead]` marker),
 `clones.csv`, and `clone_pairs` in the JSON export.
-
----
-
-## Change coupling
-
-Reuses the same git-log pass as [hotspot analysis](#hotspot-analysis) to find first-party
-file pairs that repeatedly change together in the same commit -- logical coupling the static
-call/include graph can miss entirely (e.g. two files that always change together probably
-belong together, or are missing a shared abstraction). Commits touching more than 20
-first-party files are excluded as noise (repo-wide reformats, branch merges); pairs need at
-least 3 co-changes and a Jaccard coupling of at least 30% to be reported.
-
-Surfaced in the console summary, `change_coupling.csv`, and `change_coupling` in the JSON
-export. Skipped gracefully alongside hotspot analysis if the project isn't a git repo.
 
 ---
 
