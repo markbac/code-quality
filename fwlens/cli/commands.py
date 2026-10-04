@@ -509,13 +509,13 @@ def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
 
     if update_baseline_flag:
         accepted = update_baseline(path, breaches, accept_all=accept_all, accept_ids=list(accept_ids),
-                                   prune=prune)
+                                   prune=prune, match=config.match)
         console.print(f"[cyan][fwlens][/cyan] Baseline updated: [bold]{path}[/bold] "
                       f"({len(accepted)} accepted breach(es) on file)")
         return False
 
     baseline = load_baseline(path)
-    result = classify_against_baseline(breaches, baseline)
+    result = classify_against_baseline(breaches, baseline, match=config.match)
     gating = {id(m.current) for m in result.gating()}
     new_or_worsened = [b for b in breaches if id(b) in gating]
     accepted_unchanged = [b for b in breaches if id(b) not in gating]
@@ -741,7 +741,17 @@ def _build_comparison(config_path, current_path, settings):
         console.print("[yellow][fwlens] No reference results available -- reporting without comparison.[/yellow]")
         comparison = no_reference(current)
     else:
-        comparison = compare(current, reference, uncertain_gates=settings.uncertain_gates)
+        from fwlens.config import MatchConfig, load_config
+        try:
+            cfg = load_config(Path(config_path))
+            match, renames = cfg.match, None
+            if settings.base_ref:
+                from fwlens.pr_check import git_rename_hints
+                renames = git_rename_hints(project_root(cfg), settings.base_ref)
+        except FileNotFoundError:
+            match, renames = MatchConfig(), None
+        comparison = compare(current, reference, uncertain_gates=settings.uncertain_gates,
+                             match=match, renames=renames)
     comparison.current_footprint = current_footprint
     comparison.base_footprint = base_footprint
     comparison.max_flash_growth = settings.max_flash_growth_bytes
@@ -986,7 +996,7 @@ def diff_breach(config_path: str, from_json_path: str, to_json_path: str, fail_o
 
     console.print(f"[cyan][fwlens][/cyan] Comparing breaches: "
                   f"[bold]{from_json_path}[/bold] -> [bold]{to_json_path}[/bold]")
-    new_or_worsened, accepted_unchanged = diff_against_baseline(to_breaches, from_as_baseline)
+    new_or_worsened, accepted_unchanged = diff_against_baseline(to_breaches, from_as_baseline, match=config.match)
     print_baseline_summary(new_or_worsened, accepted_unchanged, f"{from_json_path} -> {to_json_path}")
 
     if fail_on_breach and new_or_worsened:

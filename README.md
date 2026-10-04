@@ -71,7 +71,7 @@ Useful options on `analyze`, `report` and `export`: `--jobs/-j`, `--timeout` and
 
 ### Quality gates and CI
 
-- **Baselines**: `--baseline baseline.json` with `--fail-on-breach` fails only on new or worsened breaches; `--update-baseline` records the current state.
+- **Baselines**: `--baseline baseline.json` with `--fail-on-breach` fails only on new or worsened breaches; `--update-baseline` records the current state. Findings follow code that moves or is renamed; matching is heuristic, so a function that is largely rewritten shows as one resolved and one new finding, and `diff-breach` on exports without fingerprints matches by key only. Tune it with the `match:` section (see the guide, "Moved and renamed code").
 - **GitHub and GitLab**: `--github-annotations`, `--gitlab-codequality`, `--findings-json`, and `fwlens pr-comment` for pull and merge requests. See the guide for the GitHub Action and GitLab template.
 - **Coding standards**: `fwlens standards list`, `validate` and `report` check MISRA C and CERT C rules, with deviations and a compliance matrix.
 

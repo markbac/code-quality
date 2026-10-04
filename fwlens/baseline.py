@@ -259,14 +259,19 @@ def save_baseline(path: Path, accepted: dict[str, dict]) -> None:
 
 def classify_against_baseline(
     breaches: list[Breach], baseline: dict[str, dict], *,
-    similarity: float = 0.85, containment: float = 0.6,
+    containment: float = 0.6, match=None, renames: dict[str, str] | None = None,
 ) -> MatchResult:
-    """Full classification: new, unchanged, moved, uncertain, plus resolved baseline entries."""
-    return match_findings(breaches, baseline.values(), similarity=similarity, containment=containment)
+    """
+    Full classification: new, unchanged, moved, uncertain, plus resolved baseline entries.
+    `match` is the config's MatchConfig (thresholds); `renames` maps old to new file paths.
+    """
+    kwargs = {} if match is None else {"similarity": match.similarity, "loose": match.report_uncertain}
+    return match_findings(breaches, baseline.values(), containment=containment, renames=renames, **kwargs)
 
 
 def diff_against_baseline(
     breaches: list[Breach], baseline: dict[str, dict], *, uncertain_gates: bool = False,
+    match=None, renames: dict[str, str] | None = None,
 ) -> tuple[list[Breach], list[Breach]]:
     """
     Split breaches into (new_or_worsened, accepted_unchanged).
@@ -277,7 +282,7 @@ def diff_against_baseline(
     baseline entry (see fwlens.identity), so it is not reported as new. Loose matches
     (uncertain) are accepted unless ``uncertain_gates`` is set.
     """
-    result = classify_against_baseline(breaches, baseline)
+    result = classify_against_baseline(breaches, baseline, match=match, renames=renames)
     gating = {id(m.current) for m in result.gating(uncertain_gates)}
     new_or_worsened = [b for b in breaches if id(b) in gating]
     accepted_unchanged = [b for b in breaches if id(b) not in gating]
@@ -291,6 +296,7 @@ def update_baseline(
     accept_all: bool = False,
     accept_ids: list[str] | None = None,
     prune: bool = False,
+    match=None,
 ) -> dict[str, dict]:
     """
     Merge accepted breaches into the baseline file and write it back.
@@ -303,7 +309,7 @@ def update_baseline(
     """
     accept_ids_set = set(accept_ids or [])
     baseline = load_baseline(path)
-    result = classify_against_baseline(breaches, baseline)
+    result = classify_against_baseline(breaches, baseline, match=match)
 
     for m in result.matches:
         b = m.current

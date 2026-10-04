@@ -207,7 +207,23 @@ another file or was renamed), then same code with identifiers renamed, then simi
 partly overlapping code. Matches in the last group are listed as "matched loosely" and only
 gate when the value got worse. A split function is reported as a change, not as a new breach.
 Matching is heuristic: a function that is largely rewritten is reported as one resolved and
-one new breach. Module-level breaches are matched by file path only.
+one new breach.
+
+Module-level breaches follow their file. A rename is taken from the functions: when a file's
+matched functions turn up in another file, that file is its successor. `pr-comment` and
+`compare` with `--base-ref` (or `pr_check.base_ref`) also read `git diff -M` between the
+merge-base and HEAD, which covers files with no matched functions. Without git, only the
+function evidence is used, so a renamed file whose functions all changed is reported as new.
+`diff-breach` works from exports, and an export without fingerprints can only be matched by key.
+
+```yaml
+match:
+  similarity: 0.85        # body similarity needed for a loose match, above 0 and at most 1
+  report_uncertain: true  # false: no loose matching; edited code is one resolved plus one new
+```
+
+Lower `similarity` to follow more heavily edited code at the cost of more wrong matches. Loose
+matches only fail the check when the value got worse, unless `uncertain_gates` is set.
 
 Baselines written by earlier versions (ids with a line number) are migrated when read. They
 have no fingerprints until you re-run with `--update-baseline`.

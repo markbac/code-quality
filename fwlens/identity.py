@@ -190,7 +190,7 @@ class Match:
     current: object                      # a Breach
     base: dict | None                 # matched base entry, None for new
     status: str                          # new | unchanged | moved | uncertain
-    tier: str = ""                       # key | content | shape | similar | contained
+    tier: str = ""                       # key | content | shape | similar | contained | rename
     note: str = ""
 
     @property
@@ -240,9 +240,31 @@ def _order(item_file: str, item_line: int | None) -> tuple:
     return (item_file, item_line or 0)
 
 
+def _inferred_renames(matches: dict, current: list) -> dict[str, str]:
+    """
+    Old file -> new file for files whose functions were matched elsewhere by content. When a
+    file's functions went to several files, the one that received most of them is taken.
+    """
+    votes: dict[str, dict[str, int]] = {}
+    for ci, m in matches.items():
+        if m.base is None or m.tier not in ("content", "shape", "similar"):
+            continue
+        old, new = m.base.get("file"), current[ci].file
+        if old and old != new:
+            votes.setdefault(old, {})
+            votes[old][new] = votes[old].get(new, 0) + 1
+    return {old: max(targets, key=lambda t: (targets[t], t)) for old, targets in votes.items()}
+
+
 def match_findings(current: Iterable, base_entries: Iterable[dict], *,
                    similarity: float = 0.85, containment: float = 0.6,
-                   edit_containment: float = 0.8) -> MatchResult:
+                   edit_containment: float = 0.8, loose: bool = True,
+                   renames: dict[str, str] | None = None) -> MatchResult:
+    """
+    Match current findings to base entries. `loose=False` skips the similarity and split tiers.
+    `renames` maps old file paths to new ones (for example from `git diff -M`); renames inferred
+    from moved functions fill the gaps. They let module-level findings follow their file.
+    """
     current = list(current)
     base = [migrate_legacy_id(e) for e in base_entries]
     result = MatchResult()
@@ -284,7 +306,7 @@ def match_findings(current: Iterable, base_entries: Iterable[dict], *,
 
     # 4. similar (loose): the same function, edited. Either the bodies are close overall, or
     #    nearly all of the base body is still present in a longer current body.
-    for ci in pending():
+    for ci in (pending() if loose else []):
         fp = current[ci].fingerprint
         if not fp.get("minhash"):
             continue
@@ -300,7 +322,7 @@ def match_findings(current: Iterable, base_entries: Iterable[dict], *,
             record(ci, best, UNCERTAIN, "similar", f"{best_score:.0%} of the previous body is still here")
 
     # 5. contained: most of this (smaller) body already existed in a base function -- a split
-    for ci in pending():
+    for ci in (pending() if loose else []):
         fp = current[ci].fingerprint
         if not fp.get("minhash"):
             continue
@@ -315,6 +337,22 @@ def match_findings(current: Iterable, base_entries: Iterable[dict], *,
             # a split can feed several helpers, so the base entry is not marked as used
             matched[ci] = Match(current[ci], base[best], UNCERTAIN, "contained",
                                 f"{best_c:.0%} of this body existed in {base[best].get('function')}")
+
+    # 6. module-level findings follow their file when it was renamed or moved
+    rename_map = {**_inferred_renames(matched, current), **(renames or {})}
+    new_to_old: dict[str, list[str]] = {}
+    for old, new in rename_map.items():
+        new_to_old.setdefault(new, []).append(old)
+    for ci in pending():
+        b = current[ci]
+        if getattr(b, "kind", None) != "module":
+            continue
+        for old in new_to_old.get(b.file, []):
+            hit = next((bi for bi, e in enumerate(base) if bi not in used and e.get("kind") == "module"
+                        and e.get("file") == old and e.get("metric") == b.metric), None)
+            if hit is not None:
+                record(ci, hit, MOVED, "rename", f"file renamed from {old}")
+                break
 
     for ci, b in enumerate(current):
         result.matches.append(matched.get(ci) or Match(b, None, NEW))

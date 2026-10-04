@@ -466,6 +466,21 @@
       },
       "additionalProperties": false
     },
+    "match": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "similarity": {
+          "type": "number"
+        },
+        "report_uncertain": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
     "iar_compat_defines": {
       "type": "array",
       "items": {

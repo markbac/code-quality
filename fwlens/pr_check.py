@@ -154,9 +154,37 @@ def no_reference(current: list[Breach]) -> Comparison:
     return Comparison(result=MatchResult(), base_total=0, current_total=len(current), reference_missing=True)
 
 
+def git_rename_hints(repo_root: Path, ref: str) -> dict[str, str]:
+    """Old -> new paths for files git sees as renamed or copied between the merge-base with `ref` and HEAD."""
+    def run(*args: str) -> str | None:
+        p = subprocess.run(["git", "-c", "core.quotePath=false", "-C", str(repo_root), *args],
+                           capture_output=True)
+        return p.stdout.decode("utf-8", errors="replace") if p.returncode == 0 else None
+
+    base = run("merge-base", "HEAD", ref)
+    if not base:
+        return {}
+    out = run("diff", "-M", "--find-copies", "--name-status", "-z", base.strip(), "HEAD")
+    if not out:
+        return {}
+    parts = out.split("\0")
+    hints: dict[str, str] = {}
+    i = 0
+    while i < len(parts) and parts[i]:
+        status = parts[i]
+        if status[0] in "RC" and i + 2 < len(parts):
+            if status[0] == "R":
+                hints[parts[i + 1]] = parts[i + 2]
+            i += 3
+        else:
+            i += 2
+    return hints
+
+
 def compare(current: list[Breach], reference: list[dict], *, uncertain_gates: bool = False,
-            similarity: float = 0.85) -> Comparison:
-    result = match_findings(current, reference, similarity=similarity)
+            match=None, renames: dict[str, str] | None = None) -> Comparison:
+    kwargs = {} if match is None else {"similarity": match.similarity, "loose": match.report_uncertain}
+    result = match_findings(current, reference, renames=renames, **kwargs)
     return Comparison(
         result=result, base_total=len(reference), current_total=len(current),
         gating=result.gating(uncertain_gates), uncertain_gates=uncertain_gates,

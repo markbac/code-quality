@@ -268,3 +268,8 @@ output:
 #   max_flash_growth_bytes: 2048
 #   max_ram_growth_bytes: 256
 #   status: false
+
+# How findings are matched to a baseline when code moves or is edited.
+# match:
+#   similarity: 0.85        # above 0, at most 1; lower follows more heavily edited code
+#   report_uncertain: true  # false disables loose matching (edited code = resolved + new)

@@ -275,6 +275,13 @@ class PRCheckConfig:
 
 
 @dataclass
+class MatchConfig:
+    """How findings are matched to a baseline or reference when code moves or is edited."""
+    similarity: float = 0.85         # body similarity (0-1] needed for a loose match
+    report_uncertain: bool = True    # false: no loose matching, so edited code is new + resolved
+
+
+@dataclass
 class FwLensConfig:
     config_path: Path
     tool: ToolConfig
@@ -291,6 +298,7 @@ class FwLensConfig:
     rtos: RTOSConfig = field(default_factory=RTOSConfig)
     standards: StandardsConfig = field(default_factory=StandardsConfig)
     pr_check: PRCheckConfig = field(default_factory=PRCheckConfig)
+    match: MatchConfig = field(default_factory=MatchConfig)
     # Function names treated as assertion calls for assert-coverage metrics. Extend
     # this with any project-specific assert macro or error-report function rather
     # than needing a code change. Note: a macro that expands to a conditional call
@@ -577,6 +585,13 @@ def load_config(config_path: Path) -> FwLensConfig:
         imports=[(str(i["tool"]), resolve(i["path"])) for i in std_raw.get("imports", []) or []],
     )
 
+    match_raw = raw.get("match") or {}
+    similarity = match_raw.get("similarity", MatchConfig().similarity)
+    if isinstance(similarity, bool) or not isinstance(similarity, (int, float)) or not 0 < similarity <= 1:
+        raise ConfigError(f"match.similarity must be a number above 0 and at most 1, not {similarity!r}")
+    match = MatchConfig(similarity=float(similarity),
+                        report_uncertain=bool(match_raw.get("report_uncertain", True)))
+
     pc_raw = raw.get("pr_check") or {}
     defaults = PRCheckConfig()
     pr_check = PRCheckConfig(
@@ -608,6 +623,7 @@ def load_config(config_path: Path) -> FwLensConfig:
         rtos=rtos,
         standards=standards,
         pr_check=pr_check,
+        match=match,
         assert_names=assert_names,
         warnings=load_warnings,
     )
