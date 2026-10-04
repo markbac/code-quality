@@ -1,0 +1,80 @@
+# Built-in subset of SEI CERT C. Rule ids are the public CERT identifiers, titles are short
+# original paraphrases. Numbers from 30 up are rules, 00 to 29 are recommendations.
+schema_version: 1
+standard:
+  id: cert-c
+  name: SEI CERT C Coding Standard
+  revision: "2016 edition"
+  language: c
+  guideline_text: https://wiki.sei.cmu.edu/confluence/display/c
+  categories: [rule, recommendation]
+  undeviable_categories: []
+  severity_map: { rule: warning, recommendation: note }
+
+rules:
+  - id: ENV33-C
+    kind: rule
+    title: Do not call system
+    category: rule
+    decidable: true
+    scope: single-tu
+    cwe: [CWE-78]
+    check: { type: native, engine: ast, match: { cursor: CALL_EXPR, callee_in: [system] } }
+
+  - id: MSC30-C
+    kind: rule
+    title: Do not use rand to generate random numbers
+    category: rule
+    decidable: true
+    scope: single-tu
+    cwe: [CWE-338]
+    check: { type: native, engine: ast, match: { cursor: CALL_EXPR, callee_in: [rand, srand] } }
+
+  - id: MSC24-C
+    kind: recommendation
+    title: Do not use deprecated or obsolescent functions
+    category: recommendation
+    decidable: true
+    scope: single-tu
+    check: { type: native, engine: ast, match: { cursor: CALL_EXPR, callee_in: [gets, atof, atoi, atol, atoll, asctime, ctime, rewind, setbuf] } }
+
+  - id: EXP34-C
+    kind: rule
+    title: Do not dereference null pointers
+    category: rule
+    decidable: false
+    scope: system
+    cwe: [CWE-476]
+    check: { type: import }
+
+  - id: INT30-C
+    kind: rule
+    title: Ensure unsigned integer operations do not wrap
+    category: rule
+    decidable: false
+    scope: system
+    cwe: [CWE-190]
+    check: { type: import }
+
+  - id: ARR38-C
+    kind: rule
+    title: Guarantee that library functions do not form invalid pointers
+    category: rule
+    decidable: false
+    scope: system
+    cwe: [CWE-119]
+    check: { type: import }
+
+  - id: ERR33-C
+    kind: rule
+    title: Detect and handle standard library errors
+    category: rule
+    decidable: false
+    scope: system
+    cwe: [CWE-252]
+    check: { type: import }
+
+tool_map:
+  clang-tidy:
+    cert-env33-c: ENV33-C
+    cert-msc30-c: MSC30-C

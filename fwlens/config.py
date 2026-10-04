@@ -17,6 +17,18 @@ import yaml
 @dataclass
 class ToolConfig:
     libclang_path: Optional[Path]
+    # clang --target. "native" (or "host") passes no --target and uses the host compiler's headers.
+    target: str = "arm-none-eabi"
+    sysroot: Optional[Path] = None
+    # Extra system include directories. When set, auto-detection is skipped.
+    system_include_dirs: list[Path] = field(default_factory=list)
+    # Extra arguments appended to every clang invocation (e.g. ["-std=c11"]).
+    clang_args: list[str] = field(default_factory=list)
+    # Ask the compiler for system include dirs when none are configured.
+    auto_detect_includes: bool = True
+    # Fraction of in-scope files allowed to have fatal/error diagnostics before
+    # --fail-on-parse-error fails the run (0.0 = none allowed).
+    parse_error_threshold: float = 0.0
 
 
 @dataclass
@@ -208,6 +220,23 @@ _EMBOS_DEFAULTS = {
 
 
 @dataclass
+class StandardSelection:
+    standard: str
+    include_categories: list[str] = field(default_factory=list)   # empty = all categories
+    include_ids: list[str] = field(default_factory=list)          # empty = all rules
+    exclude_rules: list[str] = field(default_factory=list)
+
+
+@dataclass
+class StandardsConfig:
+    """Optional coding-standard compliance (MISRA C, CERT C ...). Disabled unless ``enabled`` is set."""
+    enabled: list[StandardSelection] = field(default_factory=list)
+    extra_rule_dirs: list[Path] = field(default_factory=list)
+    deviations_file: Optional[Path] = None
+    imports: list[tuple[str, Path]] = field(default_factory=list)    # (tool, results file)
+
+
+@dataclass
 class FwLensConfig:
     config_path: Path
     tool: ToolConfig
@@ -222,6 +251,7 @@ class FwLensConfig:
     estimation: EstimationConfig = field(default_factory=EstimationConfig)
     cost_benefit: CostBenefitConfig = field(default_factory=CostBenefitConfig)
     rtos: RTOSConfig = field(default_factory=RTOSConfig)
+    standards: StandardsConfig = field(default_factory=StandardsConfig)
     # Function names treated as assertion calls for assert-coverage metrics. Extend
     # this with any project-specific assert macro or error-report function rather
     # than needing a code change. Note: a macro that expands to a conditional call
@@ -274,8 +304,15 @@ def load_config(config_path: Path) -> FwLensConfig:
     # Tool
     tool_raw = raw.get("tool", {})
     libclang_raw = tool_raw.get("libclang_path")
+    sysroot_raw = tool_raw.get("sysroot")
     tool = ToolConfig(
-        libclang_path=Path(libclang_raw) if libclang_raw else None
+        libclang_path=Path(libclang_raw) if libclang_raw else None,
+        target=str(tool_raw.get("target", "arm-none-eabi")),
+        sysroot=Path(sysroot_raw) if sysroot_raw else None,
+        system_include_dirs=[Path(p) for p in tool_raw.get("system_include_dirs", []) or []],
+        clang_args=[str(a) for a in tool_raw.get("clang_args", []) or []],
+        auto_detect_includes=bool(tool_raw.get("auto_detect_includes", True)),
+        parse_error_threshold=float(tool_raw.get("parse_error_threshold", 0.0)),
     )
 
     # Project
@@ -453,6 +490,22 @@ def load_config(config_path: Path) -> FwLensConfig:
         _default_assert_names.append("OS_Error")
     assert_names = raw.get("assert_names", _default_assert_names)
 
+    std_raw = raw.get("standards") or {}
+    standards = StandardsConfig(
+        enabled=[
+            StandardSelection(
+                standard=str(e["standard"]),
+                include_categories=[str(c) for c in e.get("include_categories", []) or []],
+                include_ids=[str(i) for i in e.get("include_ids", []) or []],
+                exclude_rules=[str(i) for i in e.get("exclude_rules", []) or []],
+            )
+            for e in std_raw.get("enabled", []) or []
+        ],
+        extra_rule_dirs=[resolve(d) for d in std_raw.get("extra_rule_dirs", []) or []],
+        deviations_file=resolve(std_raw["deviations_file"]) if std_raw.get("deviations_file") else None,
+        imports=[(str(i["tool"]), resolve(i["path"])) for i in std_raw.get("imports", []) or []],
+    )
+
     return FwLensConfig(
         config_path=config_path,
         tool=tool,
@@ -467,5 +520,6 @@ def load_config(config_path: Path) -> FwLensConfig:
         estimation=estimation,
         cost_benefit=cost_benefit,
         rtos=rtos,
+        standards=standards,
         assert_names=assert_names,
     )

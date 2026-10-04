@@ -6,6 +6,9 @@
 - [Commands](#commands)
 - [Directory mode (no .ewp)](#directory-mode-no-ewp)
 - [Baseline / breach gating](#baseline--breach-gating)
+- [GitLab integration](#gitlab-integration)
+- [PR / MR quality check](#pr--mr-quality-check)
+- [Coding standards (MISRA C, CERT C)](#coding-standards-misra-c-cert-c)
 - [Two-hash comparison](#two-hash-comparison)
 - [Project-wide auto-stub](#project-wide-auto-stub)
 - [Diagnostic clusters](#diagnostic-clusters)
@@ -79,7 +82,7 @@ Pass `-NoClean` to skip the automatic `.pyc` cache purge (faster re-runs when no
 | `debug` | Show EWP parse results and boundary classification without running analysis |
 
 `analyze` and `report` both accept `--baseline`, `--fail-on-breach`, `--update-baseline`,
-`--accept-all`, and `--accept-id` -- see [Baseline / breach gating](#baseline--breach-gating).
+`--accept-all`, `--accept-id`, and `--prune` -- see [Baseline / breach gating](#baseline--breach-gating).
 `analyze`, `report`, and `export` all accept `--auto-stub` -- see
 [Project-wide auto-stub](#project-wide-auto-stub).
 `report` also writes standalone PNG plots when `plots` is listed in `output.formats` -- see
@@ -130,12 +133,30 @@ fwlens can gate a CI run on threshold breaches, the same way the older ccccc-bas
 since the baseline was captured. Breaches already accepted into the baseline at their
 current severity do not fail the build.
 
-Breach ids look like:
+Breach ids do not contain a line number, so inserting lines above a function never changes
+its id. Paths are relative to the repository root with forward slashes, so the same id is
+produced on a laptop and on CI:
 
 ```text
-Src/BaseMeter/BaseMeter.c:1161:sarReturnDataPacket:cyclomatic_complexity   # function-level
-Src/BaseMeter/BaseMeter.c:main_sequence_distance                          # module-level
+Src/BaseMeter/BaseMeter.c:sarReturnDataPacket:cyclomatic_complexity   # function-level
+Src/BaseMeter/BaseMeter.c:main_sequence_distance                      # module-level
 ```
+
+A second function with the same name in one file gets `name#2`, numbered in source order.
+The line number is stored as a separate field and is used only for locations.
+
+### Moved and renamed code
+
+Each function-level breach also stores a content fingerprint in the baseline. A breach is
+matched to its baseline entry in tiers: same id, then same code (the function moved to
+another file or was renamed), then same code with identifiers renamed, then similar or
+partly overlapping code. Matches in the last group are listed as "matched loosely" and only
+gate when the value got worse. A split function is reported as a change, not as a new breach.
+Matching is heuristic: a function that is largely rewritten is reported as one resolved and
+one new breach. Module-level breaches are matched by file path only.
+
+Baselines written by earlier versions (ids with a line number) are migrated when read. They
+have no fingerprints until you re-run with `--update-baseline`.
 
 Function-level breaches are checked against: `cyclomatic_complexity`, `cognitive_complexity`,
 `block_depth`, `function_loc`, `parameter_count`, `return_path_count`, `magic_number_density`,
@@ -159,16 +180,260 @@ Accept every breach currently in the codebase:
 Exits with code 1 (propagated by `Run-FwLens.ps1`) if any breach is new or worse than the
 baselined value; existing breaches at an unchanged severity are reported but don't fail the run.
 
+### Removing resolved entries
+
+`--update-baseline` only adds or updates entries by default. Add `--prune` to also remove
+entries that no longer match any breach:
+
+```powershell
+.\Run-FwLens.ps1 analyze --baseline baseline.json --update-baseline --accept-all --prune
+```
+
 ### Accepting a specific new breach
 
 ```powershell
 .\Run-FwLens.ps1 analyze --baseline baseline.json --update-baseline `
-    --accept-id "Src/BaseMeter/BaseMeter.c:1161:sarReturnDataPacket:cyclomatic_complexity"
+    --accept-id "Src/BaseMeter/BaseMeter.c:sarReturnDataPacket:cyclomatic_complexity"
 ```
 
 > **Note:** baselining a breach accepts its *current* value. If the metric gets worse later
 > (e.g. cyclomatic complexity rises from 20 to 25), it is reported as a new breach again --
 > baselining is not an open-ended exemption for that function/metric.
+
+---
+
+## GitLab integration
+
+`analyze` and `report` write a GitLab **Code Quality** report with `--gitlab-codequality PATH`.
+When `GITLAB_CI=true` the report is written automatically to
+`$CI_PROJECT_DIR/gl-code-quality-report.json`. GitLab compares it with the report from the
+target branch and shows new and fixed findings in the merge request widget.
+
+- Each finding has `description`, `check_name` (`fwlens/<metric>`), `severity`, `fingerprint`
+  and `location` (repo-relative path with forward slashes, plus the start line).
+- Fingerprints are derived from the stable breach id, which has no line number, so unrelated
+  edits do not appear as new findings.
+- Severity follows how far the value is over its threshold: under 25 % over is `minor`
+  (`info` for note-level metrics such as `fan_out`), under 100 % over is `major`, beyond that
+  `critical`. `blocker` is not used.
+- Paths are made relative to `CI_PROJECT_DIR` on GitLab, so Windows runners produce the same
+  forward-slash paths as Linux.
+
+A reusable job lives in `ci/gitlab/fwlens.gitlab-ci.yml`:
+
+```yaml
+include:
+  - remote: 'https://raw.githubusercontent.com/markbac/code-quality/main/ci/gitlab/fwlens.gitlab-ci.yml'
+
+fwlens:
+  extends: .fwlens
+  variables:
+    FWLENS_CONFIG: config.yaml
+    FWLENS_BASELINE: baseline.json   # optional: gate with --fail-on-breach
+```
+
+The template caches pip, keeps the artifact with `when: always` (so the report is published
+even when the gate fails the job) and sets `expire_in: 2 weeks`. Set `allow_failure: true` on
+the job while you introduce the gate.
+
+Not included yet: a SAST report for coding-standard findings (planned with the MISRA/CERT
+work) and an optional merge request summary note (planned with the PR/MR comparison).
+
+---
+
+## PR / MR quality check
+
+`fwlens pr-comment` compares the current checkout with the target branch and posts **one**
+comment on the pull request (GitHub) or merge request (GitLab) listing what is new, worse,
+resolved or moved. `fwlens compare` does the same comparison without posting.
+
+```text
+## FWLens quality check: FAIL
+| Findings | 3 -> 7 (+4) |   New 4 | Worsened 0 | Improved 0 | Resolved 0 | Moved or renamed 2 | Matched loosely 0
+### New and worsened        (table: where, function, metric, value, threshold, was)
+<details> Resolved / Moved or renamed / Matched loosely </details>
+```
+
+Findings are matched with the same stable identity as the baseline (see
+[Moved and renamed code](#moved-and-renamed-code)), so a function that was moved, renamed or
+extracted is listed as moved, not as one fixed plus one new.
+
+### Where the reference results come from
+
+1. `--base findings.json`: a findings file published by the target branch pipeline
+   (`fwlens analyze --findings-json findings.json`). Fastest. A `baseline.json` also works.
+2. `--base-ref origin/main`: analyses the merge-base of `HEAD` and the ref in a temporary git
+   worktree. Slower, needs full git history (`fetch-depth: 0` on GitHub, `GIT_DEPTH: 0` on GitLab).
+3. If neither is available the comment says so and the check does not fail.
+
+### Options
+
+| Option | Meaning |
+|---|---|
+| `--fail-on-new` | exit 1 when there are new or worsened findings (the status check) |
+| `--uncertain-gates` | also fail on loosely matched findings, not only worse ones |
+| `--current findings.json` | reuse findings from an earlier step instead of analysing again |
+| `--post auto\|github\|gitlab\|none` | where to post, `auto` reads the CI environment |
+| `--dry-run` | print the Markdown, post nothing |
+| `--no-update` | create a new comment each time instead of updating the existing one |
+| `--markdown FILE`, `--max-items N`, `--report-url URL` | output controls |
+
+The comment is identified by a hidden marker, so re-running a pipeline updates it instead of
+adding another.
+
+### GitHub Actions
+
+```yaml
+on: pull_request
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  fwlens:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install fwlens
+      - run: fwlens pr-comment --config config.yaml --base-ref origin/${{ github.base_ref }} --fail-on-new
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+Pull requests from forks get a read-only token. The post then fails with a warning, the
+comment is written to the job summary instead, and the result is still shown.
+
+### GitLab merge requests
+
+```yaml
+fwlens-mr:
+  extends: .fwlens
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  variables:
+    GIT_DEPTH: "0"
+  script:
+    - fwlens pr-comment --config $FWLENS_CONFIG --base-ref origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME --fail-on-new
+```
+
+Posting a note needs a token that can write notes: set a masked `GITLAB_TOKEN` variable
+(a project access token with `api` scope). `CI_JOB_TOKEN` is used if it is the only token
+available, but GitLab usually does not allow it to create notes.
+
+Not included yet: restricting the report to files changed in the PR (issue #35), flash/RAM
+growth gates and a `pr_check` section in `config.yaml`. Rule violations from the MISRA/CERT
+work will use the same comparison.
+
+---
+
+## Coding standards (MISRA C, CERT C)
+
+Optional and **off by default**: nothing changes unless `standards.enabled` is set. FWLens
+reports what it checked or imported. It never states that a project is compliant: a MISRA
+Compliance claim also needs a guideline enforcement plan, any recategorization and deviation
+records, which are process documents outside this tool.
+
+```yaml
+standards:
+  enabled:
+    - standard: misra-c-2012
+      include_categories: [mandatory, required]   # optional filters
+      exclude_rules: ["D4.1"]
+    - standard: cert-c
+      include_ids: [ENV33-C, MSC30-C]
+  extra_rule_dirs: [./standards]                  # your own *.yaml rule files
+  deviations_file: ./standards/deviations.yaml
+  imports:                                        # results from other analysers
+    - { tool: cppcheck,   path: build/cppcheck.xml }
+    - { tool: clang-tidy, path: build/tidy.txt }
+    - { tool: sarif,      path: build/other.sarif }
+```
+
+Findings join the normal breach list, so baseline gating (`--baseline`, `--fail-on-breach`),
+the PR/MR comment, SARIF and the GitLab Code Quality report all include them. SARIF uses the
+standard's own id (`misra-c-2012:15.1`) with levels from the category (mandatory is an error,
+required a warning, advisory a note). GitLab severities follow the same categories.
+
+### Rules are YAML, not Python
+
+Each standard is one file in `fwlens/standards/builtin/` or in your `extra_rule_dirs`. A rule has
+metadata (id, kind, category, decidable, scope, CWE) and a `check` block:
+
+| `check.type` | Meaning |
+|---|---|
+| `native` | FWLens checks it itself with an engine named in `check.engine` |
+| `import` | covered by results imported from another tool |
+| `manual` | needs human review, listed in the matrix as such |
+
+```yaml
+- id: "21.3"
+  kind: rule
+  title: Do not use the stdlib dynamic memory functions
+  category: required
+  decidable: true
+  scope: single-tu
+  check:
+    type: native
+    engine: ast
+    match: { cursor: CALL_EXPR, callee_in: [malloc, calloc, realloc, free] }
+```
+
+Engines: `ast` (a libclang cursor kind, optionally restricted to named callees),
+`compound_body` (selection and iteration statements without a compound body) and `callgraph`
+(call cycles, for recursion). Adding a rule that fits an engine is a YAML edit only. Files are
+validated on load with errors that name the file, rule and field, and
+`fwlens standards validate [FILES...]` checks rule and deviation files. `fwlens standards list`
+shows every rule, how it is checked and which are enabled.
+
+A `tool_map` section maps another tool's check ids onto rule ids. Common cppcheck MISRA and
+CERT ids and clang-tidy `cert-*` ids are recognised without it.
+
+### Deviations
+
+`deviations_file` is a separate YAML file so deviations are reviewed and expire on their own:
+
+```yaml
+deviations:
+  - id: DEV-001
+    standard: misra-c-2012
+    rule: "21.3"
+    type: specific              # project | specific
+    justification: Single start-up allocation, reviewed by the architecture board
+    approved_by: architecture-board
+    scope: { paths: ["src/platform/*.c"], functions: [alloc_init] }
+    expires: 2027-03-31
+```
+
+A covered finding is moved out of the gate and shown as deviated in the matrix. A deviation
+against a mandatory guideline, or one past its `expires` date, does not apply and becomes a
+finding of its own, so it fails the gate.
+
+### Compliance matrix
+
+```bash
+fwlens standards report --config config.yaml --output matrix.md      # or --format json
+```
+
+One row per selected guideline: category, decidability and scope, status (violated, deviated,
+no findings, manual review, not assessed), how it is checked and its deviations. Guidelines no
+configured source covers say `not assessed`.
+
+### What is bundled
+
+The built-in files carry guideline **ids**, the published category, decidability and scope, and
+short FWLens-written descriptions of what each check detects. They contain no MISRA or CERT
+guideline text. Point your own tooling at your licensed copy for the official wording.
+
+Current coverage is a starter set: MISRA C:2012 15.1, 15.6, 17.2, 21.3, 21.4, 21.6 to 21.10
+natively (9.1, 14.4, 17.7 import-only, Dir 4.1 manual) and CERT C ENV33-C, MSC30-C, MSC24-C
+natively (EXP34-C, INT30-C, ARR38-C, ERR33-C import-only). Native checks match call names, so a
+project function that shares a name with a library function is a false positive. Code in headers
+is not analysed, only the translation units. Recursion follows direct calls only.
+
+Not implemented yet: MISRA C:2023, message triage, recategorization, inline deviation markers,
+a Standards tab in the HTML report and CSV export.
 
 ---
 

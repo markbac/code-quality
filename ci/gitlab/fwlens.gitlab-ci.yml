@@ -1,0 +1,44 @@
+# Reusable GitLab CI template for FWLens.
+#
+# In your .gitlab-ci.yml:
+#
+#   include:
+#     - remote: 'https://raw.githubusercontent.com/markbac/code-quality/main/ci/gitlab/fwlens.gitlab-ci.yml'
+#
+#   fwlens:
+#     extends: .fwlens
+#     variables:
+#       FWLENS_CONFIG: config.yaml
+#       FWLENS_BASELINE: baseline.json     # optional, enables --fail-on-breach gating
+#
+# The job writes gl-code-quality-report.json, which GitLab shows in the merge request
+# widget by comparing it with the report from the target branch. Fingerprints contain no
+# line numbers, so unrelated edits do not show up as new findings.
+
+.fwlens:
+  image: python:3.12
+  variables:
+    FWLENS_CONFIG: config.yaml
+    FWLENS_BASELINE: ""
+    FWLENS_EXTRA_ARGS: ""
+    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  cache:
+    key: fwlens-pip
+    paths:
+      - .cache/pip
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install fwlens
+  script:
+    # GITLAB_CI=true makes fwlens write gl-code-quality-report.json automatically.
+    - |
+      ARGS="--config $FWLENS_CONFIG $FWLENS_EXTRA_ARGS"
+      if [ -n "$FWLENS_BASELINE" ]; then ARGS="$ARGS --baseline $FWLENS_BASELINE --fail-on-breach"; fi
+      fwlens analyze $ARGS
+  artifacts:
+    when: always            # keep the report even when the gate fails the job
+    expire_in: 2 weeks
+    reports:
+      codequality: gl-code-quality-report.json
+  # Use allow_failure: true while introducing the gate, then remove it.
+  allow_failure: false

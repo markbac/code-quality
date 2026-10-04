@@ -34,6 +34,8 @@ class TranslationUnit:
     include_paths: list[Path]
     boundary_class: BoundaryClass
     iar_group: Optional[str]
+    # Extra clang flags taken from a compile database entry (-std=, -m*, -include, --target=)
+    extra_args: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -166,19 +168,16 @@ def _extract_includes(settings_el: ET.Element, proj_dir: Path,
 
 def _resolve_no_x_defines(defines: list[str]) -> list[str]:
     """
-    Apply IAR no_X negation convention.
-    A define of no_FOO means FOO is logically off -- remove FOO if present,
-    and do not emit no_FOO as a define (it is not a truthy symbol).
+    Apply IAR no_X negation convention safely.
+    Only drop positive FOO if no_FOO is present in the same list.
+    Preserve no_X defines as raw defines since C code may use #ifdef no_X directly.
     """
-    positive = {d.split("=")[0] for d in defines if not d.startswith("no_")}
     negated = {d[3:].split("=")[0] for d in defines if d.startswith("no_")}
     result = []
     for d in defines:
         key = d.split("=")[0]
-        if d.startswith("no_"):
-            continue  # drop no_X entries
-        if key in negated:
-            continue  # this positive define is negated
+        if not d.startswith("no_") and key in negated:
+            continue  # positive define is overridden by explicit no_KEY
         result.append(d)
     return result
 

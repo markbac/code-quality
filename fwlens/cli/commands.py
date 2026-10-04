@@ -90,13 +90,8 @@ def _run_pipeline(config_path: Path, auto_stub: bool = False):
 
 def emit_github_annotations(breaches):
     """Output GitHub Actions workflow commands so breaches appear inline on PR code diffs."""
-    for b in breaches:
-        file_part = f"file={b.file}"
-        line_part = ""
-        parts = b.id.split(":")
-        if len(parts) >= 4 and parts[1].isdigit():
-            line_part = f",line={parts[1]}"
-        print(f"::warning {file_part}{line_part},title=FWLens Breach [{b.metric}]::{b.metric} is {b.value} (threshold {b.threshold})")
+    from fwlens.output.reporters import GitHubReporter
+    GitHubReporter().emit(breaches)
 
 
 _CONFIG_TEMPLATES = {

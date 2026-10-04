@@ -33,12 +33,11 @@ class PreflightIssue:
 def run_static_preflight(config: FwLensConfig) -> list[PreflightIssue]:
     issues: list[PreflightIssue] = []
 
-    if not config.tool.libclang_path or not config.tool.libclang_path.exists():
-        issues.append(PreflightIssue(
-            "error",
-            f"tool.libclang_path not found: {config.tool.libclang_path}. "
-            "Install LLVM and point this at libclang.dll/libclang.so.",
-        ))
+    from fwlens.libclang_locate import locate_libclang, LibclangError
+    try:
+        locate_libclang(config.tool.libclang_path)
+    except LibclangError as e:
+        issues.append(PreflightIssue("error", str(e)))
 
     if config.project.mode == "ewp":
         if not config.project.ewp or not config.project.ewp.exists():

@@ -88,6 +88,37 @@ def parse_compiler_flags(cmd_str_or_args: str | list[str], base_dir: Path) -> tu
     return defines, includes
 
 
+def extract_clang_flags(cmd_str_or_args: str | list[str], base_dir: Path) -> list[str]:
+    """
+    Pick out the compiler flags that change how a file must be parsed -- language
+    standard, target, machine options and forced includes -- so they can be handed to
+    clang instead of a hard-coded target (issue #48).
+    """
+    if isinstance(cmd_str_or_args, str):
+        try:
+            tokens = shlex.split(cmd_str_or_args, posix=os.name != 'nt')
+        except Exception:
+            tokens = cmd_str_or_args.split()
+    else:
+        tokens = list(cmd_str_or_args)
+
+    out: list[str] = []
+    idx = 0
+    while idx < len(tokens):
+        tok = tokens[idx]
+        if tok.startswith("-std=") or tok.startswith("--target=") or tok.startswith("-m"):
+            out.append(tok)
+        elif tok in ("-target", "--target") and idx + 1 < len(tokens):
+            out.append(f"--target={tokens[idx + 1]}")
+            idx += 1
+        elif tok == "-include" and idx + 1 < len(tokens):
+            idx += 1
+            p = Path(tokens[idx])
+            out.extend(["-include", str(p if p.is_absolute() else (base_dir / p).resolve())])
+        idx += 1
+    return out
+
+
 def find_compile_commands_json(config: FwLensConfig) -> Path:
     """
     Locate compile_commands.json based on config or common build directory conventions.
@@ -147,6 +178,7 @@ def parse_compile_commands(config: FwLensConfig) -> CompileCommandsParseResult:
 
         cmd_args = entry.get("arguments") or entry.get("command", "")
         file_defines, file_includes = parse_compiler_flags(cmd_args, work_dir)
+        file_clang_flags = extract_clang_flags(cmd_args, work_dir)
 
         # Merge config compat defines
         all_file_defines = list(config.iar_compat_defines)
@@ -180,6 +212,7 @@ def parse_compile_commands(config: FwLensConfig) -> CompileCommandsParseResult:
             include_paths=file_includes,
             boundary_class=boundary,
             iar_group=rel_group if rel_group != "." else None,
+            extra_args=file_clang_flags,
         )
         translation_units.append(tu)
 

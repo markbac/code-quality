@@ -23,6 +23,7 @@ _MODULE_VERSION = "ast_walker-0.5.1"  # fixed: defensive CursorKind access via g
 from fwlens.config import FwLensConfig, macro_name
 from fwlens.model.project import FunctionMetrics, GlobalAccess, GlobalVarInfo, ParameterInfo
 from fwlens.parser.ewp import TranslationUnit
+from fwlens.sysinc import detect_system_includes, target_args
 
 # Lazy import -- clang may not be available until venv is set up
 _clang_available = False
@@ -32,24 +33,21 @@ def _ensure_clang(config: FwLensConfig):
     global _clang_available, _clang
     if _clang_available:
         return
-    import ctypes
-    if config.tool.libclang_path and config.tool.libclang_path.exists():
-        try:
-            import clang.cindex as ci
-            ci.Config.set_library_file(str(config.tool.libclang_path))
-            _clang = ci
-            _clang_available = True
-            return
-        except Exception as e:
-            raise RuntimeError(f"Failed to load libclang from {config.tool.libclang_path}: {e}")
-    # Try default (clang on PATH)
+    from fwlens.libclang_locate import locate_libclang, LibclangError
+    try:
+        location = locate_libclang(config.tool.libclang_path)
+    except LibclangError as e:
+        raise RuntimeError(str(e))
     try:
         import clang.cindex as ci
+        if location.path is not None:
+            ci.Config.set_library_file(str(location.path))
         _clang = ci
         _clang_available = True
     except Exception as e:
         raise RuntimeError(
-            "libclang not available. Set tool.libclang_path in config.yaml.\n"
+            "libclang not available. Install FWLens with its dependencies, or set "
+            "tool.libclang_path / LIBCLANG_PATH.\n"
             f"Original error: {e}"
         )
 
@@ -452,6 +450,27 @@ class _FunctionVisitor:
             "line": switch_cursor.location.line,
         }
 
+    @staticmethod
+    def _own_operator(cursor) -> str:
+        """Spelling of a BinaryOperator's own operator token, or "" if unknown.
+
+        The operator is the first token after the left operand's extent. Only
+        this node's operator is returned (not those of nested operands), and
+        an operator that comes from a macro expansion yields "" because the
+        cursor's tokens are then the macro call, not the expanded operator.
+        """
+        try:
+            kids = list(cursor.get_children())
+            if len(kids) != 2:
+                return ""
+            lhs_end = kids[0].extent.end.offset
+            for t in cursor.get_tokens():
+                if t.location.offset >= lhs_end and t.spelling != ")":
+                    return t.spelling
+        except Exception:
+            pass
+        return ""
+
     def _visit(self, cursor, nesting: int = 0, parent=None):
         try:
             ck = cursor.kind
@@ -478,10 +497,14 @@ class _FunctionVisitor:
             # Detect && and || for CC -- token scan for this narrow case only
             try:
                 tokens = [t.spelling for t in cursor.get_tokens()]
-                for tok in tokens:
-                    if tok in ("&&", "||"):
-                        self.cc += 1
-                        self.cognitive += 1
+                # Count only THIS node's own operator. A BinaryOperator's
+                # location is its operator token, so look the token up there.
+                # Scanning the whole subtree double-counted chained operands,
+                # and for operators written inside a macro the extent covers
+                # the macro call, which inflated CC (issue #46).
+                if self._own_operator(cursor) in ("&&", "||"):
+                    self.cc += 1
+                    self.cognitive += 1
                 # A plain assignment (=) always tokenises as a standalone '='
                 # token -- comparisons tokenise as '==', '<=', '>=', '!=', so
                 # this doesn't false-positive on those.
@@ -749,6 +772,78 @@ class _FunctionVisitor:
         return fm
 
 
+def build_clang_args(tu_info: TranslationUnit, config: FwLensConfig) -> list[str]:
+    """The clang command line for one translation unit (shared with the standards checks)."""
+    # Build clang args
+    # -fno-builtin: without this, clang treats well-known library function names
+    # (memcpy, strlen, snprintf, ...) as builtins with its own hardcoded signature,
+    # completely independent of any prototype we provide via a stub header -- if our
+    # stub's signature doesn't match clang's internal one exactly (down to the precise
+    # spelling of the size/type parameter for this specific target), it's reported as an
+    # "incompatible redeclaration", regardless of how textbook-correct our signature
+    # looks. This disables that recognition entirely so our own stub declarations are
+    # authoritative, which is what we want anyway since we don't have real headers.
+    detected_includes: tuple[str, ...] = ()
+    detected_triple: str = ""
+    if config.tool.system_include_dirs:
+        sys_dirs = config.tool.system_include_dirs
+    elif config.tool.auto_detect_includes:
+        detected_includes, _compiler, detected_triple = detect_system_includes(
+            config.tool.target, str(config.tool.sysroot or "")
+        )
+        sys_dirs = [Path(d) for d in detected_includes]
+    else:
+        sys_dirs = []
+
+    clang_args = [
+        "-x", "c", *target_args(config.tool.target, detected_triple), "-fno-builtin",
+        "-fshort-enums",
+    ]
+
+    for d in config.iar_compat_defines:
+        if d.startswith("-U"):
+            clang_args.append(d)
+        else:
+            clang_args.append(f"-U{macro_name(d)}")
+            clang_args.append(f"-D{d}")
+
+    for d in tu_info.defines:
+        clang_args.append(f"-D{d}")
+
+    stubs_dir = config.config_path.parent / "iar_stubs"
+    if stubs_dir.exists():
+        clang_args.append(f"-I{stubs_dir}")
+
+    if config.tool.sysroot:
+        clang_args.append(f"--sysroot={config.tool.sysroot}")
+    for d in sys_dirs:
+        clang_args.append(f"-isystem{d}")
+
+    # Inject LLVM bundled system headers so standard headers like string.h are found.
+    if config.tool.libclang_path:
+        llvm_root = config.tool.libclang_path.parent.parent
+        clang_lib = llvm_root / "lib" / "clang"
+        if clang_lib.exists():
+            for v in sorted(clang_lib.iterdir(), reverse=True):
+                candidate = v / "include"
+                if candidate.exists():
+                    clang_args.append(f"-I{candidate}")
+                    break
+
+    for inc in tu_info.include_paths:
+        if inc.exists():
+            clang_args.append(f"-I{inc}")
+
+    # Per-file flags from a compile database (-std, -m*, -include, -target ...)
+    # then project-wide extra args, so the build's own flags win over defaults.
+    extra = list(getattr(tu_info, "extra_args", []) or [])
+    if any(a.startswith(("--target=", "-target")) for a in extra):
+        clang_args = [a for a in clang_args if not a.startswith("--target=")]
+    clang_args.extend(extra)
+    clang_args.extend(config.tool.clang_args)
+    return clang_args
+
+
 def walk_translation_unit(
     tu_info: TranslationUnit,
     config: FwLensConfig,
@@ -767,78 +862,7 @@ def walk_translation_unit(
     if not tu_info.path.exists():
         return [], [], [], [], 0, [], {}, {}, {}, [], [{"severity": "fatal", "message": "file not found", "line": 0}]
 
-    # Build clang args
-    # -fno-builtin: without this, clang treats well-known library function names
-    # (memcpy, strlen, snprintf, ...) as builtins with its own hardcoded signature,
-    # completely independent of any prototype we provide via a stub header -- if our
-    # stub's signature doesn't match clang's internal one exactly (down to the precise
-    # spelling of the size/type parameter for this specific target), it's reported as an
-    # "incompatible redeclaration", regardless of how textbook-correct our signature
-    # looks. This disables that recognition entirely so our own stub declarations are
-    # authoritative, which is what we want anyway since we don't have real headers.
-    clang_args = [
-        "-x", "c", "--target=arm-none-eabi", "-fno-builtin",
-        # Matches IAR's default enum packing (--enum_is_int is OFF by default in IAR --
-        # an enum takes the smallest type that fits its value range, not always a
-        # 4-byte int). Without this, any struct/static_assert relying on IAR's real
-        # enum size (e.g. `static_assert(sizeof(SomeEnumType) == 2, ...)`) fails under
-        # clang's default int-sized enums even though the real IAR build is correct.
-        "-fshort-enums",
-        # --target=arm-none-eabi predefines its own __ARM_ARCH (and related) macros
-        # from the target triple, before any of our -D flags below are even applied.
-        # iar_compat_defines then deliberately overrides several of them (__ARM_ARCH,
-        # __CORE__, the __ARMxxM__/__ARMxxEM__ family) to match the specific IAR
-        # target rather than clang's generic default -- that redefinition is the
-        # whole point, not a mistake. Each -D below is preceded by a matching -U for
-        # the same macro name (see the loop below) so there's no redefinition event
-        # for clang to warn about in the first place -- more surgical than disabling
-        # a whole warning class, which would also hide a genuine conflict between two
-        # of the project's own headers. (An earlier attempt at this used
-        # -Wno-builtin-macro-redefined, which doesn't apply here: that flag only
-        # covers clang's small set of dynamic compiler builtins like __LINE__/
-        # __FILE__/__has_feature -- target-predefined macros like __ARM_ARCH are
-        # ordinary #defines in the predefines buffer and fall under the general
-        # -Wmacro-redefined group instead, which -Wno-builtin-macro-redefined leaves
-        # untouched.)
-    ]
-
-    # IAR compat defines -- entries starting with -U are undefines, rest are -D.
-    # Each -D is preceded by a -U for the same macro name so overriding a macro the
-    # target already predefines (__ARM_ARCH etc.) never triggers a redefinition
-    # warning -- see the clang_args comment above. -U on a macro that was never
-    # defined is a silent no-op, so this is always safe even for compat defines that
-    # don't collide with anything.
-    for d in config.iar_compat_defines:
-        if d.startswith("-U"):
-            clang_args.append(d)
-        else:
-            clang_args.append(f"-U{macro_name(d)}")
-            clang_args.append(f"-D{d}")
-
-    # Project defines
-    for d in tu_info.defines:
-        clang_args.append(f"-D{d}")
-
-    # Include paths -- prepend iar_stubs/ (sits next to config.yaml) first so
-    # stub headers shadow any missing IAR toolchain headers like intrinsics.h.
-    stubs_dir = config.config_path.parent / "iar_stubs"
-    if stubs_dir.exists():
-        clang_args.append(f"-I{stubs_dir}")
-
-    # Inject LLVM bundled system headers so standard headers like string.h are found.
-    if config.tool.libclang_path:
-        llvm_root = config.tool.libclang_path.parent.parent
-        clang_lib = llvm_root / "lib" / "clang"
-        if clang_lib.exists():
-            for v in sorted(clang_lib.iterdir(), reverse=True):
-                candidate = v / "include"
-                if candidate.exists():
-                    clang_args.append(f"-I{candidate}")
-                    break
-
-    for inc in tu_info.include_paths:
-        if inc.exists():
-            clang_args.append(f"-I{inc}")
+    clang_args = build_clang_args(tu_info, config)
 
     index = ci.Index.create()
     try:

@@ -120,3 +120,13 @@ def test_scan_directory_mock():
         assert len(res.source_files) == 1
         assert res.source_files[0].path.resolve() == src_file.resolve()
         assert "__ICCARM__=1" in res.source_files[0].defines
+
+
+def test_resolve_no_x_defines():
+    from fwlens.parser.ewp import _resolve_no_x_defines
+    defines = ["no_init", "no_delay", "FOO", "no_FOO", "BAR"]
+    resolved = _resolve_no_x_defines(defines)
+    assert "no_init" in resolved
+    assert "no_delay" in resolved
+    assert "BAR" in resolved
+    assert "FOO" not in resolved

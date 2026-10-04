@@ -423,6 +423,37 @@ _TEMPLATE = r"""<!DOCTYPE html>
           </p>
         </div>
 
+
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--accent);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em">Dead code &amp; ISRs</div>
+          <p style="font-size:12px;line-height:1.7;color:var(--text)">
+            Functions with zero in-project callers are flagged as dead code candidates after
+            excluding entry points and ISRs. Functions called from SDK code, via OS callbacks,
+            linker-retained symbols, or runtime-assigned function pointers will appear dead.
+            <strong>Always verify before removing.</strong>
+          </p>
+          <p style="font-size:12px;line-height:1.7;color:var(--text);margin-top:6px">
+            ISR latency risk is a structural estimate: <code>own_CC + transitive_CC_sum + call_depth &times; 2</code>.
+            It is not a timing measurement -- it ranks which ISRs have the most complex reachable
+            call chains. Non-estimable chains (containing indirect calls) are marked <strong>~</strong>.
+          </p>
+        </div>
+
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--accent);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em">Risk &amp; Zone of Pain</div>
+          <p style="font-size:12px;line-height:1.7;color:var(--text)">
+            The <strong>Risk</strong> tab ranks functions by <code>fan_in &times; SDI</code> -- the product
+            of blast radius and structural complexity. These are the functions where a defect is both
+            hardest to avoid introducing and most damaging when it occurs.
+          </p>
+          <p style="font-size:12px;line-height:1.7;color:var(--text);margin-top:6px">
+            <strong>Zone of Pain</strong> modules score high on a weighted composite of fan-in (35%),
+            avg CC (23%), avg Halstead effort (18%), dependency cycles (14%), indirect call sites (7%),
+            and magic number density (5%). All components are percentile ranks within the codebase,
+            so the score is self-calibrating regardless of project size.
+          </p>
+        </div>
+
       </div>
 
       <!-- Quick Metrics Deciphering Cheat Sheet -->
@@ -464,38 +495,6 @@ _TEMPLATE = r"""<!DOCTYPE html>
             </tr>
           </tbody>
         </table>
-      </div>
-
-        <div>
-          <div style="font-size:11px;font-weight:600;color:var(--accent);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em">Dead code &amp; ISRs</div>
-          <p style="font-size:12px;line-height:1.7;color:var(--text)">
-            Functions with zero in-project callers are flagged as dead code candidates after
-            excluding entry points and ISRs. Functions called from SDK code, via OS callbacks,
-            linker-retained symbols, or runtime-assigned function pointers will appear dead.
-            <strong>Always verify before removing.</strong>
-          </p>
-          <p style="font-size:12px;line-height:1.7;color:var(--text);margin-top:6px">
-            ISR latency risk is a structural estimate: <code>own_CC + transitive_CC_sum + call_depth &times; 2</code>.
-            It is not a timing measurement -- it ranks which ISRs have the most complex reachable
-            call chains. Non-estimable chains (containing indirect calls) are marked <strong>~</strong>.
-          </p>
-        </div>
-
-        <div>
-          <div style="font-size:11px;font-weight:600;color:var(--accent);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em">Risk &amp; Zone of Pain</div>
-          <p style="font-size:12px;line-height:1.7;color:var(--text)">
-            The <strong>Risk</strong> tab ranks functions by <code>fan_in &times; SDI</code> -- the product
-            of blast radius and structural complexity. These are the functions where a defect is both
-            hardest to avoid introducing and most damaging when it occurs.
-          </p>
-          <p style="font-size:12px;line-height:1.7;color:var(--text);margin-top:6px">
-            <strong>Zone of Pain</strong> modules score high on a weighted composite of fan-in (35%),
-            avg CC (23%), avg Halstead effort (18%), dependency cycles (14%), indirect call sites (7%),
-            and magic number density (5%). All components are percentile ranks within the codebase,
-            so the score is self-calibrating regardless of project size.
-          </p>
-        </div>
-
       </div>
 
       <div style="background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:5px;padding:10px 16px;font-size:12px;line-height:1.9">

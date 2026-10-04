@@ -17,11 +17,16 @@
 ### Prerequisites
 
 1. **Python 3.10+**
-2. **LLVM / Clang**: Install LLVM and ensure `libclang.dll` (or `libclang.so` / `libclang.dylib`) is available on your machine.
-3. Install dependencies:
+2. **libclang**: installed automatically with FWLens (the `libclang` wheel bundles the shared library, supported range `>=16`). To use a full LLVM install instead, set `tool.libclang_path` or the `LIBCLANG_PATH` environment variable.
+3. Install FWLens and its dependencies (`pyproject.toml` is the single source of truth):
    ```bash
-   pip install -r requirements.txt
+   pip install -e .[dev]      # from a checkout
+   pip install fwlens         # or from a package index
    ```
+
+libclang is located in this order: `tool.libclang_path` (an explicit path that does not exist is an error), then `LIBCLANG_PATH`, then the bundled wheel library.
+
+For hosts without an LLVM install, FWLens finds system headers by asking your C compiler (`arm-none-eabi-gcc` for ARM targets, `gcc`/`cc`/`clang` for `tool.target: native`). Set `tool.system_include_dirs` to override.
 
 ### Configuration Options
 

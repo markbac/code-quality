@@ -54,8 +54,8 @@ if (-not (Test-Path $activateScript)) {
 
 # Install deps
 Write-Host "[fwlens] Installing dependencies..." -ForegroundColor Cyan
-$reqFile = Join-Path $ScriptDir "requirements.txt"
-pip install -r $reqFile --quiet
+# pyproject.toml is the single source of truth for dependencies.
+pip install -e "$ScriptDir[dev]" --quiet
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[fwlens] ERROR: pip install failed." -ForegroundColor Red
