@@ -44,9 +44,9 @@ def test_github_annotations_flag_reaches_baseline_handler(command, tmp_path, mon
     cfg_file.write_text("x: 1\n")
     seen = {}
 
-    monkeypatch.setattr(fwlens_main, "_run_pipeline", lambda *a, **k: ("model", _config(tmp_path, formats=())))
+    monkeypatch.setattr("fwlens.cli.commands._run_pipeline", lambda *a, **k: ("model", _config(tmp_path, formats=())))
     monkeypatch.setattr("fwlens.output.console.print_summary", lambda *a, **k: None)
-    monkeypatch.setattr(fwlens_main, "_handle_baseline", lambda *a, **k: seen.update(k) or False)
+    monkeypatch.setattr("fwlens.cli.commands._handle_baseline", lambda *a, **k: seen.update(k) or False)
 
     result = CliRunner().invoke(fwlens_main.cli, [command, "--config", str(cfg_file), "--github-annotations"])
 
