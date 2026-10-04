@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import subprocess
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -43,7 +44,60 @@ _MIN_CO_CHANGES = 3
 _MIN_COUPLING = 0.3
 
 
+_GIT_TIMEOUT = 120   # seconds for the one whole-history pass
+_MARK = "__FWLENS_COMMIT__"
+
+# Problems met while reading history (timeout, git failure, shallow clone). Printed once and
+# kept so the pipeline can attach them to the model, instead of hotspots, coupling and
+# ownership silently coming back empty.
+_warnings: dict[str, None] = {}
+
+
+def _warn(message: str) -> None:
+    if message not in _warnings:
+        _warnings[message] = None
+        console.print(f"[yellow][fwlens] Git history: {message}[/yellow]")
+
+
+def history_warnings() -> list[str]:
+    return list(_warnings)
+
+
+def reset_history_state() -> None:
+    """Forget cached history and warnings (start of a run, and between tests)."""
+    _warnings.clear()
+    _history_cache.clear()
+
+
+def _git(git_root: Path, args: list[str], timeout: int, what: str) -> str | None:
+    """
+    Run git in git_root and return its stdout decoded as UTF-8, or None after recording a
+    warning. core.quotePath=false keeps non-ASCII names literal; the encoding is explicit so
+    Windows does not use the locale code page.
+    """
+    cmd = ["git", "-c", "core.quotePath=false", "-C", str(git_root), *args]
+    try:
+        result = subprocess.run(cmd, capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        _warn(f"{what} timed out after {timeout}s; the metrics that need it are empty. "
+              "Narrow the range with git.since.")
+        return None
+    except OSError as e:
+        _warn(f"could not run git for {what}: {e}")
+        return None
+    if result.returncode != 0:
+        detail = result.stderr.decode("utf-8", errors="replace").strip().splitlines()
+        _warn(f"{what} failed (git exit {result.returncode}"
+              + (f": {detail[-1]}" if detail else "") + "); the metrics that need it are empty.")
+        return None
+    return result.stdout.decode("utf-8", errors="replace")
+
+
 def _is_shallow_repo(git_root: Path) -> bool:
+    """True for a shallow clone, including linked worktrees and submodules where .git is a file."""
+    out = _git(git_root, ["rev-parse", "--is-shallow-repository"], 10, "shallow-clone check")
+    if out is not None:
+        return out.strip() == "true"
     return (git_root / ".git" / "shallow").exists()
 
 
@@ -57,146 +111,108 @@ def _find_git_root(start: Path) -> Path | None:
         return None
     if result.returncode != 0:
         return None
-    root = Path(result.stdout.strip())
-    if _is_shallow_repo(root):
-        console.print("[yellow][fwlens] Shallow git repository detected -- commit history metrics may be incomplete.[/yellow]")
-    return root
+    return Path(result.stdout.strip())
+
+
+def _iter_log_z(text: str):
+    """
+    Parse `git log -z --name-only --format=<MARK><fields>` output into (header, [names]).
+
+    With -z every name is NUL-terminated and printed verbatim, so names with spaces, quotes
+    or leading blanks survive. Git puts one newline between a commit header and its first
+    name; that is the only whitespace removed.
+    """
+    header: str | None = None
+    names: list[str] = []
+    after_header = False
+    for token in text.split("\0"):
+        bare = token.lstrip("\n")
+        if bare.startswith(_MARK):
+            if header is not None:
+                yield header, names
+            header, names, after_header = bare[len(_MARK):], [], True
+            continue
+        if header is None:
+            continue
+        if after_header and token.startswith("\n"):
+            token = token[1:]
+        after_header = False
+        if token:
+            names.append(token)
+    if header is not None:
+        yield header, names
+
+
+@dataclass(frozen=True)
+class Commit:
+    sha: str
+    author: str
+    date: datetime | None
+    files: tuple[Path, ...]
+
+
+_history_cache: dict[tuple[str, str | None], list[Commit]] = {}
+
+
+def load_history(git_root: Path, since: str | None) -> list[Commit]:
+    """
+    Every commit (newest first) with its author, date and changed files, from ONE
+    `git log -z` pass. Each metric is derived from this list, so they all agree and the
+    history is walked once per run. Returns [] after a visible warning if git fails.
+    """
+    key = (str(git_root), since)
+    if key in _history_cache:
+        return _history_cache[key]
+
+    if _is_shallow_repo(git_root):
+        _warn("shallow clone detected; history metrics only cover the commits that were fetched. "
+              "Fetch full history (for example actions/checkout with fetch-depth: 0).")
+
+    args = ["log", "-z", "--name-only", "--no-renames", "--use-mailmap",
+            f"--format={_MARK}%H%x1f%aN%x1f%aI"]
+    if since:
+        args += ["--since", since]
+    out = _git(git_root, args, _GIT_TIMEOUT, "git log")
+
+    commits: list[Commit] = []
+    for header, names in _iter_log_z(out or ""):
+        sha, _, rest = header.partition("\x1f")
+        author, _, iso = rest.partition("\x1f")
+        try:
+            date = datetime.fromisoformat(iso)
+        except ValueError:
+            date = None
+        files: list[Path] = []
+        for name in names:
+            try:
+                files.append((git_root / name).resolve())
+            except OSError:
+                continue
+        commits.append(Commit(sha, author or "(unknown)", date, tuple(files)))
+
+    _history_cache[key] = commits
+    return commits
 
 
 def _commit_counts(git_root: Path, since: str | None) -> dict[Path, int]:
-    """One `git log --name-only` pass over the whole repo -> {absolute file path: commit count}."""
-    cmd = ["git", "-c", "core.quotePath=false", "-C", str(git_root), "log", "--name-only", "--pretty=format:", "--no-renames"]
-    if since:
-        cmd += ["--since", since]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
-    except (OSError, subprocess.TimeoutExpired):
-        return {}
-    if result.returncode != 0:
-        return {}
-
+    """{absolute file path: number of commits that touched it}. Counts every commit."""
     counts: dict[Path, int] = {}
-    for line in result.stdout.splitlines():
-        line = line.strip().strip('"')
-        if not line:
-            continue
-        try:
-            abs_path = (git_root / line).resolve()
-        except OSError:
-            continue
-        counts[abs_path] = counts.get(abs_path, 0) + 1
+    for c in load_history(git_root, since):
+        for f in set(c.files):
+            counts[f] = counts.get(f, 0) + 1
     return counts
 
 
 def _commits_file_lists(git_root: Path, since: str | None) -> list[list[Path]]:
-    """One `git log --name-only` pass -> list of per-commit absolute file path lists."""
-    cmd = ["git", "-c", "core.quotePath=false", "-C", str(git_root), "log", "--name-only", "--pretty=format:__FWLENS_COMMIT__",
-           "--no-renames"]
-    if since:
-        cmd += ["--since", since]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
-    except (OSError, subprocess.TimeoutExpired):
-        return []
-    if result.returncode != 0:
-        return []
-
-    commits: list[list[Path]] = []
-    current: list[Path] = []
-    for line in result.stdout.splitlines():
-        line = line.strip().strip('"')
-        if line == "__FWLENS_COMMIT__":
-            if current:
-                commits.append(current)
-            current = []
-            continue
-        if not line:
-            continue
-        try:
-            current.append((git_root / line).resolve())
-        except OSError:
-            continue
-    if current:
-        commits.append(current)
-    return commits
+    return [list(c.files) for c in load_history(git_root, since)]
 
 
 def _commits_with_dates(git_root: Path, since: str | None) -> list[tuple[datetime, list[Path]]]:
-    """One `git log --name-only` pass -> list of (commit author date, absolute file paths)."""
-    cmd = ["git", "-c", "core.quotePath=false", "-C", str(git_root), "log", "--name-only",
-           "--pretty=format:__FWLENS_COMMIT__%aI", "--no-renames"]
-    if since:
-        cmd += ["--since", since]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
-    except (OSError, subprocess.TimeoutExpired):
-        return []
-    if result.returncode != 0:
-        return []
-
-    commits: list[tuple[datetime, list[Path]]] = []
-    current_date: datetime | None = None
-    current_files: list[Path] = []
-
-    for raw_line in result.stdout.splitlines():
-        line = raw_line.strip().strip('"')
-        if line.startswith("__FWLENS_COMMIT__"):
-            if current_date is not None:
-                commits.append((current_date, current_files))
-            iso = line[len("__FWLENS_COMMIT__"):]
-            try:
-                current_date = datetime.fromisoformat(iso)
-            except ValueError:
-                current_date = None
-            current_files = []
-            continue
-        if not line or current_date is None:
-            continue
-        try:
-            current_files.append((git_root / line).resolve())
-        except OSError:
-            continue
-
-    if current_date is not None:
-        commits.append((current_date, current_files))
-    return commits
+    return [(c.date, list(c.files)) for c in load_history(git_root, since) if c.date is not None]
 
 
 def _commits_with_authors(git_root: Path, since: str | None) -> list[tuple[str, list[Path]]]:
-    """One `git log --name-only` pass -> list of (author name, absolute file paths)."""
-    cmd = ["git", "-c", "core.quotePath=false", "-C", str(git_root), "log", "--use-mailmap", "--name-only",
-           "--pretty=format:__FWLENS_COMMIT__%aN", "--no-renames"]
-    if since:
-        cmd += ["--since", since]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
-    except (OSError, subprocess.TimeoutExpired):
-        return []
-    if result.returncode != 0:
-        return []
-
-    commits: list[tuple[str, list[Path]]] = []
-    current_author: str | None = None
-    current_files: list[Path] = []
-
-    for raw_line in result.stdout.splitlines():
-        line = raw_line.strip().strip('"')
-        if line.startswith("__FWLENS_COMMIT__"):
-            if current_author is not None:
-                commits.append((current_author, current_files))
-            current_author = line[len("__FWLENS_COMMIT__"):] or "(unknown)"
-            current_files = []
-            continue
-        if not line or current_author is None:
-            continue
-        try:
-            current_files.append((git_root / line).resolve())
-        except OSError:
-            continue
-
-    if current_author is not None:
-        commits.append((current_author, current_files))
-    return commits
+    return [(c.author, list(c.files)) for c in load_history(git_root, since)]
 
 
 def _file_commit_snapshots(
@@ -214,19 +230,16 @@ def _file_commit_snapshots(
     except (OSError, ValueError):
         return []
 
-    cmd = ["git", "-C", str(git_root), "log", "--no-renames", "--pretty=format:%aI\x1f%H"]
+    args = ["log", "--no-renames", "--pretty=format:%aI\x1f%H"]
     if since:
-        cmd += ["--since", since]
-    cmd += ["--", str(rel_path)]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-    except (OSError, subprocess.TimeoutExpired):
-        return []
-    if result.returncode != 0:
+        args += ["--since", since]
+    args += ["--", rel_path.as_posix()]
+    out = _git(git_root, args, 60, f"git log for {rel_path.as_posix()}")
+    if out is None:
         return []
 
     commits: list[tuple[datetime, str]] = []
-    for line in result.stdout.splitlines():
+    for line in out.splitlines():
         date_str, _, sha = line.strip().partition("\x1f")
         if not sha:
             continue
@@ -255,15 +268,15 @@ def _show_file_at(git_root: Path, abs_path: Path, commit_hash: str) -> str | Non
         rel_path = abs_path.resolve().relative_to(git_root)
     except (OSError, ValueError):
         return None
-    cmd = ["git", "-C", str(git_root), "show", f"{commit_hash}:{rel_path.as_posix()}"]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30,
-                                 encoding="utf-8", errors="replace")
+        result = subprocess.run(
+            ["git", "-c", "core.quotePath=false", "-C", str(git_root), "show", f"{commit_hash}:{rel_path.as_posix()}"],
+            capture_output=True, timeout=30)
     except (OSError, subprocess.TimeoutExpired):
         return None
     if result.returncode != 0:
         return None
-    return result.stdout
+    return result.stdout.decode("utf-8", errors="replace")
 
 
 def _bin_label(dt: datetime, bin_size: str) -> str:
@@ -327,9 +340,13 @@ def compute_change_coupling(model: ProjectModel, config: FwLensConfig) -> None:
     change_counts: dict[Path, int] = {}
     co_change_counts: dict[tuple[Path, Path], int] = defaultdict(int)
 
+    # Commits touching more than _MAX_FILES_PER_COMMIT first-party files (repo-wide
+    # reformat, branch merges) are left out of both the change counts and the pairs. Solo
+    # commits still count towards a file's change count, so coupling is a true Jaccard
+    # ratio, co / (changes_a + changes_b - co). (compute_hotspots counts every commit.)
     for files in commits:
         touched = sorted({f for f in files if f in fp_paths})
-        if len(touched) < 2 or len(touched) > _MAX_FILES_PER_COMMIT:
+        if not touched or len(touched) > _MAX_FILES_PER_COMMIT:
             continue
         for f in touched:
             change_counts[f] = change_counts.get(f, 0) + 1

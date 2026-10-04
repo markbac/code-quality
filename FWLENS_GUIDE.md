@@ -744,6 +744,16 @@ the same trade-off tools like `scc` make.
 
 ---
 
+## Git history warnings
+
+History-based metrics (hotspots, churn and change coupling, ownership, bug-fix hotspots, trends)
+read the repository once with `git log -z` and share that result. If git times out, fails, or the
+clone is shallow, FWLens prints a warning, lists it in a banner on the HTML overview and in
+`meta.history_warnings` of the JSON export, and the affected metrics may be empty or partial.
+CI jobs should fetch full history (for example `actions/checkout` with `fetch-depth: 0`). Hotspot
+churn counts every commit; change coupling leaves out commits touching more than 20 first-party
+files, and counts solo commits in each file's change total so the ratio is a true Jaccard value.
+
 ## Hotspot analysis
 
 Ranks first-party functions by churn x structural debt: `hotspot_score` is the percentile

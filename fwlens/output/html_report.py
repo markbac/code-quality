@@ -295,6 +295,16 @@ _TEMPLATE = r"""<!DOCTYPE html>
 <!-- OVERVIEW -->
 <div class="pane active" id="pane-overview">
 
+  {% if meta.history_warnings %}
+  <div style="background:rgba(212,160,23,0.12);border:1px solid var(--yellow);border-radius:6px;padding:14px 16px;margin-bottom:20px">
+    <div style="font-weight:600;color:var(--yellow);margin-bottom:4px">&#9888; Git history is incomplete</div>
+    <div style="font-size:12px;color:var(--dim)">Hotspots, change coupling, ownership and the other history-based metrics may be empty or partial.</div>
+    <ul style="margin:8px 0 0 18px;font-size:12px">
+      {% for w in meta.history_warnings %}<li>{{ w }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
   {% if meta.diag_error_module_count > 0 %}
   <div style="background:rgba(224,92,92,0.12);border:1px solid var(--red);border-radius:6px;padding:14px 16px;margin-bottom:20px">
     <div style="font-weight:600;color:var(--red);margin-bottom:4px">
@@ -4430,6 +4440,7 @@ def generate_html_report(model: ProjectModel, config: FwLensConfig):
 
     meta["rtos_kind"] = model.rtos_kind
     meta["output_top_n"] = config.output.top_n
+    meta["history_warnings"] = list(getattr(model, "history_warnings", []) or [])
 
     # Parse diagnostics -- across all modules (not just first-party), so an
     # SDK/third-party header issue dragging down a first-party file's parse is

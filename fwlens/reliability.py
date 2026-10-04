@@ -26,7 +26,6 @@ fit is essentially fitting noise.
 
 from __future__ import annotations
 
-import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -50,45 +49,31 @@ def fetch_fix_commits(git_root: Path, since: str | None, keywords: list[str]) ->
     `keywords` is config.git.fix_keywords -- override in config.yaml for non-English or
     non-default commit conventions.
     """
+    from fwlens.git_history import _MARK, _git, _iter_log_z
+
     pattern = "|".join(keywords)
-    cmd = ["git", "-C", str(git_root), "log", "-i", "-E", "--grep", pattern,
-           "--name-only", "--pretty=format:__FWLENS_COMMIT__%aI\x1f%s"]
+    args = ["log", "-z", "-i", "-E", "--grep", pattern, "--name-only", "--no-renames",
+            f"--format={_MARK}%aI\x1f%s"]
     if since:
-        cmd += ["--since", since]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-    except (OSError, subprocess.TimeoutExpired):
-        return []
-    if result.returncode != 0:
+        args += ["--since", since]
+    out = _git(git_root, args, 120, "git log for bug-fix commits")
+    if out is None:
         return []
 
     commits: list[dict] = []
-    current: dict | None = None
-
-    for raw_line in result.stdout.splitlines():
-        line = raw_line.rstrip("\n")
-        if line.startswith("__FWLENS_COMMIT__"):
-            if current is not None:
-                commits.append(current)
-            rest = line[len("__FWLENS_COMMIT__"):]
-            date_str, _, subject = rest.partition("\x1f")
-            try:
-                dt: datetime | None = datetime.fromisoformat(date_str)
-            except ValueError:
-                dt = None
-            current = {"date": dt, "subject": subject, "files": []}
-            continue
-
-        stripped = line.strip()
-        if not stripped or current is None:
-            continue
+    for header, names in _iter_log_z(out):
+        date_str, _, subject = header.partition("\x1f")
         try:
-            current["files"].append((git_root / stripped).resolve())
-        except OSError:
-            continue
-
-    if current is not None:
-        commits.append(current)
+            dt: datetime | None = datetime.fromisoformat(date_str)
+        except ValueError:
+            dt = None
+        files = []
+        for name in names:
+            try:
+                files.append((git_root / name).resolve())
+            except OSError:
+                continue
+        commits.append({"date": dt, "subject": subject, "files": files})
     return commits
 
 

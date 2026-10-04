@@ -58,6 +58,8 @@ def _run_pipeline(config_path: Path, auto_stub: bool = False, jobs=None, timeout
     from fwlens.tech_debt import run_tech_debt_scan
 
     config = _load_config_safe(config_path)
+    from fwlens.git_history import history_warnings, reset_history_state
+    reset_history_state()
 
     static_issues = run_static_preflight(config)
     if print_preflight_issues(static_issues, console):
@@ -91,6 +93,7 @@ def _run_pipeline(config_path: Path, auto_stub: bool = False, jobs=None, timeout
     compute_reliability_growth(model, config)
     compute_bugfix_hotspots(model, config)
     compute_defect_correlation(model, config)
+    model.history_warnings = history_warnings()
     compute_cost_benefit(model, config)
     run_rtos_analysis(model, config)
     detect_state_machines(model)

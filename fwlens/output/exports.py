@@ -554,6 +554,7 @@ def export_json(model: ProjectModel, config: FwLensConfig) -> None:
             "configuration": model.configuration,
             "module_count": len(fp_modules),
             "function_count": len(fp_funcs),
+            "history_warnings": list(getattr(model, "history_warnings", []) or []),
         },
         "codebase_fingerprint": _serialise(model.codebase_fingerprint),
         "exceedance_probabilities": model.exceedance_probabilities,

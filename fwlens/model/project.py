@@ -572,6 +572,8 @@ class ProjectModel:
     git_available: bool = False
     # Parse health from the pipeline: in_scope, parsed_ok, failed, files_with_errors, fatal_diagnostics
     parse_stats: dict = field(default_factory=dict)
+    # Problems reading git history (timeout, git failure, shallow clone); empty when history is complete
+    history_warnings: list = field(default_factory=list)
     # In-scope translation units as parsed (defines, include paths, flags), for re-parsing by rule checks
     translation_units: list = field(default_factory=list)
     # Tech debt / smells (fwlens.tech_debt)
