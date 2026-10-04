@@ -176,6 +176,17 @@ Src/BaseMeter/BaseMeter.c:main_sequence_distance                      # module-l
 A second function with the same name in one file gets `name#2`, numbered in source order.
 The line number is stored as a separate field and is used only for locations.
 
+### Judging only the code a pull request touches
+
+`--changed-since REF` on `analyze` and `report` restricts findings (console gate, `--fail-on-breach`,
+annotations, SARIF, GitLab Code Quality, findings JSON) to files changed since the merge base with
+`REF`. `--changed-scope function` narrows that to functions that overlap a changed hunk (a function's
+extent is its start line plus its line count). The whole project is still parsed, so totals and
+cross-file metrics are unchanged. With no option, the base comes from `CI_MERGE_REQUEST_DIFF_BASE_SHA`
+(GitLab) or `GITHUB_BASE_REF` (GitHub, as `origin/<branch>`). If the base cannot be found, typically
+in a shallow clone, FWLens says so and reports everything. `--update-baseline` is refused in diff
+mode because the baseline would lose findings outside the diff. `pr-comment` is not affected.
+
 ### Moved and renamed code
 
 Each function-level breach also stores a content fingerprint in the baseline. A breach is

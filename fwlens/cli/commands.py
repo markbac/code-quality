@@ -374,6 +374,38 @@ def _findings_option(f):
              "--base reference of `fwlens compare` / `pr-comment` in a later pipeline.")(f)
 
 
+def _diff_options(f):
+    f = click.option("--changed-scope", "changed_scope", type=click.Choice(["file", "function"]),
+                      default="file", show_default=True,
+                      help="With --changed-since: report findings in changed files, or only in "
+                           "functions that overlap a changed hunk.")(f)
+    f = click.option("--changed-since", "changed_since", default=None, metavar="REF",
+                      help="Report and gate only findings in code changed since REF (merge base). "
+                           "The whole project is still parsed, so totals stay correct. Defaults to "
+                           "GITHUB_BASE_REF or CI_MERGE_REQUEST_DIFF_BASE_SHA when set. A base that "
+                           "cannot be found (shallow clone) falls back to all findings, with a message.")(f)
+    return f
+
+
+def _apply_diff_mode(breaches, model, config, changed_since, changed_scope):
+    from fwlens.diffmode import changed_lines, detect_base, filter_breaches
+    from fwlens.identity import project_root, relative_posix
+
+    base = detect_base(changed_since)
+    if not base:
+        return breaches
+    root = project_root(config)
+    changes, problem = changed_lines(root, base)
+    if changes is None:
+        console.print(f"[yellow][fwlens] Diff mode: {problem} Reporting all findings.[/yellow]")
+        return breaches
+    lengths = {(relative_posix(f.file, root), f.name): f.loc for f in model.first_party_functions()}
+    kept = filter_breaches(breaches, changes, changed_scope, lengths)
+    console.print(f"[cyan][fwlens][/cyan] Diff mode vs [bold]{base}[/bold]: {len(changes.files)} changed file(s), "
+                  f"{len(kept)} of {len(breaches)} finding(s) in changed {changed_scope}s")
+    return kept
+
+
 def _sarif_option(f):
     return click.option(
         "--sarif", "sarif_path", default=None, type=click.Path(),
@@ -426,7 +458,8 @@ def emit_github_annotations(breaches):
 
 def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
                       update_baseline_flag, accept_all, accept_ids, github_annotations=False,
-                      prune=False, gitlab_codequality=None, findings_json=None, sarif_path=None):
+                      prune=False, gitlab_codequality=None, findings_json=None, sarif_path=None,
+                      changed_since=None, changed_scope="file"):
     """Compute breaches and either update the baseline or gate on it. Returns True to fail the run."""
     from fwlens.baseline import (
         classify_against_baseline,
@@ -437,6 +470,13 @@ def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
     from fwlens.output.console import print_baseline_summary
 
     breaches = compute_breaches(model, config)
+    from fwlens.diffmode import detect_base
+    if detect_base(changed_since):
+        if update_baseline_flag:
+            console.print("[red][fwlens] --update-baseline cannot be combined with diff mode: "
+                          "the baseline would lose findings outside the diff.[/red]")
+            raise SystemExit(2)
+        breaches = _apply_diff_mode(breaches, model, config, changed_since, changed_scope)
 
     if github_annotations:
         emit_github_annotations(breaches)
@@ -501,10 +541,11 @@ def _auto_stub_option(f):
 @_gitlab_option
 @_findings_option
 @_sarif_option
+@_diff_options
 @_baseline_options
 def analyze(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_error, baseline_path, fail_on_breach,
             update_baseline_flag, accept_all, accept_ids, prune, github_annotations,
-            gitlab_codequality, findings_json, sarif_path):
+            gitlab_codequality, findings_json, sarif_path, changed_since, changed_scope):
     """Run analysis and print breach summary to terminal."""
     _print_header("analyze", config_path)
     from fwlens.output.console import print_summary
@@ -516,6 +557,7 @@ def analyze(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_
         update_baseline_flag=update_baseline_flag, accept_all=accept_all, accept_ids=accept_ids,
         github_annotations=github_annotations, prune=prune,
         gitlab_codequality=gitlab_codequality, findings_json=findings_json, sarif_path=sarif_path,
+        changed_since=changed_since, changed_scope=changed_scope,
     )
     if _parse_health_failed(model, config, fail_on_parse_error):
         should_fail = True
@@ -532,10 +574,11 @@ def analyze(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_
 @_gitlab_option
 @_findings_option
 @_sarif_option
+@_diff_options
 @_baseline_options
 def report(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_error, baseline_path, fail_on_breach,
            update_baseline_flag, accept_all, accept_ids, prune, github_annotations,
-           gitlab_codequality, findings_json, sarif_path):
+           gitlab_codequality, findings_json, sarif_path, changed_since, changed_scope):
     """Run analysis and generate HTML report + exports."""
     from fwlens.output.console import print_summary
     from fwlens.output.exports import export_csv, export_json
@@ -572,6 +615,7 @@ def report(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_e
         update_baseline_flag=update_baseline_flag, accept_all=accept_all, accept_ids=accept_ids,
         github_annotations=github_annotations, prune=prune,
         gitlab_codequality=gitlab_codequality, findings_json=findings_json, sarif_path=sarif_path,
+        changed_since=changed_since, changed_scope=changed_scope,
     )
     if _parse_health_failed(model, config, fail_on_parse_error):
         should_fail = True
