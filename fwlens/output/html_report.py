@@ -139,6 +139,22 @@ def _compress_source_index(source_index: dict) -> tuple[str, int]:
     return base64.b64encode(compressed).decode("ascii"), len(raw)
 
 
+def _history_rows(model: ProjectModel, config: FwLensConfig) -> list[dict]:
+    """Stored runs (output.db_path) plus this run, newest last, for the Trend table. Empty without history."""
+    from fwlens.baseline import compute_breaches
+    from fwlens.history_db import recent_runs, summarise
+    try:
+        rows = recent_runs(config.output.db_path, limit=9)
+    except Exception:   # a damaged or newer history file must not stop the report
+        return []
+    if not rows:
+        return []
+    current = summarise(model, compute_breaches(model, config))
+    current.update(recorded_at="this run", label=None, commit_sha=None)
+    current["delta_breaches"] = (current["total_breaches"] or 0) - (rows[-1]["total_breaches"] or 0)
+    return rows + [current]
+
+
 def generate_html_report(model: ProjectModel, config: FwLensConfig):
     t = config.thresholds
     fp_funcs  = model.first_party_functions()
@@ -929,6 +945,7 @@ def generate_html_report(model: ProjectModel, config: FwLensConfig):
         if any(d["severity"] in ("fatal", "error") for d in m.parse_diagnostics)
     ]
     meta["diag_error_module_count"] = len(error_diag_modules)
+    meta["history"] = _history_rows(model, config)
     diagnostic_rows = []
     for m in sorted(error_diag_modules, key=lambda m: -len(m.parse_diagnostics))[:20]:
         worst = next(d for d in m.parse_diagnostics if d["severity"] in ("fatal", "error"))

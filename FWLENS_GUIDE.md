@@ -272,6 +272,34 @@ entries that no longer match any breach:
 
 ---
 
+## Run history, trends and the ratchet
+
+`analyze` and `report` can keep a history of runs in a SQLite file, `output.db_path`
+(default `output/fwlens.db`).
+
+```powershell
+fwlens analyze --record-run --run-label v1.4     # store this run
+fwlens analyze --ratchet                         # fail if it is worse than the last accepted run
+fwlens analyze --record-run --ratchet            # both: the usual CI step
+```
+
+Each stored run holds the totals (findings, average cyclomatic complexity, layer violations,
+functions, modules, and flash/RAM when `project.map_file` is set), the commit, the label, and
+every finding with its stable id and fingerprint, the same identity that baselines and
+`compare` use.
+
+- **Ratchet.** The run fails (exit 1) when total findings or layer violations are higher than in
+  the previous *accepted* run. Fewer is fine. With `--record-run` a failing run is stored as not
+  accepted, so the bar stays where it was. With no earlier run there is nothing to compare, and
+  the run passes. Diff mode is not applied to the totals; they cover the whole project.
+- **Trend.** When the history has runs, the HTML report's Overview shows a Trend table: the last
+  nine stored runs plus the current one, each compared with the one before.
+- **CI.** The file is a single SQLite database with no extra files, so keep it as a cache or
+  artefact: restore it before the run and save it after. A file written by a newer FWLens is
+  refused with a message rather than overwritten.
+
+---
+
 ## JUnit and Markdown summaries
 
 `analyze` and `report` can also write results for CI views that do not need a pull request:

@@ -440,6 +440,53 @@ def _ci_report_options(f):
     return f
 
 
+def _history_options(f):
+    f = click.option("--record-run", is_flag=True, default=False,
+                     help="Store a summary of this run (and its findings) in output.db_path, for trends and --ratchet.")(f)
+    f = click.option("--run-label", default=None, help="Name for the stored run, for example a release tag.")(f)
+    f = click.option("--ratchet", is_flag=True, default=False,
+                     help="Exit 1 when total findings or layer violations are higher than in the previous "
+                          "accepted run in output.db_path. Fewer is fine. With --record-run, a failing run "
+                          "is stored but does not become the new reference.")(f)
+    return f
+
+
+def _handle_history(model, config, breaches, record_run, run_label, ratchet) -> bool:
+    """Record the run and apply the ratchet. Returns True when the ratchet fails."""
+    if not (record_run or ratchet):
+        return False
+    from fwlens.history_db import (
+        HistoryError,
+        previous_accepted,
+        ratchet_failures,
+        record_run as store,
+        summarise,
+    )
+    from fwlens.identity import project_root
+    db = config.output.db_path
+    summary = summarise(model, breaches)
+    failures: list[str] = []
+    try:
+        if ratchet:
+            previous = previous_accepted(db)
+            if previous is None:
+                console.print(f"[yellow][fwlens] --ratchet: no earlier accepted run in {db}; nothing to compare "
+                              "with, so this run passes.[/yellow]")
+            failures = ratchet_failures(summary, previous)
+            for msg in failures:
+                console.print(f"[red][fwlens] Ratchet: {msg} (run #{previous['id']}).[/red]")
+            if previous is not None and not failures:
+                console.print(f"[green][fwlens] Ratchet: no worse than run #{previous['id']}.[/green]")
+        if record_run:
+            run_id = store(db, summary, breaches, label=run_label, accepted=not failures, root=project_root(config))
+            console.print(f"[cyan][fwlens][/cyan] Run #{run_id} recorded in [bold]{db}[/bold]"
+                          + ("" if not failures else " (not accepted: the ratchet failed)"))
+    except HistoryError as e:
+        console.print(f"[red][fwlens] {e}[/red]")
+        raise SystemExit(2)
+    return bool(failures)
+
+
 def _emit_ci_reports(breaches, model, junit_path, markdown_summary):
     if junit_path:
         from fwlens.output.reporters import JUnitReporter
@@ -503,7 +550,8 @@ def emit_github_annotations(breaches):
 def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
                       update_baseline_flag, accept_all, accept_ids, github_annotations=False,
                       prune=False, gitlab_codequality=None, findings_json=None, sarif_path=None,
-                      changed_since=None, changed_scope="file", junit_path=None, markdown_summary=None):
+                      changed_since=None, changed_scope="file", junit_path=None, markdown_summary=None,
+                      record_run=False, run_label=None, ratchet=False):
     """Compute breaches and either update the baseline or gate on it. Returns True to fail the run."""
     from fwlens.baseline import (
         classify_against_baseline,
@@ -514,6 +562,7 @@ def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
     from fwlens.output.console import print_baseline_summary
 
     breaches = compute_breaches(model, config)
+    ratchet_failed = _handle_history(model, config, breaches, record_run, run_label, ratchet)
     from fwlens.diffmode import detect_base
     if detect_base(changed_since):
         if update_baseline_flag:
@@ -535,7 +584,7 @@ def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
                       f"({len(breaches)} finding(s))")
 
     if not baseline_path:
-        return False
+        return ratchet_failed
 
     path = Path(baseline_path)
 
@@ -544,7 +593,7 @@ def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
                                    prune=prune, match=config.match)
         console.print(f"[cyan][fwlens][/cyan] Baseline updated: [bold]{path}[/bold] "
                       f"({len(accepted)} accepted breach(es) on file)")
-        return False
+        return ratchet_failed
 
     baseline = load_baseline(path)
     result = classify_against_baseline(breaches, baseline, match=config.match)
@@ -553,7 +602,7 @@ def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
     accepted_unchanged = [b for b in breaches if id(b) not in gating]
     print_baseline_summary(new_or_worsened, accepted_unchanged, path, result)
 
-    return bool(fail_on_breach and new_or_worsened)
+    return bool((fail_on_breach and new_or_worsened) or ratchet_failed)
 
 
 def _parse_options(f):
@@ -587,12 +636,13 @@ def _auto_stub_option(f):
 @_findings_option
 @_sarif_option
 @_ci_report_options
+@_history_options
 @_diff_options
 @_baseline_options
 def analyze(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_error, baseline_path, fail_on_breach,
             update_baseline_flag, accept_all, accept_ids, prune, github_annotations,
             gitlab_codequality, findings_json, sarif_path, junit_path, markdown_summary,
-            changed_since, changed_scope):
+            record_run, run_label, ratchet, changed_since, changed_scope):
     """Run analysis and print breach summary to terminal."""
     _print_header("analyze", config_path)
     from fwlens.output.console import print_summary
@@ -606,6 +656,7 @@ def analyze(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_
         gitlab_codequality=gitlab_codequality, findings_json=findings_json, sarif_path=sarif_path,
         changed_since=changed_since, changed_scope=changed_scope,
         junit_path=junit_path, markdown_summary=markdown_summary,
+        record_run=record_run, run_label=run_label, ratchet=ratchet,
     )
     if _parse_health_failed(model, config, fail_on_parse_error):
         should_fail = True
@@ -623,12 +674,13 @@ def analyze(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_
 @_findings_option
 @_sarif_option
 @_ci_report_options
+@_history_options
 @_diff_options
 @_baseline_options
 def report(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_error, baseline_path, fail_on_breach,
            update_baseline_flag, accept_all, accept_ids, prune, github_annotations,
            gitlab_codequality, findings_json, sarif_path, junit_path, markdown_summary,
-            changed_since, changed_scope):
+            record_run, run_label, ratchet, changed_since, changed_scope):
     """Run analysis and generate HTML report + exports."""
     from fwlens.output.console import print_summary
     from fwlens.output.exports import export_csv, export_json
@@ -667,6 +719,7 @@ def report(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_e
         gitlab_codequality=gitlab_codequality, findings_json=findings_json, sarif_path=sarif_path,
         changed_since=changed_since, changed_scope=changed_scope,
         junit_path=junit_path, markdown_summary=markdown_summary,
+        record_run=record_run, run_label=run_label, ratchet=ratchet,
     )
     if _parse_health_failed(model, config, fail_on_parse_error):
         should_fail = True
