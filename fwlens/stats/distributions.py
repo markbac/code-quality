@@ -11,8 +11,12 @@ from __future__ import annotations
 import math
 from typing import Optional
 
-import numpy as np
-from scipy import stats
+try:
+    import numpy as np
+    from scipy import stats
+except ImportError:
+    np = None
+    stats = None
 
 from fwlens.config import FwLensConfig, ThresholdConfig
 from fwlens.model.project import FunctionMetrics, ModuleMetrics, ProjectModel
@@ -42,33 +46,71 @@ _STRUCTURAL_DEBT_WEIGHTS = {
 }
 
 
+def _percentile_pure(arr: list[float], pct: float) -> float:
+    if not arr:
+        return 0.0
+    sorted_arr = sorted(arr)
+    k = (len(sorted_arr) - 1) * (pct / 100.0)
+    f = math.floor(k)
+    c = math.ceil(k)
+    if f == c:
+        return float(sorted_arr[int(k)])
+    d0 = sorted_arr[int(f)] * (c - k)
+    d1 = sorted_arr[int(c)] * (k - f)
+    return float(d0 + d1)
+
+
 def _fit_lognormal(values: list[float]) -> dict:
     """
     Fit a log-normal distribution to a list of values.
     Returns shape parameters and percentiles.
     """
-    arr = np.array([v for v in values if v > 0], dtype=float)
-    if len(arr) < 3:
+    pos_values = [v for v in values if v > 0]
+    if len(pos_values) < 3:
         return {
             "mu": 0.0, "sigma": 0.0, "skew": 0.0,
             "p50": 0.0, "p90": 0.0, "p95": 0.0, "p99": 0.0,
-            "n": len(arr), "fit_valid": False,
+            "n": len(pos_values), "fit_valid": False,
         }
 
-    log_arr = np.log(arr)
-    mu = float(np.mean(log_arr))
-    sigma = float(np.std(log_arr))
-    skew = float(stats.skew(arr))
+    if np is not None and stats is not None:
+        arr = np.array(pos_values, dtype=float)
+        log_arr = np.log(arr)
+        mu = float(np.mean(log_arr))
+        sigma = float(np.std(log_arr))
+        skew = float(stats.skew(arr))
+        return {
+            "mu": mu,
+            "sigma": sigma,
+            "skew": skew,
+            "p50": float(np.percentile(arr, 50)),
+            "p90": float(np.percentile(arr, 90)),
+            "p95": float(np.percentile(arr, 95)),
+            "p99": float(np.percentile(arr, 99)),
+            "n": len(arr),
+            "fit_valid": sigma > 0,
+        }
+
+    n = len(pos_values)
+    log_vals = [math.log(v) for v in pos_values]
+    mu = sum(log_vals) / n
+    var = sum((x - mu) ** 2 for x in log_vals) / n
+    sigma = math.sqrt(var)
+
+    mean_val = sum(pos_values) / n
+    var_val = sum((x - mean_val) ** 2 for x in pos_values) / n
+    std_val = math.sqrt(var_val)
+    skew = (sum((x - mean_val) ** 3 for x in pos_values) / n) / (std_val ** 3) if std_val > 0 else 0.0
 
     return {
         "mu": mu,
         "sigma": sigma,
         "skew": skew,
-        "p50": float(np.percentile(arr, 50)),
-        "p90": float(np.percentile(arr, 90)),
-        "p95": float(np.percentile(arr, 95)),
-        "p99": float(np.percentile(arr, 99)),
-        "n": len(arr),
+        "p50": _percentile_pure(pos_values, 50),
+        "p90": _percentile_pure(pos_values, 90),
+        "p95": _percentile_pure(pos_values, 95),
+        "p99": _percentile_pure(pos_values, 99),
+        "n": n,
         "fit_valid": sigma > 0,
     }
 
@@ -82,19 +124,38 @@ def _exceedance_probability(threshold: float, fit: dict) -> float:
         return 0.0
     mu, sigma = fit["mu"], fit["sigma"]
     z = (math.log(threshold) - mu) / sigma
-    return float(1.0 - stats.norm.cdf(z))
+    if stats is not None:
+        return float(1.0 - stats.norm.cdf(z))
+    # pure python cdf using math.erf
+    cdf = 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
+    return float(1.0 - cdf)
 
 
 def _percentile_ranks(values: list[float]) -> list[float]:
     """
     Compute percentile rank (0-1) for each value in the list.
     """
-    arr = np.array(values, dtype=float)
-    n = len(arr)
-    if n == 0:
+    if not values:
         return []
-    ranks = stats.rankdata(arr, method="average")
-    return list(ranks / n)
+    if np is not None and stats is not None:
+        arr = np.array(values, dtype=float)
+        n = len(arr)
+        ranks = stats.rankdata(arr, method="average")
+        return list(ranks / n)
+
+    n = len(values)
+    indexed = sorted((v, i) for i, v in enumerate(values))
+    ranks = [0.0] * n
+    i = 0
+    while i < n:
+        j = i
+        while j < n and indexed[j][0] == indexed[i][0]:
+            j += 1
+        avg_rank = (i + 1 + j) / 2.0
+        for k in range(i, j):
+            ranks[indexed[k][1]] = avg_rank / n
+        i = j
+    return ranks
 
 
 def compute_structural_debt_index(funcs: list[FunctionMetrics]) -> None:

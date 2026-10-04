@@ -22,10 +22,10 @@ import re
 from pathlib import Path
 from typing import Optional
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import networkx as nx
+try:
+    import networkx as nx
+except ImportError:
+    nx = None
 
 from fwlens.config import FwLensConfig
 from fwlens.model.project import ProjectModel, StateMachine
