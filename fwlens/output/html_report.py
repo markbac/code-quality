@@ -139,6 +139,22 @@ def _compress_source_index(source_index: dict) -> tuple[str, int]:
     return base64.b64encode(compressed).decode("ascii"), len(raw)
 
 
+def _standards_context(model: ProjectModel, config: FwLensConfig) -> dict | None:
+    """Guideline status for the Standards tab, or None when no standard is enabled or it cannot be run."""
+    if not (getattr(config, "standards", None) and config.standards.enabled):
+        return None
+    from fwlens.standards import run_standards
+    from fwlens.standards.matrix import DISCLAIMER, build_matrix, summarise
+    try:
+        result = run_standards(model, config)
+    except Exception as e:      # a bad rule file is reported by `standards validate`; do not lose the report
+        return {"error": str(e), "rows": [], "summary": {}, "disclaimer": DISCLAIMER, "problems": []}
+    rows = build_matrix(result)
+    return {"rows": rows, "summary": summarise(rows), "disclaimer": DISCLAIMER, "error": None,
+            "problems": [{"id": d.id, "message": m} for d, m in result.problems],
+            "names": {sid: f"{s.name} ({s.revision})" for sid, s in result.standards.items()}}
+
+
 def _history_rows(model: ProjectModel, config: FwLensConfig) -> list[dict]:
     """Stored runs (output.db_path) plus this run, newest last, for the Trend table. Empty without history."""
     from fwlens.baseline import compute_breaches
@@ -946,6 +962,7 @@ def generate_html_report(model: ProjectModel, config: FwLensConfig):
     ]
     meta["diag_error_module_count"] = len(error_diag_modules)
     meta["history"] = _history_rows(model, config)
+    meta["standards"] = _standards_context(model, config)
     diagnostic_rows = []
     for m in sorted(error_diag_modules, key=lambda m: -len(m.parse_diagnostics))[:20]:
         worst = next(d for d in m.parse_diagnostics if d["severity"] in ("fatal", "error"))

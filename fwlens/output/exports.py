@@ -208,6 +208,20 @@ def export_csv(model: ProjectModel, config: FwLensConfig) -> None:
                 "composite_risk_score": round(func.composite_risk_score, 4),
             })
 
+    # Coding-standard guideline status (only when standards are enabled)
+    if getattr(config, "standards", None) and config.standards.enabled:
+        from fwlens.standards import run_standards
+        from fwlens.standards.matrix import build_matrix
+        rows = build_matrix(run_standards(model, config))
+        with open(exports_dir / "standards.csv", "w", newline="", encoding="utf-8") as f:
+            fields = ["standard", "id", "kind", "title", "category", "decidable", "scope", "status",
+                      "checked_by", "violations", "deviated", "deviations"]
+            writer = csv.DictWriter(f, fieldnames=fields)
+            writer.writeheader()
+            for r in rows:
+                writer.writerow({**{k: r[k] for k in fields if k != "deviations"},
+                                 "deviations": " ".join(r["deviations"])})
+
     # TODO/FIXME/HACK markers
     todo_path = exports_dir / "todo_markers.csv"
     with open(todo_path, "w", newline="", encoding="utf-8") as f:

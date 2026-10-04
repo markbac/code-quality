@@ -407,3 +407,97 @@ def test_standards_validate_command(tmp_path):
 def test_standards_list_command_shows_check_types():
     res = CliRunner().invoke(fwlens_main.cli, ["standards", "list"])
     assert res.exit_code == 0 and "native" in res.output and "import" in res.output and "manual" in res.output
+
+
+# --- inline deviation markers, CSV and the report tab (#81) -------------------------------------
+
+def inline_dev(**kw):
+    return base_dev(id="DEV-9", type="specific", scope={"inline": True}, **kw)
+
+
+def mark(work, *snippets):
+    """Append the marker comment to the lines containing each snippet (line numbers stay the same)."""
+    src = work / "app.c"
+    text = src.read_text()
+    for s in snippets:
+        text = text.replace(s, s + "  /* fwlens-deviation: Rule 21.3 DEV-9 */")
+    src.write_text(text)
+
+
+def test_inline_marker_on_the_line_applies_the_deviation(parsed):
+    model, config, work = parsed
+    mark(work, "char *buf = malloc(16);", "free(buf);")
+    enable(config, StandardSelection("misra-c-2012", include_ids=["21.3"]),
+           deviations_file=dev_file(work, inline_dev()))
+    result = run_standards(model, config)
+    assert result.findings == [] and len(result.deviated) == 2
+    assert {d.id for _, d in result.deviated} == {"DEV-9"}
+
+
+def test_inline_deviation_without_a_marker_covers_nothing(parsed):
+    model, config, work = parsed
+    enable(config, StandardSelection("misra-c-2012", include_ids=["21.3"]),
+           deviations_file=dev_file(work, inline_dev()))
+    assert len(run_standards(model, config).findings) == 2
+
+
+def test_a_marker_for_another_rule_or_an_unknown_id_covers_nothing(parsed):
+    model, config, work = parsed
+    src = work / "app.c"
+    text = src.read_text().replace("char *buf = malloc(16);", "char *buf = malloc(16);  /* fwlens-deviation: Rule 21.3 DEV-404 */")
+    text = text.replace("free(buf);", "free(buf);  /* fwlens-deviation: Rule 15.1 DEV-9 */")
+    src.write_text(text)
+    enable(config, StandardSelection("misra-c-2012", include_ids=["21.3"]),
+           deviations_file=dev_file(work, inline_dev()))
+    assert len(run_standards(model, config).findings) == 2
+
+
+def test_marker_on_the_line_above_and_expiry_still_applies(tmp_path):
+    from fwlens.standards.deviations import scan_markers
+    standards = load_standards([])
+    src = tmp_path / "a.c"
+    src.write_text("int x;\n/* fwlens-deviation: Rule 21.3 DEV-9 */\nfree(p);\n")
+    markers = scan_markers({"src/a.c": src})
+    f = finding(file="src/a.c")
+    f.line = 3
+    devs = load_deviations(dev_file(tmp_path, inline_dev(expires="2020-01-01")), standards)
+    out = apply_deviations([f], devs, standards, today=date(2026, 10, 3), markers=markers)
+    assert len(out.active) == 1 and "expired" in out.problems[0][1]
+    ok = apply_deviations([f], devs, standards, today=date(2019, 1, 1), markers=markers)
+    assert len(ok.deviated) == 1
+
+
+def test_standards_csv_lists_every_selected_guideline(parsed):
+    import csv
+
+    from fwlens.output.exports import export_csv
+    model, config, work = parsed
+    enable(config, StandardSelection("misra-c-2012"))
+    config.output.exports_dir = work / "exports"
+    export_csv(model, config)
+    rows = {r["id"]: r for r in csv.DictReader(open(work / "exports" / "standards.csv", encoding="utf-8"))}
+    assert rows["15.1"]["status"] == "violated" and rows["9.1"]["status"] == "not assessed"
+    assert rows["D4.1"]["status"] == "manual review"
+
+
+def test_no_standards_csv_when_standards_are_off(parsed):
+    from fwlens.output.exports import export_csv
+    model, config, work = parsed
+    config.output.exports_dir = work / "exports"
+    export_csv(model, config)
+    assert not (work / "exports" / "standards.csv").exists()
+
+
+def test_html_report_has_a_standards_tab_that_never_claims_compliance(parsed):
+    from fwlens.output.html_report import generate_html_report
+    model, config, work = parsed
+    enable(config, StandardSelection("misra-c-2012"))
+    config.output.reports_dir = work / "reports"
+    config.output.exports_dir = work / "exports"
+    generate_html_report(model, config)
+    html = (work / "reports" / "fwlens_report.html").read_text(encoding="utf-8")
+    assert 'id="pane-standards"' in html and "not a MISRA Compliance claim" in html
+    assert "not assessed" in html and "manual review" in html
+    config.standards = StandardsConfig()
+    generate_html_report(model, config)
+    assert 'id="pane-standards"' not in (work / "reports" / "fwlens_report.html").read_text(encoding="utf-8")

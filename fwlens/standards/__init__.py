@@ -14,7 +14,7 @@ from fwlens.baseline import Breach
 from fwlens.config import FwLensConfig, StandardSelection
 from fwlens.identity import project_root, relative_posix, statement_fingerprint
 from fwlens.model.project import ProjectModel
-from fwlens.standards.deviations import Deviation, apply_deviations, load_deviations
+from fwlens.standards.deviations import Deviation, apply_deviations, load_deviations, scan_markers
 from fwlens.standards.engines import Hit, run_ast_engines, run_callgraph_engine
 from fwlens.standards.importers import map_to_rule, read_import
 from fwlens.standards.rules import Rule, RuleFileError, Standard, load_standards
@@ -139,7 +139,11 @@ def run_standards(model: ProjectModel, config: FwLensConfig, today=None) -> Stan
             result.sources.setdefault(rule.key, set()).add("imported")
 
     result.deviations = load_deviations(cfg.deviations_file, standards) if cfg.deviations_file else []
-    outcome = apply_deviations(raw, result.deviations, standards, today)
+    markers = None
+    if result.deviations:
+        files = {f.file: root / f.file for f in raw}
+        markers = scan_markers(files)
+    outcome = apply_deviations(raw, result.deviations, standards, today, markers)
     result.findings = outcome.active
     result.deviated = outcome.deviated
     result.problems = outcome.problems

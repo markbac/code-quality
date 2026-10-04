@@ -658,6 +658,18 @@ deviations:
     expires: 2027-03-31
 ```
 
+A deviation can also be applied where it is needed, with a comment on the line of the finding or
+the line above it:
+
+```c
+/* fwlens-deviation: Rule 11.4 DEV-007 */
+ptr = (uint32_t *)0x40021000u;
+```
+
+The register entry still holds the justification, approval and expiry. Give it
+`scope: { inline: true }` to make it apply only through such comments. A comment that names an
+unknown entry or a different rule covers nothing, so the finding stays visible.
+
 A covered finding is moved out of the gate and shown as deviated in the matrix. A deviation
 against a mandatory guideline, or one past its `expires` date, does not apply and becomes a
 finding of its own, so it fails the gate.
@@ -672,6 +684,10 @@ One row per selected guideline: category, decidability and scope, status (violat
 no findings, manual review, not assessed), how it is checked and its deviations. Guidelines no
 configured source covers say `not assessed`.
 
+The same table is written to `standards.csv` by `export` and `report`, and appears as a
+**Standards** tab in the HTML report. Both exist only when `standards.enabled` is set, and both
+carry the same note: the table reports what FWLens checked, not compliance.
+
 ### What is bundled
 
 The built-in files carry guideline **ids**, the published category, decidability and scope, and
@@ -684,8 +700,24 @@ natively (EXP34-C, INT30-C, ARR38-C, ERR33-C import-only). Native checks match c
 project function that shares a name with a library function is a false positive. Code in headers
 is not analysed, only the translation units. Recursion follows direct calls only.
 
-Not implemented yet: MISRA C:2023, message triage, recategorization, inline deviation markers,
-a Standards tab in the HTML report and CSV export.
+Not implemented yet, each tracked on its own: MISRA C:2023 (#87), message triage and
+recategorisation records (#88), more native rules (#89), system-scope checks (#90) and a GitLab
+SAST report (#91).
+
+### Licensing of the rule data
+
+This is a record of the position, not legal advice, and the question is **not settled**.
+
+- **Bundled:** guideline ids, the published category, decidability and scope, CWE mappings
+  (`misra-c-2012.yaml`), and short descriptions written for FWLens. No MISRA or CERT guideline
+  text is included, and `guideline_text` is marked user-supplied.
+- **User-supplied:** the official guideline wording and any tables from the standards. Point your
+  own tooling at your licensed copy.
+- **Open:** whether MISRA (HORIBA MIRA) permits bundling the ids, categories and decidability
+  attributes, and what the CERT and CWE terms allow, has not been confirmed with the owners.
+  Until it is, treat the bundled MISRA data as unconfirmed, and do not add MISRA C:2023 data to
+  the package (#87). Because rules are plain YAML, a project can move them into its own
+  `standards.extra_rule_dirs` and drop the built-in file if that is the safer course.
 
 ---
 
