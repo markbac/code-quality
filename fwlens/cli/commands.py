@@ -22,6 +22,15 @@ from fwlens import __version__
 console = Console()
 
 
+def _load_config_safe(config_path: Path):
+    from fwlens.config import load_config, ConfigError
+    try:
+        return load_config(config_path)
+    except ConfigError as e:
+        console.print(f"[fwlens] ERROR: {e}")
+        sys.exit(1)
+
+
 def _run_pipeline(config_path: Path, auto_stub: bool = False):
     from fwlens.config import load_config
     from fwlens.parser.pipeline import run_pipeline
@@ -46,7 +55,7 @@ def _run_pipeline(config_path: Path, auto_stub: bool = False):
     from fwlens.complexity_trend import compute_complexity_trends
     from fwlens.preflight import run_static_preflight, run_post_scan_preflight, print_preflight_issues
 
-    config = load_config(config_path)
+    config = _load_config_safe(config_path)
 
     static_issues = run_static_preflight(config)
     if print_preflight_issues(static_issues, console):

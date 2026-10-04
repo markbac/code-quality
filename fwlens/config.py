@@ -14,6 +14,11 @@ from typing import Optional
 import yaml
 
 
+class ConfigError(ValueError):
+    """Raised when config loading or validation fails."""
+    pass
+
+
 @dataclass
 class ToolConfig:
     libclang_path: Optional[Path]
@@ -285,13 +290,12 @@ def macro_name(define_line: str) -> str:
 def load_config(config_path: Path) -> FwLensConfig:
     config_path = config_path.resolve()
     if not config_path.exists():
-        print(f"[fwlens] ERROR: Config file not found: {config_path}", file=sys.stderr)
-        sys.exit(1)
+        raise ConfigError(f"Config file not found: {config_path}")
 
     base = config_path.parent
 
     with open(config_path, encoding="utf-8") as f:
-        raw = yaml.safe_load(f)
+        raw = yaml.safe_load(f) or {}
 
     def resolve(p: str) -> Path:
         """Resolve path relative to config file location (for inputs like ewp, toolkit_dir)."""
@@ -302,7 +306,7 @@ def load_config(config_path: Path) -> FwLensConfig:
         return (Path.cwd() / Path(p)).resolve()
 
     # Tool
-    tool_raw = raw.get("tool", {})
+    tool_raw = raw.get("tool", {}) or {}
     libclang_raw = tool_raw.get("libclang_path")
     sysroot_raw = tool_raw.get("sysroot")
     tool = ToolConfig(
@@ -316,16 +320,14 @@ def load_config(config_path: Path) -> FwLensConfig:
     )
 
     # Project
-    proj_raw = raw.get("project", {})
+    proj_raw = raw.get("project", {}) or {}
     ewp_raw = proj_raw.get("ewp")
     source_dir_raw = proj_raw.get("source_dir")
     compile_commands_raw = proj_raw.get("compile_commands")
     mode_raw = proj_raw.get("mode")
 
     if not ewp_raw and not source_dir_raw and not compile_commands_raw and not mode_raw:
-        print("[fwlens] ERROR: project.ewp, project.source_dir, or project.compile_commands must be set in config.yaml",
-              file=sys.stderr)
-        sys.exit(1)
+        raise ConfigError("project.ewp, project.source_dir, or project.compile_commands must be set in config.yaml")
 
     if mode_raw:
         mode = mode_raw.lower()

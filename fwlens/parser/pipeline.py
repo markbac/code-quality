@@ -105,7 +105,7 @@ def _worker(args: tuple) -> tuple:
 # Pipeline entry point
 # ---------------------------------------------------------------------------
 
-def run_pipeline(config: FwLensConfig) -> ProjectModel:
+def run_pipeline(config: FwLensConfig, jobs: Optional[int] = None) -> ProjectModel:
     """
     Full parse pipeline:
     1.  Parse EWP, compile_commands.json (CMake/Make), or scan directory -- get all TUs
@@ -154,7 +154,7 @@ def run_pipeline(config: FwLensConfig) -> ProjectModel:
         raise RuntimeError(str(e)) from e
     console.print(f"[dim][fwlens] libclang: {location.path or 'system default'} ({location.source})[/dim]")
 
-    workers = max(1, (os.cpu_count() or 2) - 1)
+    workers = max(1, jobs) if jobs is not None else max(1, (os.cpu_count() or 2) - 1)
     console.print(f"[cyan][fwlens][/cyan] Parsing {len(in_scope)} in-scope files "
                   f"with {workers} worker(s)...")
 
