@@ -1,0 +1,7 @@
+- id: fwlens
+  name: FWLens Embedded C Quality Check
+  description: Static analysis, architecture metrics, and baseline gating for embedded C
+  entry: fwlens analyze --fail-on-breach
+  language: python
+  types: [c, header]
+  pass_filenames: false

@@ -1,0 +1,29 @@
+name: "FWLens C Quality & Architecture Check"
+description: "Run static analysis, baseline gating, and inline PR annotations for Embedded C"
+inputs:
+  config:
+    description: "Path to fwlens config.yaml"
+    required: false
+    default: "config.yaml"
+  fail-on-breach:
+    description: "Fail workflow step if new baseline breaches are detected"
+    required: false
+    default: "true"
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - name: Install FWLens
+      shell: bash
+      run: pip install .
+    - name: Run FWLens Analysis
+      shell: bash
+      run: |
+        FLAGS="--config ${{ inputs.config }} --github-annotations"
+        if [ "${{ inputs.fail-on-breach }}" = "true" ]; then
+          FLAGS="$FLAGS --fail-on-breach"
+        fi
+        fwlens analyze $FLAGS

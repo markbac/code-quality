@@ -1,0 +1,2 @@
+function_name,file,line,is_isr,stack_depth_estimate,stack_estimable
+main,C:/Users/markd/AppData/Local/Temp/pytest-of-mbacon/pytest-209/test_cli_full_workflow_smoke0/main.c,1,False,4,True
