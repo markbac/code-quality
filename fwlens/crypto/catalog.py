@@ -22,7 +22,9 @@ MODES = ("cbc", "ecb", "ccm", "gcm", "cfb", "ofb", "ctr", "other", "unknown")
 FUNCTIONS = ("generate", "keygen", "encrypt", "decrypt", "digest", "tag", "keyderive", "sign", "verify",
              "encapsulate", "decapsulate", "other", "unknown")
 PROTOCOLS = ("tls", "ssh", "ipsec", "ike", "sstp", "wpa", "other", "unknown")
-KINDS = ("algorithm", "protocol")
+KINDS = ("algorithm", "protocol", "certificate")
+USAGES = ("trust-anchor", "own-certificate", "parse", "verify", "hostname", "verify-disabled", "verify-relaxed",
+          "private-key", "other")
 
 _BUNDLED = Path(__file__).parent / "catalog"
 
@@ -46,6 +48,7 @@ class Entry:
     bits_from_name: bool = False
     protocol: str = "other"
     version: str | None = None
+    usage: str = "other"          # for kind certificate: what the code does with certificates
 
 
 @dataclass
@@ -69,14 +72,14 @@ def _strings(value, where: str, key: str) -> list[str]:
     return list(value)
 
 
-def _entry(raw, where: str) -> Entry:
+def _entry(raw, where: str, needs_names: bool = True) -> Entry:
     if not isinstance(raw, dict) or not raw.get("id") or not raw.get("name"):
         raise ConfigError(f"{where}: every entry needs 'id' and 'name'")
     unknown = set(raw) - _ENTRY_KEYS
     if unknown:
         raise ConfigError(f"{where}: entry '{raw['id']}' has unknown key(s) {sorted(unknown)}")
     e = Entry(id=str(raw["id"]), name=str(raw["name"]))
-    for key in ("kind", "primitive", "mode", "parameter_set", "curve", "weak", "protocol", "version"):
+    for key in ("kind", "primitive", "mode", "parameter_set", "curve", "weak", "protocol", "version", "usage"):
         if raw.get(key) is not None:
             setattr(e, key, str(raw[key]))
     for key in ("hardware", "curve_aware", "mode_from_name", "bits_from_name"):
@@ -85,7 +88,7 @@ def _entry(raw, where: str) -> Entry:
     e.config_macros = _strings(raw.get("config_macros"), where, "config_macros")
     e.functions = _strings(raw.get("functions"), where, "functions")
     for value, allowed, key in ((e.kind, KINDS, "kind"), (e.primitive, PRIMITIVES, "primitive"),
-                                (e.protocol, PROTOCOLS, "protocol")):
+                                (e.protocol, PROTOCOLS, "protocol"), (e.usage, USAGES, "usage")):
         if value not in allowed:
             raise ConfigError(f"{where}: entry '{e.id}' has {key} '{value}'; use one of {list(allowed)}")
     if e.mode is not None and e.mode not in MODES:
@@ -93,7 +96,7 @@ def _entry(raw, where: str) -> Entry:
     bad = [f for f in e.functions if f not in FUNCTIONS]
     if bad:
         raise ConfigError(f"{where}: entry '{e.id}' has unsupported function(s) {bad}; use {list(FUNCTIONS)}")
-    if not e.identifiers and not e.config_macros:
+    if needs_names and not e.identifiers and not e.config_macros:
         raise ConfigError(f"{where}: entry '{e.id}' needs identifiers or config_macros")
     return e
 

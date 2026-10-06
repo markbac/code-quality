@@ -307,6 +307,12 @@ class SbomConfig:
 class CbomConfig:
     extra_catalog_dirs: list[Path] = field(default_factory=list)   # more crypto catalogue YAML files
     scan_scopes: list[str] = field(default_factory=lambda: ["first_party"])   # boundary classes scanned for use
+    autodetect: bool = True                  # name an identifier by its keywords (aes, sha256 ...) when the catalogue lacks it
+    keywords: list[dict] = field(default_factory=list)       # more keyword phrases for autodetection
+    ignore_identifiers: list[str] = field(default_factory=list)   # identifier patterns autodetection must skip
+    apis: list[dict] = field(default_factory=list)           # function and macro names, as catalogue entries
+    certificates: bool = True                # find certificates and keys in files and source
+    certificate_expiry_days: int = 90        # warn when a certificate expires within this many days
 
 
 @dataclass
@@ -658,8 +664,16 @@ def load_config(config_path: Path) -> FwLensConfig:
     bad_scopes = [x for x in scan_scopes if x not in _BOUNDARY_CLASSES]
     if bad_scopes:
         raise ConfigError(f"cbom.scan_scopes has unsupported value(s) {bad_scopes}; use any of {list(_BOUNDARY_CLASSES)}")
+    for key in ("keywords", "apis"):
+        value = cbom_raw.get(key) or []
+        if not isinstance(value, list) or not all(isinstance(x, dict) for x in value):
+            raise ConfigError(f"cbom.{key} must be a list of mappings")
     cbom = CbomConfig(extra_catalog_dirs=[resolve(d) for d in cbom_raw.get("extra_catalog_dirs") or []],
-                      scan_scopes=scan_scopes)
+                      scan_scopes=scan_scopes, autodetect=bool(cbom_raw.get("autodetect", True)),
+                      keywords=list(cbom_raw.get("keywords") or []),
+                      ignore_identifiers=[str(x) for x in cbom_raw.get("ignore_identifiers") or []],
+                      apis=list(cbom_raw.get("apis") or []), certificates=bool(cbom_raw.get("certificates", True)),
+                      certificate_expiry_days=int(cbom_raw.get("certificate_expiry_days", 90)))
 
     pc_raw = raw.get("pr_check") or {}
     defaults = PRCheckConfig()

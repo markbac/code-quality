@@ -30,3 +30,11 @@ entries:
   - {id: tls11, name: TLS 1.1, kind: protocol, protocol: tls, version: "1.1", identifiers: ["MBEDTLS_SSL_MINOR_VERSION_2", "MBEDTLS_SSL_PROTO_TLS1_1"], weak: "TLS 1.1 is deprecated (RFC 8996)"}
   - {id: tls12, name: TLS 1.2, kind: protocol, protocol: tls, version: "1.2", identifiers: ["MBEDTLS_SSL_MINOR_VERSION_3", "MBEDTLS_SSL_PROTO_TLS1_2"]}
   - {id: tls13, name: TLS 1.3, kind: protocol, protocol: tls, version: "1.3", identifiers: ["MBEDTLS_SSL_TLS1_3_*", "MBEDTLS_SSL_PROTO_TLS1_3"]}
+  - {id: cert-parse, name: X.509 certificate parsing, kind: certificate, usage: parse, identifiers: ["mbedtls_x509_crt_parse*", "mbedtls_x509_crt_init", "mbedtls_x509_crl_parse*"]}
+  - {id: cert-verify, name: X.509 chain verification, kind: certificate, usage: verify, identifiers: ["mbedtls_x509_crt_verify*", "mbedtls_ssl_get_verify_result"]}
+  - {id: cert-trust, name: Trust anchors (CA chain) configured, kind: certificate, usage: trust-anchor, identifiers: ["mbedtls_ssl_conf_ca_chain"]}
+  - {id: cert-own, name: Own certificate and key configured, kind: certificate, usage: own-certificate, identifiers: ["mbedtls_ssl_conf_own_cert"]}
+  - {id: cert-host, name: Server name check, kind: certificate, usage: hostname, identifiers: ["mbedtls_ssl_set_hostname"]}
+  - {id: cert-key, name: Private key parsing, kind: certificate, usage: private-key, identifiers: ["mbedtls_pk_parse_key*"]}
+  - {id: cert-none, name: Certificate verification disabled, kind: certificate, usage: verify-disabled, identifiers: ["MBEDTLS_SSL_VERIFY_NONE"], weak: "certificate verification is switched off, so any peer is accepted"}
+  - {id: cert-optional, name: Certificate verification optional, kind: certificate, usage: verify-relaxed, identifiers: ["MBEDTLS_SSL_VERIFY_OPTIONAL"], weak: "verification failures are tolerated unless the application checks the result"}

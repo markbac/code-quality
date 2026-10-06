@@ -938,13 +938,15 @@ the same from `report`). Each algorithm or protocol the code names becomes a
 50, with the total in `fwlens:occurrence-count`), and the library that provides it.
 
 How it works: comments and string literals are removed from the source, then every identifier is
-matched against a catalogue of library functions and constants. Bundled coverage is Mbed TLS,
+matched against a catalogue of library functions and constants (and, failing that, against keywords, see below). Bundled coverage is Mbed TLS,
 OpenSSL, wolfSSL, TinyCrypt, libsodium, micro-ecc, the PSA Crypto API and the STM32 HAL crypto
 peripherals. Each asset has an evidence kind in `fwlens:evidence-kind`:
 
 | Kind | Meaning |
 |---|---|
-| `used` | an identifier from the catalogue appears in code |
+| `used` | an identifier from the catalogue (or from `cbom.apis`) appears in code |
+| `keyword` | the words in an identifier name an algorithm, such as `cy_aes_encrypt`: low confidence |
+| `file`, `embedded` | a certificate or key found as a file, or inside source code |
 | `configured` | a catalogue macro such as `MBEDTLS_SHA256_C` is `#define`d |
 | `library-present` | a matching `#include`, library directory, or file named in the project (an IAR `.ewp` file entry or additional linker library, so a precompiled `.a` counts), with no algorithm seen (library components) |
 | `library-name-match` | a library path in `scope.sdk` or `scope.third_party_lib`, or a linker library, whose name suggests cryptography (`crypt`, `cipher`, `ssl`, `tls`, `aes`, `rsa` ...) but that is not in the catalogue. It is listed with a note, and no algorithms are reported for it until you add catalogue entries |
@@ -954,14 +956,74 @@ in the same file. TLS cipher suite names (`..._TLS_..._WITH_...`) are collected 
 asset. `fwlens:weak` carries the reason on MD5, SHA-1, DES, 3DES, RC4, ECB mode, SSL 3.0, TLS 1.0 and
 1.1, and cipher suites using RC4, DES, 3DES, NULL, EXPORT or MD5.
 
+### Keyword autodetection
+
+An identifier the catalogue does not list is split into words (`cy_aes_128_cbc_encrypt`,
+`AesCbcDecrypt`, `app_hmac_sha256_init`) and matched against the phrases in
+`fwlens/crypto/keywords.yaml`: AES, 3DES, SHA-1 to SHA-3, MD5, HMAC, CMAC, RSA, ECDSA, ECDH, EdDSA,
+X25519, PBKDF2, HKDF, DRBG, SSL/TLS, SSH and others. It finds wrapper functions and vendor
+libraries FWLens has no entry for. Those assets have evidence kind `keyword` and
+`fwlens:confidence: low`, because a name is weaker evidence than a library function.
+
+Whole words only, so `shared` is not SHA. Words that are common outside cryptography (`des`, `ecc`,
+`tls`, `dsa`, `sha`, `aria`) only count when the same identifier also has a cryptographic word such
+as `key`, `cipher`, `encrypt`, `hash` or `init`: `des_set_key` is DES, `des_addr` is not. Key size
+and mode come from the name (`aes_128_ecb`). `#include` lines and TLS cipher suite names are skipped.
+
+### API names in the config
+
+Name the functions and macros your project calls, without a catalogue file (`CyL_...` below are placeholders, use the names from your library's header):
+
+```yaml
+cbom:
+  apis:
+    - {library: cycurlib, name: AES-CBC, identifiers: [CyL_Blk_Enc, CyL_Blk_Dec], mode: cbc}
+    - {library: cycurlib, name: ECDSA signing, identifiers: ["CyL_Sig_*"], primitive: signature, functions: [sign]}
+    - {name: Vendor hash, identifiers: [Vendor_Hash]}
+```
+
+Each item is a catalogue entry (`name` and `identifiers` or `config_macros` are required, a trailing
+`*` is a prefix) plus `library`: an existing library such as `cycurlib`, or a new name. Leave out
+`primitive`, `functions`, `mode`, `parameter_set` or `weak` and they are taken from the keywords in
+the name or the identifiers, so `name: AES-CBC` is a block cipher. An entry with an error is reported
+as `cbom.apis[N]`.
+
+### Certificates and keys
+
+Unless `cbom.certificates: false`, the CBOM also lists:
+
+- certificate files in the project (`.pem`, `.crt`, `.cer`, `.der`, `.key`, `.csr`, `.p7b`, `.p12`,
+  `.pfx`, `.jks`, `.keystore`), skipping folders in `scope.sdk` or `scope.third_party_lib` unless
+  those are in `cbom.scan_scopes`
+- PEM blocks inside C strings and DER certificates written as byte arrays in source
+- calls that handle certificates: parsing, chain verification, trust anchors, own certificate,
+  private key loading and server name checks (Mbed TLS, OpenSSL, wolfSSL)
+
+Certificates are read directly (subject, issuer, validity, signature algorithm, key type and size)
+and appear as `certificate` assets, keys and keystores as `related-crypto-material`. `fwlens:weak`
+flags a certificate that has expired or expires within `cbom.certificate_expiry_days` (default 90),
+a SHA-1 or MD5 signature, an RSA key under 2048 bits, a private key or keystore stored in the
+source tree or embedded in code, and `*_VERIFY_NONE` (verification switched off) or
+`*_VERIFY_OPTIONAL`. The same certificate in a file and in source is one asset with both places.
+Certificate chains are not followed and nothing is checked against a trust store or revocation list.
+
 ```yaml
 cbom:
   scan_scopes: [first_party]       # boundary classes scanned; add sdk or third_party_lib to
                                    # include library sources (they will then report themselves)
   extra_catalog_dirs: [./crypto]   # more catalogue files, read after the bundled ones
+  autodetect: true                 # keyword autodetection (false switches it off)
+  ignore_identifiers: ["debug_*"]  # identifier patterns autodetection skips
+  keywords:                        # more phrases: words in order, the rest is a catalogue entry
+    - {match: ["zorb"], name: Zorb cipher, primitive: block-cipher}
+  apis: []                         # function and macro names, see above
+  certificates: true               # certificate and key discovery
+  certificate_expiry_days: 90      # warn when a certificate expires within this many days
 ```
 
-ESCRYPT CycurLIB is in the catalogue as a library only: FWLens knows it is present but not its function names, so add entries for the functions your code calls to get its algorithms. A library with `entries: []` is allowed.
+ESCRYPT CycurLIB is in the catalogue as a library only. Its algorithms are found by keyword
+(`CyL_AES_...`) or, exactly, by listing its function names under `cbom.apis` with `library: cycurlib`.
+A library with `entries: []` is allowed in a catalogue file.
 
 A catalogue file names a `library` (`id`, `name`, `include_fragments`, `dir_names`) and a list of
 `entries`. An entry needs `id`, `name` and `identifiers` (a trailing `*` is a prefix) or

@@ -63,7 +63,7 @@ def test_sbom_tab_lists_components_and_gaps_from_the_components_file(report):
 
 def test_cbom_tab_names_the_algorithm_found(report):
     html = report("[html, cbom]")
-    assert "AES" in html and "Algorithms and protocols" in html
+    assert "AES" in html and "Algorithms, protocols, certificates and keys" in html
 
 
 def test_views_read_the_same_documents_the_exports_write():

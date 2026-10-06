@@ -1,0 +1,56 @@
+# Keyword autodetection for the CBOM. An identifier the catalogue does not know (`cy_aes_encrypt`,
+# `AesCbcDecrypt`, `app_hmac_sha256`) is split into words and matched against these phrases.
+# `match` is a list of phrases, each a space-separated run of lower-case words in order. Digits are
+# words of their own, so "sha 256" matches sha256, SHA_256 and Sha256Init. `context: true` marks a
+# word that is common outside cryptography (des, ecc, tls ...): it only counts when the identifier
+# also has a cryptographic word such as key, cipher, encrypt or hash. The fields after `match` are
+# those of a catalogue entry.
+context_words: [key, keys, encrypt, decrypt, cipher, crypt, crypto, hash, digest, sign, verify, mac, iv, nonce, tag,
+                block, setkey, init, update, final, finish, ctx, handshake, session, cert, certificate, suite]
+keywords:
+  - {match: ["aes"], name: AES, primitive: block-cipher, functions: [encrypt, decrypt], bits_from_name: true, mode_from_name: true}
+  - {match: ["3 des", "des 3", "tdes", "triple des", "des ede"], name: 3DES, primitive: block-cipher, parameter_set: "112", functions: [encrypt, decrypt], weak: "3DES is deprecated (64-bit block, Sweet32)"}
+  - {match: ["des"], context: true, name: DES, primitive: block-cipher, parameter_set: "56", functions: [encrypt, decrypt], weak: "DES has a 56-bit key"}
+  - {match: ["camellia"], name: Camellia, primitive: block-cipher, functions: [encrypt, decrypt], bits_from_name: true, mode_from_name: true}
+  - {match: ["aria"], context: true, name: ARIA, primitive: block-cipher, functions: [encrypt, decrypt], bits_from_name: true, mode_from_name: true}
+  - {match: ["blowfish"], name: Blowfish, primitive: block-cipher, functions: [encrypt, decrypt], weak: "Blowfish has a 64-bit block"}
+  - {match: ["twofish"], name: Twofish, primitive: block-cipher, functions: [encrypt, decrypt]}
+  - {match: ["rc 4", "arc 4", "arcfour"], name: RC4, primitive: stream-cipher, functions: [encrypt, decrypt], weak: "RC4 has known keystream biases"}
+  - {match: ["chacha"], name: ChaCha20, primitive: stream-cipher, functions: [encrypt, decrypt]}
+  - {match: ["poly 1305"], name: Poly1305, primitive: mac, functions: [tag]}
+  - {match: ["gcm"], name: GCM, primitive: ae, mode: gcm, functions: [encrypt, decrypt, tag]}
+  - {match: ["ccm"], name: CCM, primitive: ae, mode: ccm, functions: [encrypt, decrypt, tag]}
+  - {match: ["sha 1"], name: SHA-1, primitive: hash, parameter_set: "160", functions: [digest], weak: "SHA-1 is collision-prone and deprecated for signatures"}
+  - {match: ["sha 224"], name: SHA-224, primitive: hash, parameter_set: "224", functions: [digest]}
+  - {match: ["sha 256"], name: SHA-256, primitive: hash, parameter_set: "256", functions: [digest]}
+  - {match: ["sha 384"], name: SHA-384, primitive: hash, parameter_set: "384", functions: [digest]}
+  - {match: ["sha 512"], name: SHA-512, primitive: hash, parameter_set: "512", functions: [digest]}
+  - {match: ["sha 2"], name: SHA-2, primitive: hash, functions: [digest]}
+  - {match: ["sha 3", "keccak"], name: SHA-3, primitive: hash, functions: [digest]}
+  - {match: ["sha"], context: true, name: SHA, primitive: hash, functions: [digest]}
+  - {match: ["md 5"], name: MD5, primitive: hash, parameter_set: "128", functions: [digest], weak: "MD5 is broken for collision resistance"}
+  - {match: ["md 2", "md 4"], name: MD2/MD4, primitive: hash, functions: [digest], weak: "MD2 and MD4 are broken"}
+  - {match: ["blake 2", "blake 3"], name: BLAKE, primitive: hash, functions: [digest]}
+  - {match: ["ripemd"], name: RIPEMD, primitive: hash, functions: [digest]}
+  - {match: ["sm 3"], name: SM3, primitive: hash, functions: [digest]}
+  - {match: ["sm 4"], name: SM4, primitive: block-cipher, functions: [encrypt, decrypt]}
+  - {match: ["hmac"], name: HMAC, primitive: mac, functions: [tag]}
+  - {match: ["cmac", "omac"], name: CMAC, primitive: mac, functions: [tag]}
+  - {match: ["gmac"], name: GMAC, primitive: mac, functions: [tag]}
+  - {match: ["rsa"], name: RSA, primitive: pke, functions: [encrypt, decrypt, sign, verify, keygen]}
+  - {match: ["ecdsa"], name: ECDSA, primitive: signature, functions: [sign, verify, keygen]}
+  - {match: ["ecdh", "ecdhe"], name: ECDH, primitive: key-agree, functions: [keyderive]}
+  - {match: ["eddsa", "ed 25519", "ed 448"], name: EdDSA, primitive: signature, functions: [sign, verify, keygen]}
+  - {match: ["x 25519", "curve 25519", "x 448"], name: X25519, primitive: key-agree, functions: [keyderive]}
+  - {match: ["dsa"], context: true, name: DSA, primitive: signature, functions: [sign, verify], weak: "DSA is deprecated (FIPS 186-5)"}
+  - {match: ["dh", "dhm", "diffie hellman"], context: true, name: Diffie-Hellman, primitive: key-agree, functions: [keyderive]}
+  - {match: ["ecc"], context: true, name: ECC, primitive: signature, functions: [sign, verify, keyderive]}
+  - {match: ["pbkdf"], name: PBKDF2, primitive: kdf, functions: [keyderive]}
+  - {match: ["hkdf"], name: HKDF, primitive: kdf, functions: [keyderive]}
+  - {match: ["scrypt", "argon 2", "bcrypt"], name: Password hash (scrypt/Argon2/bcrypt), primitive: kdf, functions: [keyderive]}
+  - {match: ["drbg"], name: DRBG, primitive: drbg, functions: [generate]}
+  - {match: ["trng"], name: Hardware random number generator, primitive: drbg, hardware: true, functions: [generate]}
+  - {match: ["ssl"], name: SSL/TLS, kind: protocol, protocol: tls}
+  - {match: ["tls", "dtls"], context: true, name: TLS, kind: protocol, protocol: tls}
+  - {match: ["ssh"], context: true, name: SSH, kind: protocol, protocol: ssh}
+  - {match: ["ipsec"], name: IPsec, kind: protocol, protocol: ipsec}

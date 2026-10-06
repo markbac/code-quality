@@ -11,7 +11,7 @@
 - **Git Hotspot Mining**: Correlates commit churn with structural complexity to pinpoint high-risk files.
 - **Auto-Stubbing & Header Checks**: Automatic stub generation for missing include headers and missing compiler definitions.
 - **Standards and Quality Gates**: MISRA C:2012 and C:2023, CERT C, BARR-C, AUTOSAR (C subset), ISO/IEC TS 17961 and NASA/JPL Power of 10 checks, plus secrets, dead code and interrupt safety checks (over 600 guidelines checked natively, mapped to CWE) with a deviation register and compliance matrix; baselines, a pull-request check, Flash and RAM growth limits from the linker map, and run history.
-- **SBOM and CBOM**: `fwlens sbom` writes a CycloneDX 1.6 software bill of materials from the source tree, and `fwlens cbom` a cryptography bill of materials of the algorithms, protocols and libraries the code names (detected usage only, not a complete inventory).
+- **SBOM and CBOM**: `fwlens sbom` writes a CycloneDX 1.6 software bill of materials from the source tree, and `fwlens cbom` a cryptography bill of materials of the algorithms, protocols, libraries, certificates and keys the code names, with keyword autodetection and your own API names from the config (detected usage only, not a complete inventory).
 - **Rich Reporting**: Outputs summary console tables, CSV data exports, JSON metrics, Mermaid dependency diagrams, and self-contained interactive HTML dashboards.
 
 ## Quick Start

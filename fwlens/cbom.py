@@ -19,7 +19,9 @@ from pathlib import Path
 
 from fwlens import __version__
 from fwlens.config import FwLensConfig
+from fwlens.crypto import certs
 from fwlens.crypto.catalog import Entry, Library, Matcher, bits_and_mode, load_catalog
+from fwlens.crypto.keywords import add_apis, ignored, load_keywords
 from fwlens.identity import project_root, relative_posix
 from fwlens.model.project import BoundaryClass
 from fwlens.sbom import SPEC_VERSION, _app_version, _application_name, _component_dir
@@ -157,22 +159,78 @@ def _ewp_paths(config: FwLensConfig, root: Path) -> list[tuple[str, str, Path]]:
     return found
 
 
+def _utc(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat(timespec="seconds")
+
+
+def _certificate_components(found: list[certs.Found], now: datetime, warn_days: int) -> list[dict]:
+    """Certificates, keys and keystores as CycloneDX assets, one per distinct item with all its places."""
+    groups: dict[tuple, list[certs.Found]] = {}
+    for f in found:
+        c = f.certificate
+        groups.setdefault((f.kind, f.name, _utc(c.not_after) if c else "", c.key if c else ""), []).append(f)
+    out = []
+    for n, (key, items) in enumerate(sorted(groups.items(), key=lambda kv: (kv[0][0], kv[0][1].lower())), 1):
+        first = items[0]
+        c = first.certificate
+        if first.kind == "certificate":
+            props: dict = {"certificateFormat": "X.509"}
+            if c:
+                props.update({"subjectName": c.subject, "issuerName": c.issuer,
+                              "notValidBefore": _utc(c.not_before), "notValidAfter": _utc(c.not_after)})
+            suffix = Path(first.where).suffix.lower() if first.source == "file" else ""
+            if suffix:
+                props["certificateExtension"] = suffix.lstrip(".")
+            crypto: dict = {"assetType": "certificate", "certificateProperties": props}
+        else:
+            material = {"private-key": "private-key", "public-key": "public-key", "unknown-key": "unknown"}
+            crypto = {"assetType": "related-crypto-material",
+                      "relatedCryptoMaterialProperties": {"type": material.get(first.kind, "other")}}
+        properties = [{"name": "fwlens:evidence-kind", "value": ",".join(sorted({i.source for i in items}))},
+                      {"name": "fwlens:occurrence-count", "value": str(len(items))}]
+        if c:
+            properties += [{"name": "fwlens:signature-algorithm", "value": c.signature},
+                           {"name": "fwlens:public-key", "value": c.key},
+                           {"name": "fwlens:self-signed", "value": "true" if c.self_signed else "false"}]
+        problems = list(dict.fromkeys(p for i in items for p in i.problems))
+        if problems:
+            properties.append({"name": "fwlens:weak", "value": "; ".join(problems)})
+        label = {"certificate": "Certificate", "private-key": "Private key", "public-key": "Public key",
+                 "csr": "Certificate request", "keystore": "Keystore", "unknown-key": "Key"}[first.kind]
+        name = first.name if first.kind == "certificate" else f"{label}: {first.where}"
+        out.append({
+            "type": "cryptographic-asset", "bom-ref": f"cert-{n}-" + re.sub(r"[^A-Za-z0-9._-]+", "-", first.kind), "name": name,
+            "cryptoProperties": crypto,
+            "evidence": {"occurrences": [{"location": i.where, **({"line": i.line} if i.line else {})}
+                                         for i in items[:MAX_OCCURRENCES]]},
+            "properties": properties,
+        })
+    return out
+
+
 def build_cbom(config: FwLensConfig, now: datetime | None = None) -> dict:
     from fwlens.parser.pipeline import read_project
     result = read_project(config)
     root = project_root(config)
+    now = now or datetime.now(timezone.utc)
     libraries = load_catalog(config.cbom.extra_catalog_dirs)
+    keywords = load_keywords(config.cbom.keywords)
+    add_apis(libraries, config.cbom.apis, keywords)
     matcher = Matcher(libraries)
+    found_certs: list[certs.Found] = []
 
     assets: dict[tuple, _Asset] = {}
     present: dict[str, str] = {}              # library id -> why it is considered present
     suites: dict[str, list[tuple[str, int]]] = {}
 
     def record(lib: Library | None, entry: Entry, token: str, where: str, line: int, kind: str,
-               file_curves: list[str]) -> None:
-        bits, mode = (bits_and_mode(token) if (entry.bits_from_name or entry.mode_from_name) else (None, None))
-        bits = bits if entry.bits_from_name else None
-        mode = mode if entry.mode_from_name else entry.mode
+               file_curves: list[str], forced: tuple[str | None, str | None] | None = None) -> None:
+        if forced is not None:
+            bits, mode = forced
+        else:
+            bits, mode = (bits_and_mode(token) if (entry.bits_from_name or entry.mode_from_name) else (None, None))
+            bits = bits if entry.bits_from_name else None
+            mode = mode if entry.mode_from_name else entry.mode
         curves: list[str | None] = list(file_curves) if entry.curve_aware and file_curves else [entry.curve]
         for curve in curves:
             a = assets.setdefault((lib.id if lib else "", entry.id, mode, bits, curve),
@@ -204,6 +262,9 @@ def build_cbom(config: FwLensConfig, now: datetime | None = None) -> dict:
                     present.setdefault(lib.id, f"#include {inc} in {where}")
         for m in _SUITE.finditer(code):
             suites.setdefault(m.group(0), []).append((where, line_of(m.start())))
+        if config.cbom.certificates and ("-----BEGIN" in raw or "0x30" in raw or "0X30" in raw):
+            found_certs.extend(certs.scan_text(raw, where, "embedded", now, config.cbom.certificate_expiry_days))
+        include_lines = {line_of(m.start()) for m in _INCLUDE.finditer(with_strings)} if config.cbom.autodetect else set()
 
         file_curves = sorted({_curve(m.group(1)) for m in _CURVE.finditer(code)})
         defined = {m.start(1): m.group(1) for m in _DEFINE.finditer(code)}
@@ -211,12 +272,18 @@ def build_cbom(config: FwLensConfig, now: datetime | None = None) -> dict:
             token = m.group(0)
             hit = matcher.lookup(token)
             if hit:
-                present.setdefault(hit[0].id, f"identifier {token} in {where}")
+                if hit[0].include_fragments or hit[0].dir_names:
+                    present.setdefault(hit[0].id, f"identifier {token} in {where}")
                 record(hit[0], hit[1], token, where, line_of(m.start()), "used", file_curves)
             elif m.start() in defined and token in matcher.config_macros:
                 lib, entry = matcher.config_macros[token]
                 present.setdefault(lib.id, f"#define {token} in {where}")
                 record(lib, entry, token, where, line_of(m.start()), "configured", file_curves)
+            elif config.cbom.autodetect and not ignored(token, config.cbom.ignore_identifiers):
+                line = line_of(m.start())
+                if line not in include_lines and not _SUITE.fullmatch(token):      # suites have their own asset
+                    for kw in keywords.match(token):
+                        record(None, kw.entry, token, where, line, "keyword", file_curves, forced=(kw.bits, kw.mode))
 
     # A library named anywhere in the project file counts as present, even when its own sources are
     # outside the scanned scopes or it is only a precompiled archive.
@@ -258,7 +325,15 @@ def build_cbom(config: FwLensConfig, now: datetime | None = None) -> dict:
     unknown_libraries = {k: v for k, v in unknown_libraries.items()
                          if k.lower() not in known_names and not any(k.lower() in n or n in k.lower() for n in known_names)}
 
-    now = now or datetime.now(timezone.utc)
+    if config.cbom.certificates:
+        scopes = set(config.cbom.scan_scopes)
+
+        def allowed(path: Path) -> bool:
+            return not any(_component_dir(path, b, config, root) and b.value not in scopes
+                           for b in (BoundaryClass.SDK, BoundaryClass.THIRD_PARTY_LIB))
+        for path in certs.find_files(root, _IGNORED_DIRS, allowed):
+            found_certs.extend(certs.scan_file(path, relative_posix(path, root), now, config.cbom.certificate_expiry_days))
+
     components: list[dict] = []
     refs: dict[tuple, str] = {}
     for key in sorted(assets, key=lambda k: tuple("" if x is None else str(x) for x in k)):
@@ -273,7 +348,10 @@ def build_cbom(config: FwLensConfig, now: datetime | None = None) -> dict:
             name = f"{name} ({a.curve})"
         ref = "crypto-" + re.sub(r"[^A-Za-z0-9._-]+", "-", "-".join(str(x) for x in key if x)).strip("-")
         refs[key] = ref
-        if e.kind == "protocol":
+        crypto: dict
+        if e.kind == "certificate":
+            crypto = {"assetType": "certificate"}
+        elif e.kind == "protocol":
             props: dict = {"type": e.protocol}
             if e.version:
                 props["version"] = e.version
@@ -299,6 +377,11 @@ def build_cbom(config: FwLensConfig, now: datetime | None = None) -> dict:
         ]
         if a.library:
             properties.append({"name": "fwlens:library", "value": a.library.name})
+        if e.kind == "certificate":
+            properties.append({"name": "fwlens:certificate-usage", "value": e.usage})
+        if a.kinds == {"keyword"}:
+            properties.append({"name": "fwlens:confidence", "value": "low: matched by the words in the name, not by a "
+                                                                       "catalogue entry"})
         if a.count > len(a.occurrences):
             properties.append({"name": "fwlens:occurrences-truncated", "value": f"{len(a.occurrences)} of {a.count} listed"})
         if weak:
@@ -308,6 +391,8 @@ def build_cbom(config: FwLensConfig, now: datetime | None = None) -> dict:
             "evidence": {"occurrences": [{"location": w, "line": ln} for w, ln in a.occurrences]},
             "properties": properties,
         })
+
+    components.extend(_certificate_components(found_certs, now, config.cbom.certificate_expiry_days))
 
     if suites:
         names = sorted(suites)
@@ -364,12 +449,14 @@ def build_cbom(config: FwLensConfig, now: datetime | None = None) -> dict:
             "tools": {"components": [{"type": "application", "name": "fwlens", "version": __version__}]},
             "component": app,
             "properties": [
-                {"name": "fwlens:method", "value": "static scan of source for names in the crypto catalogue"},
+                {"name": "fwlens:method", "value": "static scan of source for names in the crypto catalogue and for cryptographic keywords in identifiers"},
                 {"name": "fwlens:completeness",
                  "value": "detected usage only, not a complete inventory: runtime configuration, negotiated "
                           "protocols, keys, and calls through function pointers or wrapper layers are not visible"},
                 {"name": "fwlens:scanned-scopes", "value": ",".join(config.cbom.scan_scopes)},
                 {"name": "fwlens:files-scanned", "value": str(len(scanned))},
+                {"name": "fwlens:keyword-autodetect", "value": "on" if config.cbom.autodetect else "off"},
+                {"name": "fwlens:certificates-found", "value": str(len(found_certs))},
             ],
         },
         "components": lib_components + components,

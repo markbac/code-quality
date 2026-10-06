@@ -16,3 +16,10 @@ entries:
   - {id: tls, name: TLS, kind: protocol, protocol: tls, identifiers: ["wolfSSL_CTX_new", "wolfSSL_new", "wolfTLS_client_method", "wolfTLSv1_2_client_method", "wolfTLSv1_3_client_method"]}
   - {id: tls10, name: TLS 1.0, kind: protocol, protocol: tls, version: "1.0", identifiers: ["wolfTLSv1_client_method", "wolfTLSv1_server_method"], weak: "TLS 1.0 is deprecated (RFC 8996)"}
   - {id: tls11, name: TLS 1.1, kind: protocol, protocol: tls, version: "1.1", identifiers: ["wolfTLSv1_1_client_method", "wolfTLSv1_1_server_method"], weak: "TLS 1.1 is deprecated (RFC 8996)"}
+  - {id: cert-parse, name: X.509 certificate parsing, kind: certificate, usage: parse, identifiers: ["wc_InitDecodedCert", "wc_ParseCert", "wolfSSL_X509_*"]}
+  - {id: cert-verify, name: X.509 chain verification, kind: certificate, usage: verify, identifiers: ["wolfSSL_get_verify_result"]}
+  - {id: cert-trust, name: Trust anchors configured, kind: certificate, usage: trust-anchor, identifiers: ["wolfSSL_CTX_load_verify_*"]}
+  - {id: cert-own, name: Own certificate configured, kind: certificate, usage: own-certificate, identifiers: ["wolfSSL_CTX_use_certificate*", "wolfSSL_use_certificate*"]}
+  - {id: cert-key, name: Private key loading, kind: certificate, usage: private-key, identifiers: ["wolfSSL_CTX_use_PrivateKey*", "wolfSSL_use_PrivateKey*"]}
+  - {id: cert-host, name: Server name check, kind: certificate, usage: hostname, identifiers: ["wolfSSL_check_domain_name"]}
+  - {id: cert-none, name: Certificate verification disabled, kind: certificate, usage: verify-disabled, identifiers: ["WOLFSSL_VERIFY_NONE"], weak: "certificate verification is switched off, so any peer is accepted"}

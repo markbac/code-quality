@@ -324,3 +324,11 @@ output:
 # cbom:
 #   scan_scopes: [first_party]          # boundary classes whose code is scanned (add sdk, third_party_lib)
 #   extra_catalog_dirs: [./crypto]      # YAML catalogue files; an entry id replaces a bundled one
+#   autodetect: true                    # name an unlisted identifier by its words (cy_aes_encrypt -> AES), low confidence
+#   ignore_identifiers: ["debug_*"]     # identifier patterns autodetection skips
+#   keywords:                           # more phrases for autodetection
+#     - {match: ["zorb"], name: Zorb cipher, primitive: block-cipher}
+#   apis:                               # your own function and macro names
+#     - {library: cycurlib, name: AES-CBC, identifiers: [CyL_Blk_Enc], mode: cbc}
+#   certificates: true                  # list certificate files, PEM/DER in source and certificate calls
+#   certificate_expiry_days: 90         # warn when a certificate expires within this many days

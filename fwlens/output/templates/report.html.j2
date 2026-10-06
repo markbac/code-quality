@@ -2776,7 +2776,7 @@
   {% if v.error %}<p class="red">The CBOM could not be built: {{ v.error }}</p>{% else %}
   <p style="color:var(--dim);font-size:12px;margin-bottom:12px;max-width:900px">{{ v.completeness }}{% if not v.completeness.endswith('.') %}.{% endif %} Generated {{ v.timestamp }}, {{ v.files_scanned }} files scanned ({{ v.scopes }}). The same data is in <code>cbom.cdx.json</code>.</p>
   <p style="margin-bottom:12px">
-    <span class="badge badge-blue">{{ v.algorithms }} algorithms</span> <span class="badge badge-blue">{{ v.protocols }} protocols</span>
+    <span class="badge badge-blue">{{ v.algorithms }} algorithms</span> <span class="badge badge-blue">{{ v.protocols }} protocols</span> <span class="badge badge-blue">{{ v.certificates }} certificates and keys</span>
     <span class="badge {% if v.weak %}badge-red{% else %}badge-green{% endif %}">{{ v.weak | length }} weak</span>
     <span class="badge badge-blue">{{ v.libraries | length }} crypto libraries present</span>
   </p>
@@ -2787,7 +2787,7 @@
     <tbody>{% for a in v.weak %}<tr><td>{{ a.name }}</td><td class="red">{{ a.weak }}</td><td class="dim">{{ a.where | join(', ') }}{% if a.more %} and {{ a.more }} more{% endif %}</td></tr>{% endfor %}</tbody>
   </table>
   {% endif %}
-  <div class="section-title">Algorithms and protocols</div>
+  <div class="section-title">Algorithms, protocols, certificates and keys</div>
   <table>
     <thead><tr><th>Asset</th><th>Kind</th><th>Detail</th><th>Evidence</th><th>Library</th><th>Uses</th><th>Where</th></tr></thead>
     <tbody>

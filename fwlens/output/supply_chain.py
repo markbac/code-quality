@@ -97,10 +97,18 @@ def cbom_view(doc: dict) -> dict[str, Any]:
             detail = ", ".join(str(x) for x in (a.get("type"), a.get("version")) if x)
             if a.get("cipherSuites"):
                 detail += f" ({len(a['cipherSuites'])} cipher suites)"
-        where = [f"{o.get('location', '')}:{o.get('line', '')}" for o in c.get("evidence", {}).get("occurrences", [])]
+        elif kind == "certificate":
+            a = crypto.get("certificateProperties", {})
+            until = str(a.get("notValidAfter", ""))[:10]
+            detail = ", ".join(x for x in (p.get("public-key"), p.get("signature-algorithm"),
+                                           f"valid until {until}" if until else "", p.get("certificate-usage")) if x)
+        elif kind == "related-crypto-material":
+            detail = crypto.get("relatedCryptoMaterialProperties", {}).get("type", "")
+        where = [f"{o.get('location', '')}:{o['line']}" if o.get("line") else str(o.get("location", ""))
+                 for o in c.get("evidence", {}).get("occurrences", [])]
         assets.append({
             "name": c.get("name", ""), "kind": kind, "detail": detail, "weak": p.get("weak", ""),
-            "evidence": p.get("evidence-kind", ""), "library": p.get("library", ""),
+            "evidence": p.get("evidence-kind", "") + (" (low confidence)" if p.get("confidence") else ""), "library": p.get("library", ""),
             "count": p.get("occurrence-count", ""), "where": where[:5], "more": max(len(where) - 5, 0),
         })
     mp = _props(meta)
@@ -109,6 +117,7 @@ def cbom_view(doc: dict) -> dict[str, Any]:
         "assets": assets, "libraries": libraries, "weak": [a for a in assets if a["weak"]],
         "algorithms": sum(1 for a in assets if a["kind"] == "algorithm"),
         "protocols": sum(1 for a in assets if a["kind"] == "protocol"),
+        "certificates": sum(1 for a in assets if a["kind"] in ("certificate", "related-crypto-material")),
         "files_scanned": mp.get("files-scanned", ""), "scopes": mp.get("scanned-scopes", ""),
         "completeness": mp.get("completeness", ""), "timestamp": meta.get("timestamp", ""),
     }
