@@ -998,11 +998,21 @@ Unless `cbom.certificates: false`, the CBOM also lists:
 - PEM blocks inside C strings and DER certificates written as byte arrays in source
 - calls that handle certificates: parsing, chain verification, trust anchors, own certificate,
   private key loading and server name checks (Mbed TLS, OpenSSL, wolfSSL)
-- functions that may use certificates, found by name: a call or definition whose name has `cert`,
-  `certificate`, `x509`, `crl`, `ocsp` or `truststore` (`app_verify_certificate`, `LoadCaCert`).
-  The other words give the usage (verify, parse, trust anchor, own certificate, hostname, private
-  key), and the asset is `Certificate handling by name: <usage>` with `fwlens:confidence: low`.
-  Variables such as `cert_len` and words such as `certification` do not count
+- functions that may use certificates, found in two steps. Step one picks candidates: a function
+  whose name or parameter list has `cert`, `certificate`, `x509`, `crl`, `ocsp` or `truststore`.
+  Step two reads each body and follows calls, then gives a confidence, shown on the asset and in
+  `fwlens:analysis` with the reason per function:
+
+  | Confidence | Meaning |
+  |---|---|
+  | `high` | calls a certificate API directly (the catalogue, or an entry with `kind: certificate` in `cbom.apis`) |
+  | `medium` | named like a certificate function and the body handles certificate data (a certificate word in a name, or a PEM or `.crt` string), or it calls a high or medium function up to two calls away, so a wrapper with an unrelated name is found |
+  | `low` | named like a certificate function and nothing else seen, or called but defined outside the scanned files |
+
+  The other words in the name give the usage (verify, parse, trust anchor, own certificate,
+  hostname, private key). Variables such as `cert_len` and words such as `certification` do not
+  count. `cbom.autodetect: false` turns the name steps off and keeps the API step. Functions are
+  found lexically, so one reached through a function pointer or built by a macro is missed.
 
 Certificates are read directly (subject, issuer, validity, signature algorithm, key type and size)
 and appear as `certificate` assets, keys and keystores as `related-crypto-material`. `fwlens:weak`

@@ -108,7 +108,7 @@ def cbom_view(doc: dict) -> dict[str, Any]:
                  for o in c.get("evidence", {}).get("occurrences", [])]
         assets.append({
             "name": c.get("name", ""), "kind": kind, "detail": detail, "weak": p.get("weak", ""),
-            "evidence": p.get("evidence-kind", "") + (" (low confidence)" if p.get("confidence") else ""), "library": p.get("library", ""),
+            "evidence": p.get("evidence-kind", "") + (f" ({p['confidence'].split(':')[0]} confidence)" if p.get("confidence") else ""), "library": p.get("library", ""),
             "count": p.get("occurrence-count", ""), "where": where[:5], "more": max(len(where) - 5, 0),
         })
     mp = _props(meta)

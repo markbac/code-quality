@@ -10,7 +10,7 @@ import pytest
 
 from fwlens.cbom import build_cbom
 from fwlens.config import ConfigError, load_config
-from fwlens.crypto import certs
+from fwlens.crypto import certs, certuse
 from fwlens.crypto.keywords import load_keywords
 from tests.cyclonedx import validate_bom
 
@@ -226,14 +226,63 @@ def test_certificate_words_give_the_usage(token, usage):
     assert [h.entry.usage for h in hits if h.entry.kind == "certificate"] == [usage]
 
 
-def test_functions_that_may_use_certificates_are_found_by_name_but_variables_are_not(tmp_path):
-    write(tmp_path, {"src/main.c": ("int cert_len;\nint tls_verify_cert(const unsigned char *c);\n"
-                                    "void f(void) { tls_verify_cert(0); cert_len = 1; }\n"
-                                    "static void certification_notice(void);\n")})
-    found = assets(build_cbom(make_config(tmp_path)))
-    cert = [c for n, c in found.items() if "by name" in n]
-    assert [c["name"] for c in cert] == ["Certificate handling by name: verify"]
-    assert prop(cert[0], "fwlens:identifiers") == "tls_verify_cert" and prop(cert[0], "fwlens:occurrence-count") == "2"
-    assert "low" in prop(cert[0], "fwlens:confidence")
-    assert prop(cert[0], "fwlens:certificate-usage") == "verify"
-    validate_bom(build_cbom(make_config(tmp_path)))
+def uses(doc):
+    """{function: (usage, confidence)} from the certificate-use assets."""
+    out = {}
+    for c in doc["components"]:
+        if c["type"] == "cryptographic-asset" and prop(c, "fwlens:evidence-kind") == "analysis":
+            level = prop(c, "fwlens:confidence").split(":")[0]
+            for fn in prop(c, "fwlens:identifiers").split(", "):
+                out.setdefault(fn, set()).add((prop(c, "fwlens:certificate-usage"), level))
+    return out
+
+
+CERT_SOURCE = """
+int cert_len;
+int check_peer(void *c) { return mbedtls_x509_crt_verify(c, 0, 0, 0, 0, 0, 0); }
+void provision(void) { check_peer(0); }
+void boot(void) { provision(); }
+void start(void) { boot(); }
+int load_ca_cert(void) { static const char *p = "-----BEGIN CERTIFICATE-----"; return p != 0; }
+void cert_cleanup(void) { cleanup(); }
+void unrelated(void) { int certification = 1; (void)certification; }
+void caller(void) { vendor_verify_cert(0); cert_len = 1; }
+"""
+
+
+def test_certificate_functions_are_judged_in_two_steps_with_a_confidence(tmp_path):
+    write(tmp_path, {"src/main.c": CERT_SOURCE})
+    doc = build_cbom(make_config(tmp_path))
+    found = uses(doc)
+    assert found["check_peer"] == {("verify", "high")}                  # calls a certificate API
+    assert found["provision"] == {("verify", "medium")}                 # calls check_peer, whatever its own name
+    assert found["boot"] == {("verify", "medium")}                      # two calls away
+    assert "start" not in found                                          # three calls away is too distant
+    assert found["load_ca_cert"] == {("trust-anchor", "medium")}        # name plus a certificate string in the body
+    assert found["cert_cleanup"] == {("other", "low")}                  # name only
+    assert found["vendor_verify_cert"] == {("verify", "low")}           # called, defined elsewhere
+    assert "unrelated" not in found and "cert_len" not in found
+    high = next(c for c in doc["components"] if c["name"] == "Certificate use: verify (high confidence)")
+    assert "calls mbedtls_x509_crt_verify" in prop(high, "fwlens:analysis") and "src/main.c:3" in prop(high, "fwlens:analysis")
+    validate_bom(doc)
+
+
+def test_without_autodetect_only_certificate_api_calls_count(tmp_path):
+    write(tmp_path, {"src/main.c": CERT_SOURCE})
+    found = uses(build_cbom(make_config(tmp_path, "cbom:\n  autodetect: false\n")))
+    assert found["check_peer"] == {("verify", "high")} and found["provision"] == {("verify", "medium")}
+    assert "load_ca_cert" not in found and "cert_cleanup" not in found
+
+
+def test_a_certificate_api_added_in_the_config_makes_its_callers_high(tmp_path):
+    write(tmp_path, {"src/main.c": "void trust(void) { Vendor_LoadRoots(0); }\n"})
+    cfg = make_config(tmp_path, "cbom:\n  apis:\n    - {name: Vendor trust store, kind: certificate, usage: trust-anchor,"
+                                " identifiers: [Vendor_LoadRoots]}\n")
+    assert uses(build_cbom(cfg))["trust"] == {("trust-anchor", "high")}
+
+
+def test_function_extraction_ignores_prototypes_initialisers_and_macros():
+    text = ("#define BLOCK(x) { x; }\nint proto(void);\nstatic const int t[] = { 1, 2 };\n"
+            "struct s { int a; };\nint real(int a)\n{\n  if (a) { return 1; }\n  return 0;\n}\n")
+    funcs = certuse.functions_in(text, text, "a.c", lambda off: text.count("\n", 0, off) + 1)
+    assert [(f.name, f.line) for f in funcs] == [("real", 5)]

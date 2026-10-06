@@ -19,7 +19,7 @@ from pathlib import Path
 
 from fwlens import __version__
 from fwlens.config import FwLensConfig
-from fwlens.crypto import certs
+from fwlens.crypto import certs, certuse
 from fwlens.crypto.catalog import Entry, Library, Matcher, bits_and_mode, load_catalog
 from fwlens.crypto.keywords import add_apis, ignored, load_keywords
 from fwlens.identity import project_root, relative_posix
@@ -73,6 +73,8 @@ class _Asset:
     count: int = 0
     kinds: set[str] = field(default_factory=set)
     identifiers: set[str] = field(default_factory=set)
+    notes: list[str] = field(default_factory=list)
+    confidence: str = ""
 
 
 def _scan_files(config: FwLensConfig, result, root: Path) -> list[Path]:
@@ -208,6 +210,33 @@ def _certificate_components(found: list[certs.Found], now: datetime, warn_days: 
     return out
 
 
+def _certificate_functions(config, functions, named_calls, matcher, keywords, record) -> None:
+    """Step two of the certificate-by-name search: judge each function, then the leftover named calls."""
+    def api_usage(token: str) -> str | None:
+        hit = matcher.lookup(token)
+        return hit[1].usage if hit and hit[1].kind == "certificate" else None
+
+    def name_usage(token: str) -> str | None:
+        if not config.cbom.autodetect or ignored(token, config.cbom.ignore_identifiers):
+            return None
+        return next((h.entry.usage for h in keywords.match(token) if h.entry.kind == "certificate"), None)
+
+    judged = set()
+    for use in certuse.analyse(functions, api_usage, name_usage):
+        judged.add(use.function.name)
+        label = use.usage.replace("-", " ")
+        entry = Entry(id=f"certuse-{use.usage}-{use.confidence}", name=f"Certificate use: {label} ({use.confidence} confidence)",
+                      kind="certificate", usage=use.usage)
+        record(None, entry, use.function.name, use.function.where, use.function.line, "analysis", [],
+               forced=(None, None), note=use.reason, confidence=use.confidence)
+    for token, where, line, entry in named_calls:
+        if token not in judged and not any(f.name == token for f in functions):     # called but not defined here
+            low = Entry(id=f"certuse-{entry.usage}-low", name=f"Certificate use: {entry.usage.replace('-', ' ')} (low confidence)",
+                        kind="certificate", usage=entry.usage)
+            record(None, low, token, where, line, "analysis", [], forced=(None, None),
+                   note="called, named like a certificate function, not defined in the scanned files", confidence="low")
+
+
 def build_cbom(config: FwLensConfig, now: datetime | None = None) -> dict:
     from fwlens.parser.pipeline import read_project
     result = read_project(config)
@@ -218,13 +247,16 @@ def build_cbom(config: FwLensConfig, now: datetime | None = None) -> dict:
     add_apis(libraries, config.cbom.apis, keywords)
     matcher = Matcher(libraries)
     found_certs: list[certs.Found] = []
+    functions: list[certuse.Function] = []
+    named_calls: list[tuple[str, str, int, Entry]] = []       # certificate-worded calls, judged once every function is read
 
     assets: dict[tuple, _Asset] = {}
     present: dict[str, str] = {}              # library id -> why it is considered present
     suites: dict[str, list[tuple[str, int]]] = {}
 
     def record(lib: Library | None, entry: Entry, token: str, where: str, line: int, kind: str,
-               file_curves: list[str], forced: tuple[str | None, str | None] | None = None) -> None:
+               file_curves: list[str], forced: tuple[str | None, str | None] | None = None, note: str = "",
+               confidence: str = "") -> None:
         if forced is not None:
             bits, mode = forced
         else:
@@ -238,6 +270,9 @@ def build_cbom(config: FwLensConfig, now: datetime | None = None) -> dict:
             a.count += 1
             a.kinds.add(kind)
             a.identifiers.add(token)
+            a.confidence = confidence or a.confidence
+            if note and len(a.notes) < 10:
+                a.notes.append(f"{token} ({where}:{line}): {note}")
             if len(a.occurrences) < MAX_OCCURRENCES:
                 a.occurrences.append((where, line))
 
@@ -264,6 +299,8 @@ def build_cbom(config: FwLensConfig, now: datetime | None = None) -> dict:
             suites.setdefault(m.group(0), []).append((where, line_of(m.start())))
         if config.cbom.certificates and ("-----BEGIN" in raw or "0x30" in raw or "0X30" in raw):
             found_certs.extend(certs.scan_text(raw, where, "embedded", now, config.cbom.certificate_expiry_days))
+        if config.cbom.certificates:
+            functions.extend(certuse.functions_in(code, with_strings, where, line_of))
         include_lines = {line_of(m.start()) for m in _INCLUDE.finditer(with_strings)} if config.cbom.autodetect else set()
 
         file_curves = sorted({_curve(m.group(1)) for m in _CURVE.finditer(code)})
@@ -284,9 +321,13 @@ def build_cbom(config: FwLensConfig, now: datetime | None = None) -> dict:
                 if line not in include_lines and not _SUITE.fullmatch(token):      # suites have their own asset
                     called = code[m.end():m.end() + 40].lstrip().startswith("(")
                     for kw in keywords.match(token):
-                        if kw.entry.kind == "certificate" and not called:
-                            continue                      # a variable named cert_len is not a function that uses one
+                        if kw.entry.kind == "certificate":
+                            if called and config.cbom.certificates:       # a variable named cert_len is not a function
+                                named_calls.append((token, where, line, kw.entry))
+                            continue
                         record(None, kw.entry, token, where, line, "keyword", file_curves, forced=(kw.bits, kw.mode))
+
+    _certificate_functions(config, functions, named_calls, matcher, keywords, record)
 
     # A library named anywhere in the project file counts as present, even when its own sources are
     # outside the scanned scopes or it is only a precompiled archive.
@@ -382,6 +423,9 @@ def build_cbom(config: FwLensConfig, now: datetime | None = None) -> dict:
             properties.append({"name": "fwlens:library", "value": a.library.name})
         if e.kind == "certificate":
             properties.append({"name": "fwlens:certificate-usage", "value": e.usage})
+        if a.kinds == {"analysis"}:
+            properties.append({"name": "fwlens:confidence", "value": f"{a.confidence}: {certuse.LEVELS[a.confidence]}"})
+            properties.append({"name": "fwlens:analysis", "value": " | ".join(a.notes)})
         if a.kinds == {"keyword"}:
             properties.append({"name": "fwlens:confidence", "value": "low: matched by the words in the name, not by a "
                                                                        "catalogue entry"})
