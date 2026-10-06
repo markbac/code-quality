@@ -11,7 +11,7 @@
 - [JUnit and Markdown summaries](#junit-and-markdown-summaries)
 - [GitLab integration](#gitlab-integration)
 - [PR / MR quality check](#pr--mr-quality-check)
-- [Coding standards (MISRA C, CERT C)](#coding-standards-misra-c-cert-c)
+- [Coding standards (MISRA C, CERT C, Power of 10)](#coding-standards-misra-c-cert-c-power-of-10)
 - [Software bill of materials (SBOM)](#software-bill-of-materials-sbom)
 - [Cryptography bill of materials (CBOM)](#cryptography-bill-of-materials-cbom)
 - [Two-hash comparison](#two-hash-comparison)
@@ -99,7 +99,7 @@ Pass `-NoClean` to skip the automatic `.pyc` cache purge (faster re-runs when no
 | `sbom` | Write a CycloneDX 1.6 software bill of materials -- see [SBOM](#software-bill-of-materials-sbom) |
 | `cbom` | Write a CycloneDX 1.6 cryptography bill of materials -- see [CBOM](#cryptography-bill-of-materials-cbom) |
 | `compare`, `pr-comment` | Compare with the target branch; post the result -- see [PR / MR quality check](#pr--mr-quality-check) |
-| `standards list\|validate\|report` | MISRA C and CERT C rules, deviations, compliance matrix |
+| `standards list\|validate\|report` | MISRA C, CERT C and Power of 10 rules, deviations, compliance matrix |
 | `dump-ast` | Print the libclang AST for one file (see below) |
 
 `analyze` and `report` both accept `--baseline`, `--fail-on-breach`, `--update-baseline`,
@@ -612,7 +612,7 @@ violations from the MISRA/CERT work will use the same comparison.
 
 ---
 
-## Coding standards (MISRA C, CERT C)
+## Coding standards (MISRA C, CERT C, Power of 10)
 
 Optional and **off by default**: nothing changes unless `standards.enabled` is set. FWLens
 reports what it checked or imported. It never states that a project is compliant: a MISRA
@@ -627,6 +627,7 @@ standards:
       exclude_rules: ["D4.1"]
     - standard: cert-c
       include_ids: [ENV33-C, MSC30-C]
+    - standard: power-of-10                       # NASA/JPL, ids P10-1 to P10-10
   extra_rule_dirs: [./standards]                  # your own *.yaml rule files
   deviations_file: ./standards/deviations.yaml
   imports:                                        # results from other analysers
@@ -651,6 +652,10 @@ metadata (id, kind, category, decidable, scope, CWE) and a `check` block:
 | `import` | covered by results imported from another tool |
 | `manual` | needs human review, listed in the matrix as such |
 
+`check` may also be a list, for a guideline that needs more than one kind of check. A rule can
+add `coverage: partial` to say its native checks find some violations but not all. The matrix
+then shows `native (partial)` and "no findings" for it is not evidence of compliance.
+
 ```yaml
 - id: "21.3"
   kind: rule
@@ -664,9 +669,19 @@ metadata (id, kind, category, decidable, scope, CWE) and a `check` block:
     match: { cursor: CALL_EXPR, callee_in: [malloc, calloc, realloc, free] }
 ```
 
-Engines: `ast` (a libclang cursor kind, optionally restricted to named callees),
-`compound_body` (selection and iteration statements without a compound body) and `callgraph`
-(call cycles, for recursion). Adding a rule that fits an engine is a YAML edit only. Files are
+Engines:
+
+| Engine | What it does | `match` |
+|---|---|---|
+| `ast` | a libclang cursor kind, optionally restricted to named callees | `cursor`, `callee_in`, `callee_prefix` |
+| `compound_body` | selection and iteration statements without a compound body | none |
+| `callgraph` | call cycles, for recursion | `cycle: true` |
+| `detector` | a named check over the syntax tree and types (essential type model, expressions, declarations, control flow, library use) | `name`, plus the detector's own parameters, for example `limit` |
+| `source` | a named check, or a regular expression, over the source text and preprocessor directives | `name` or `pattern` (and `target`) |
+| `diagnostic` | warnings libclang reports while parsing | `option` (the `-W` name, or a list) and/or `pattern`, with `flags` to switch warnings on |
+| `system` | whole-project checks over every first-party translation unit (identifier uniqueness, linkage, unused declarations) | `name` |
+
+Adding a rule that fits an engine is a YAML edit only. Files are
 validated on load with errors that name the file, rule and field, and
 `fwlens standards validate [FILES...]` checks rule and deviation files. `fwlens standards list`
 shows every rule, how it is checked and which are enabled; `--rule-dir DIR` adds a rule directory
@@ -728,15 +743,35 @@ The built-in files carry guideline **ids**, the published category, decidability
 short FWLens-written descriptions of what each check detects. They contain no MISRA or CERT
 guideline text. Point your own tooling at your licensed copy for the official wording.
 
-Current coverage is a starter set: MISRA C:2012 15.1, 15.6, 17.2, 21.3, 21.4, 21.6 to 21.10
-natively (9.1, 14.4, 17.7 import-only, Dir 4.1 manual) and CERT C ENV33-C, MSC30-C, MSC24-C
-natively (EXP34-C, INT30-C, ARR38-C, ERR33-C import-only). Native checks match call names, so a
-project function that shares a name with a library function is a false positive. Code in headers
-is not analysed, only the translation units. Recursion follows direct calls only.
+| Standard | Guidelines | Native | Of which partial | Import only | Manual |
+|---|---|---|---|---|---|
+| MISRA C:2012 (`misra-c-2012`) | 219 | 160 | 61 | 4 | 55 |
+| SEI CERT C (`cert-c`) | 276 | 96 | 67 | 8 | 172 |
+| NASA/JPL Power of 10 (`power-of-10`) | 10 | 9 | 6 | 0 | 1 |
+
+Every MISRA C:2012 directive and rule is listed, as is every CERT C rule and a selection of the
+recommendations. A guideline is `native` when FWLens checks it, `import` when it relies on results
+from another analyser, and `manual` when only review can settle it. **Partial** means the native
+check finds a clear subset of the violations (an essential type model that stays silent when it is
+unsure, direct calls only, first-party code only). Such a guideline never reads as compliant:
+"no findings" for it means nothing was found, not that the code complies. Use `fwlens standards
+list` to see how each guideline is checked.
+
+Limits to know about:
+
+- Native checks match call names, so a project function that shares a name with a library
+  function is a false positive.
+- Statements written by a macro, such as the `if (e) ; else` inside glibc's `assert`, are not
+  reported.
+- Code in headers is analysed through the translation units that include it. The `system` checks
+  only see first-party translation units, so something used only from SDK or third-party code
+  looks unused. Those rules are marked partial.
+- Recursion follows direct calls only.
+- The `format` and `format-security` checks (CERT FIO30-C and FIO47-C) switch on libclang's
+  built-in knowledge of `printf`, which FWLens normally turns off.
 
 Not implemented yet, each tracked on its own: MISRA C:2023 (#87), message triage and
-recategorisation records (#88), more native rules (#89), system-scope checks (#90) and a GitLab
-SAST report (#91).
+recategorisation records (#88) and a GitLab SAST report (#91).
 
 ### Licensing of the rule data
 
@@ -1945,7 +1980,7 @@ See [Software bill of materials](#software-bill-of-materials-sbom) and
 
 `pr_check`, `match`, `standards`, `git` and `estimation` are described in their own sections:
 [PR / MR quality check](#pr--mr-quality-check), [Moved and renamed code](#moved-and-renamed-code),
-[Coding standards](#coding-standards-misra-c-cert-c), [Git history warnings](#git-history-warnings)
+[Coding standards](#coding-standards-misra-c-cert-c-power-of-10), [Git history warnings](#git-history-warnings)
 and [COCOMO effort estimate](#cocomo-effort-estimate).
 
 ---

@@ -267,12 +267,13 @@ output:
 #   # usage_functions: [xQueueSend, xQueueReceive, xSemaphoreTake, xSemaphoreGive]
 #   # return_value_functions: [xQueueCreate, xSemaphoreCreateBinary, xSemaphoreCreateMutex]
 
-# Optional coding-standard checks (MISRA C, CERT C). Off unless enabled. See FWLENS_GUIDE.md.
+# Optional coding-standard checks (MISRA C, CERT C, Power of 10). Off unless enabled. See FWLENS_GUIDE.md.
 # standards:
 #   enabled:
 #     - standard: misra-c-2012
 #       include_categories: [mandatory, required]
 #     - standard: cert-c
+#     - standard: power-of-10
 #   extra_rule_dirs: [./standards]
 #   deviations_file: ./standards/deviations.yaml
 #   imports:

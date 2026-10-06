@@ -1,0 +1,114 @@
+# Built-in NASA/JPL "Power of 10" rule set (Gerard Holzmann, "The Power of 10: Rules for
+# Developing Safety-Critical Code", IEEE Computer, June 2006). Ids are P10-1 to P10-10. Titles
+# are short paraphrases of the ten rules.
+#
+# `coverage: partial` means the native check finds some violations, not all, so "no findings"
+# does not show compliance. Rule 2 (loop bounds) needs review.
+schema_version: 1
+standard:
+  id: power-of-10
+  name: NASA/JPL Power of 10
+  revision: "2006"
+  language: c
+  guideline_text: https://spinroot.com/gerard/pdf/P10.pdf
+  categories: [rule]
+  undeviable_categories: []
+  severity_map: { rule: warning }
+
+rules:
+  - id: "P10-1"
+    kind: rule
+    title: "Use only simple control flow: no goto, setjmp, longjmp or recursion"
+    category: rule
+    decidable: false
+    scope: system
+    check:
+      - { type: "native", engine: "ast", match: { cursor: "GOTO_STMT" } }
+      - { type: "native", engine: "ast", match: { cursor: "CALL_EXPR", callee_in: ["setjmp", "longjmp"] } }
+      - { type: "native", engine: "callgraph", match: { cycle: true } }
+    coverage: partial
+    notes: "Recursion through function pointers is not detected."
+
+  - id: "P10-2"
+    kind: rule
+    title: "Give all loops a fixed upper bound"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "P10-3"
+    kind: rule
+    title: "Do not use dynamic memory allocation after initialisation"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "ast", match: { cursor: "CALL_EXPR", callee_in: ["malloc", "calloc", "realloc", "free", "aligned_alloc"] } }
+    notes: "Reports every use of the allocator, including calls made during initialisation."
+
+  - id: "P10-4"
+    kind: rule
+    title: "Keep functions short enough to print on one page (60 lines)"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "function_length", limit: 60 } }
+
+  - id: "P10-5"
+    kind: rule
+    title: "Use at least two assertions per function on average"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "assertion_density", minimum: 2 } }
+    notes: "Checked per function, which is stricter than the average the rule asks for."
+
+  - id: "P10-6"
+    kind: rule
+    title: "Declare data objects at the smallest possible scope"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "object_used_by_one_function" } }
+
+  - id: "P10-7"
+    kind: rule
+    title: "Check return values and validate parameters"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "unused_call_result" } }
+    notes: "Parameter validation needs review."
+
+  - id: "P10-8"
+    kind: rule
+    title: "Limit the preprocessor to includes and simple macros"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check:
+      - { type: "native", engine: "source", match: { name: "stringise_or_paste" } }
+      - { type: "native", engine: "source", match: { name: "function_like_macro" } }
+
+  - id: "P10-9"
+    kind: rule
+    title: "Limit pointer use to a single level of dereference, avoid function pointers"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check:
+      - { type: "native", engine: "detector", match: { name: "pointer_nesting", limit: 1 } }
+      - { type: "native", engine: "detector", match: { name: "function_pointer_declared" } }
+
+  - id: "P10-10"
+    kind: rule
+    title: "Compile with all warnings enabled and keep the code warning free"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "diagnostic", match: { flags: ["-Wall", "-Wextra", "-Wpedantic"], pattern: "." } }

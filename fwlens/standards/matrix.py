@@ -11,7 +11,9 @@ import json
 from collections import Counter
 
 DISCLAIMER = ("This matrix reports what FWLens checked or imported. It is not a MISRA Compliance claim: "
-              "that also needs an enforcement plan, any recategorization and deviation records.")
+              "that also needs an enforcement plan, any recategorization and deviation records. "
+              "\"native (partial)\" means the check finds some violations of the guideline, not all of them, "
+              "so \"no findings\" for such a guideline does not show compliance.")
 
 
 def build_matrix(result) -> list[dict]:
@@ -21,22 +23,28 @@ def build_matrix(result) -> list[dict]:
     for f, d in result.deviated:
         dev_ids.setdefault(f.metric, set()).add(d.id)
     rows = []
+    imports_supplied = bool(result.sources.get("_imports"))
     for rule in result.rules:
         evidence = sorted(result.sources.get(rule.key, set()))
+        native = rule.check_type == "native"
+        partial = native and rule.coverage == "partial"
+        label = "native (partial)" if partial else "native"
         if rule.check_type == "manual":
             status, how = "manual review", "manual"
         elif active[rule.key]:
-            status, how = "violated", "+".join(evidence)
+            status, how = "violated", "+".join(label if e == "native" else e for e in evidence)
         elif deviated[rule.key]:
-            status, how = "deviated", "+".join(evidence)
-        elif rule.check_type == "native":
-            status, how = "no findings", "native"
+            status, how = "deviated", "+".join(label if e == "native" else e for e in evidence)
+        elif native:
+            status = "no findings"
+            how = label + ("+imported" if imports_supplied and any(c.type == "import" for c in rule.checks) else "")
         else:
-            status = "no findings reported" if result.sources.get("_imports") else "not assessed"
-            how = "imported" if result.sources.get("_imports") else "import-only, no results supplied"
+            status = "no findings reported" if imports_supplied else "not assessed"
+            how = "imported" if imports_supplied else "import-only, no results supplied"
         rows.append({
             "standard": rule.standard, "id": rule.id, "kind": rule.kind, "title": rule.title,
             "category": rule.category, "decidable": rule.decidable, "scope": rule.scope,
+            "coverage": rule.coverage if native else "none",
             "status": status, "checked_by": how, "violations": active[rule.key],
             "deviated": deviated[rule.key], "deviations": sorted(dev_ids.get(rule.key, [])),
         })

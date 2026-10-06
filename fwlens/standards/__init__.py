@@ -15,9 +15,15 @@ from fwlens.config import FwLensConfig, StandardSelection
 from fwlens.identity import project_root, relative_posix, statement_fingerprint
 from fwlens.model.project import ProjectModel
 from fwlens.standards.deviations import Deviation, apply_deviations, load_deviations, scan_markers
-from fwlens.standards.engines import Hit, run_ast_engines, run_callgraph_engine
+from fwlens.standards.engines import Hit, Records, run_ast_engines, run_callgraph_engine, run_system_engines
 from fwlens.standards.importers import map_to_rule, read_import
 from fwlens.standards.rules import Rule, RuleFileError, Standard, load_standards
+from fwlens.standards.sourcechecks import (
+    diagnostic_flags,
+    first_party_files,
+    run_diagnostic_engine,
+    run_source_engines,
+)
 
 __all__ = ["RuleFileError", "StandardsResult", "load_standards", "run_standards", "select_rules"]
 
@@ -70,26 +76,39 @@ def _finding(rule: Rule, root: Path, file: Path, line: int, function: str | None
                   description=rule.title)
 
 
+def _has_engine(rule: Rule, *engines: str) -> bool:
+    return any(c.engine in engines for c in rule.native_checks)
+
+
 def _native_hits(model: ProjectModel, config: FwLensConfig, rules: list[Rule]) -> list[Hit]:
     native = [r for r in rules if r.check_type == "native"]
     if not native:
         return []
     hits: list[Hit] = []
     file_cache: dict = {}
-    ast_rules = [r for r in native if r.engine in ("ast", "compound_body")]
-    if ast_rules:
+    records = Records()
+    diag_rules = [r for r in native if _has_engine(r, "diagnostic")]
+    ast_rules = [r for r in native if _has_engine(r, "ast", "compound_body", "detector")]
+    system_rules = [r for r in native if _has_engine(r, "system")]
+    if ast_rules or diag_rules or system_rules:
         import fwlens.parser.ast_walker as walker
         from fwlens.parser.ast_walker import _ensure_clang, build_clang_args
         _ensure_clang(config)
         ci = walker._clang
         first_party = {Path(m.path) for m in model.first_party_modules()}
+        fp_files = {str(p) for p in first_party_files(model, config)}
+        extra = diagnostic_flags(diag_rules)
         for tu in model.translation_units:
             if Path(tu.path) not in first_party or not Path(tu.path).exists():
                 continue
             index = ci.Index.create()
-            parsed = index.parse(str(tu.path), args=build_clang_args(tu, config))
-            hits.extend(run_ast_engines(ci, Path(tu.path), parsed, ast_rules, file_cache))
+            parsed = index.parse(str(tu.path), args=[*build_clang_args(tu, config), "-D__NO_CTYPE", *extra])
+            hits.extend(run_ast_engines(ci, Path(tu.path), parsed, ast_rules, file_cache, records,
+                                        collect=bool(system_rules), first_party=fp_files))
+            hits.extend(run_diagnostic_engine(Path(tu.path), parsed, diag_rules))
     hits.extend(run_callgraph_engine(model, native, file_cache))
+    hits.extend(run_system_engines(records, system_rules))
+    hits.extend(run_source_engines(model, config, [r for r in native if _has_engine(r, "source")]))
     return hits
 
 

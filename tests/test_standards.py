@@ -48,7 +48,7 @@ def test_builtin_rule_files_are_valid():
 
 def test_builtin_files_carry_no_guideline_text():
     for f in BUILTIN_DIR.glob("*.yaml"):
-        assert yaml.safe_load(f.read_text())["standard"]["guideline_text"] in ("user-supplied", "https://wiki.sei.cmu.edu/confluence/display/c")
+        assert yaml.safe_load(f.read_text())["standard"]["guideline_text"] in ("user-supplied", "https://wiki.sei.cmu.edu/confluence/display/c", "https://spinroot.com/gerard/pdf/P10.pdf")
         for rule in yaml.safe_load(f.read_text())["rules"]:
             assert len(rule["title"]) < 90   # short paraphrase, not a pasted paragraph
 
@@ -360,7 +360,7 @@ def test_matrix_statuses_and_disclaimer(parsed, tmp_path):
     assert rows["21.3"]["status"] == "deviated" and rows["21.3"]["deviations"] == ["DEV-1"]
     assert rows["21.7"]["status"] == "no findings"
     assert rows["D4.1"]["status"] == "manual review"
-    assert rows["9.1"]["status"] == "not assessed" and "no results" in rows["9.1"]["checked_by"]
+    assert rows["8.13"]["status"] == "not assessed" and "no results" in rows["8.13"]["checked_by"]
     md = render_markdown(result)
     assert DISCLAIMER in md and "| 15.1 | advisory |" in md
     assert json.loads(render_json(result))["summary"]["violated"] >= 3
@@ -476,7 +476,7 @@ def test_standards_csv_lists_every_selected_guideline(parsed):
     config.output.exports_dir = work / "exports"
     export_csv(model, config)
     rows = {r["id"]: r for r in csv.DictReader(open(work / "exports" / "standards.csv", encoding="utf-8"))}
-    assert rows["15.1"]["status"] == "violated" and rows["9.1"]["status"] == "not assessed"
+    assert rows["15.1"]["status"] == "violated" and rows["8.13"]["status"] == "not assessed"
     assert rows["D4.1"]["status"] == "manual review"
 
 

@@ -10,7 +10,7 @@
 - **RTOS Analysis**: Mappings for embOS RTOS tasks, stacks, priorities, mailboxes, semaphores, and synchronization mechanisms.
 - **Git Hotspot Mining**: Correlates commit churn with structural complexity to pinpoint high-risk files.
 - **Auto-Stubbing & Header Checks**: Automatic stub generation for missing include headers and missing compiler definitions.
-- **Standards and Quality Gates**: MISRA C and CERT C checks with a deviation register and compliance matrix; baselines, a pull-request check, Flash and RAM growth limits from the linker map, and run history.
+- **Standards and Quality Gates**: MISRA C:2012, CERT C and NASA/JPL Power of 10 checks (over 250 guidelines checked natively) with a deviation register and compliance matrix; baselines, a pull-request check, Flash and RAM growth limits from the linker map, and run history.
 - **SBOM and CBOM**: `fwlens sbom` writes a CycloneDX 1.6 software bill of materials from the source tree, and `fwlens cbom` a cryptography bill of materials of the algorithms, protocols and libraries the code names (detected usage only, not a complete inventory).
 - **Rich Reporting**: Outputs summary console tables, CSV data exports, JSON metrics, Mermaid dependency diagrams, and self-contained interactive HTML dashboards.
 
@@ -78,7 +78,7 @@ fwlens report --config config.yaml     # HTML report plus CSV and JSON exports
 
 Useful options on `analyze`, `report` and `export`: `--jobs/-j`, `--timeout` and `--no-cache` for parsing, `--auto-stub` for missing toolchain headers, and `--fail-on-parse-error`.
 
-Other commands: `init` writes a starter config, `config-schema` prints the JSON Schema for editors, `compare` and `pr-comment` check a pull request, `standards` checks MISRA C and CERT C, `call-graph` draws one function's neighbourhood, `diff-breach` compares two exports, and `debug`, `debug-parse` and `dump-ast` diagnose parsing. The guide's Commands section lists them all.
+Other commands: `init` writes a starter config, `config-schema` prints the JSON Schema for editors, `compare` and `pr-comment` check a pull request, `standards` checks MISRA C, CERT C and Power of 10, `call-graph` draws one function's neighbourhood, `diff-breach` compares two exports, and `debug`, `debug-parse` and `dump-ast` diagnose parsing. The guide's Commands section lists them all.
 
 ### Bills of materials
 
@@ -93,7 +93,7 @@ Both write to `output.exports_dir`, or `output.formats: [sbom, cbom]` makes `rep
 
 - **Baselines**: `--baseline baseline.json` with `--fail-on-breach` fails only on new or worsened breaches; `--update-baseline` records the current state. Findings follow code that moves or is renamed; matching is heuristic, so a function that is largely rewritten shows as one resolved and one new finding, and `diff-breach` on exports without fingerprints matches by key only. Tune it with the `match:` section (see the guide, "Moved and renamed code").
 - **GitHub and GitLab**: `--github-annotations`, `--gitlab-codequality`, `--findings-json`, and `fwlens pr-comment` for pull and merge requests. See the guide for the GitHub Action and GitLab template.
-- **Coding standards**: `fwlens standards list`, `validate` and `report` check MISRA C and CERT C rules, with deviations and a compliance matrix.
+- **Coding standards**: `fwlens standards list`, `validate` and `report` check MISRA C, CERT C and Power of 10 rules, with deviations and a compliance matrix.
 
 Git-history metrics (hotspots, coupling, ownership) need full history; use `fetch-depth: 0` with `actions/checkout`.
 
