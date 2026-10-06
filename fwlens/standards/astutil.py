@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 
 def kids(cursor) -> list:
     return list(cursor.get_children())
@@ -395,15 +397,24 @@ def value_unused(ctx, cursor) -> bool:
     return False
 
 
+_FORTIFIED = re.compile(r"^__builtin___(\w+?)_chk$")
+
+
+def _plain(name: str) -> str:
+    """A fortified libc macro (macOS: strcpy -> __builtin___strcpy_chk) is reported as the function the code wrote."""
+    m = _FORTIFIED.match(name)
+    return m.group(1) if m else name
+
+
 def callee_name(cursor) -> str:
     """The name of the function a CALL_EXPR calls, also when the name is parenthesised: (f)(x)."""
     ref = cursor.referenced
     if ref is not None and kind_name(ref) == "FUNCTION_DECL":
-        return ref.spelling
+        return _plain(ref.spelling)
     if not cursor.spelling:
         head = kids(cursor)[:1]
         for node in (head[0].walk_preorder() if head else ()):
             target = node.referenced if kind_name(node) == "DECL_REF_EXPR" else None
             if target is not None and kind_name(target) == "FUNCTION_DECL":
-                return target.spelling
-    return cursor.spelling
+                return _plain(target.spelling)
+    return _plain(cursor.spelling)

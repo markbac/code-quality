@@ -99,8 +99,8 @@ def test_tool_config_keys_are_loaded(tmp_path):
         "project:\n  source_dir: src\n"
     )
     tool = load_config(cfg).tool
-    assert tool.target == "native" and tool.sysroot == Path("/opt/sys")
-    assert tool.system_include_dirs == [Path("/a"), Path("/b")]
+    assert tool.target == "native" and tool.sysroot == Path("/opt/sys").resolve()      # a drive letter on Windows
+    assert tool.system_include_dirs == [Path("/a").resolve(), Path("/b").resolve()]
     assert tool.clang_args == ["-std=c11"] and tool.auto_detect_includes is False
     assert tool.parse_error_threshold == 0.1
 

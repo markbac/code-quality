@@ -47,7 +47,8 @@ def _keys():
         yield key, key
 
 
-@pytest.mark.parametrize("where,text", [("FWLENS_GUIDE.md", GUIDE), ("config.example.yaml", EXAMPLE)])
+@pytest.mark.parametrize("where,text", [("FWLENS_GUIDE.md", GUIDE), ("config.example.yaml", EXAMPLE)],
+                         ids=["guide", "example"])   # not the file text: a 100 KB test id breaks the Windows runner
 def test_every_config_key_is_documented(where, text):
     missing = [full for full, key in _keys() if key not in text]
     assert not missing, f"not in {where}: {missing}"

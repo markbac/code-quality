@@ -114,10 +114,11 @@ def test_west_build_database_with_zephyr_flags(tmp_path):
     src = tmp_path / "app" / "src"
     src.mkdir(parents=True)
     (src / "main.c").write_text("int main(void) { return 0; }\n")
+    here = tmp_path.as_posix()                 # a command line is shell syntax: backslashes would be escapes
     cmd = ("/opt/zephyr-sdk/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc -DKERNEL -D__ZEPHYR__=1 "
-           f"-DNRF52840_XXAA -I{tmp_path}/app/src -isystem /opt/zephyr/include "
-           f"-imacros {tmp_path}/build/zephyr/include/generated/autoconf.h -mcpu=cortex-m4 -mthumb "
-           f"-std=c99 -o CMakeFiles/app.dir/src/main.c.obj -c {src}/main.c")
+           f"-DNRF52840_XXAA -I{here}/app/src -isystem /opt/zephyr/include "
+           f"-imacros {here}/build/zephyr/include/generated/autoconf.h -mcpu=cortex-m4 -mthumb "
+           f"-std=c99 -o CMakeFiles/app.dir/src/main.c.obj -c {here}/app/src/main.c")
     config = db_config(tmp_path, compile_db(tmp_path, [{"directory": str(tmp_path / "build"), "command": cmd,
                                                          "file": str(src / "main.c")}]))
     result = parse_compile_commands(config)

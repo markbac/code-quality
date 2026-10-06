@@ -63,9 +63,9 @@ jobs:
         if: failure()
         shell: bash
         run: |
-          grep -E '^(FAILED|ERROR) ' pytest.log | head -25 | while IFS= read -r line; do
-            echo "::error title=pytest::${line:0:900}"
-          done
+          # one annotation holding every failure (GitHub shows only ten annotations per step)
+          msgs=$(grep -E '^(FAILED|ERROR) ' pytest.log | cut -c1-230 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          echo "::error title=pytest failures::${msgs:0:3800}"
 
       - name: Upload coverage
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'

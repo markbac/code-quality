@@ -1,5 +1,6 @@
 """Git history: one pass, exact file names, mailmap, shallow clones, visible failures (#65)."""
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -35,7 +36,7 @@ def repo(tmp_path):
 
 
 def test_names_are_preserved_exactly(repo):
-    names = ["café ü.c", " lead.c", '"quoted".c', "trail .c"]
+    names = ["café ü.c", " lead.c", "trail .c"] + ([] if os.name == "nt" else ['"quoted".c'])   # Windows forbids "
     for n in names:
         (repo / n).write_text("x")
     commit(repo, "add files")
