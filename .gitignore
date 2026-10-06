@@ -219,3 +219,5 @@ __marimo__/
 
 # FWLens run output (reports, exports, cache). Generated, may contain local paths.
 output/
+# ...but not the package that is named output.
+!fwlens/output/
