@@ -11,7 +11,7 @@
 - [JUnit and Markdown summaries](#junit-and-markdown-summaries)
 - [GitLab integration](#gitlab-integration)
 - [PR / MR quality check](#pr--mr-quality-check)
-- [Coding standards (MISRA C, CERT C, Power of 10)](#coding-standards-misra-c-cert-c-power-of-10)
+- [Coding standards (MISRA C, CERT C, Power of 10)](#coding-standards-misra-c-cert-c-barr-c-power-of-10)
 - [Software bill of materials (SBOM)](#software-bill-of-materials-sbom)
 - [Cryptography bill of materials (CBOM)](#cryptography-bill-of-materials-cbom)
 - [Two-hash comparison](#two-hash-comparison)
@@ -99,7 +99,7 @@ Pass `-NoClean` to skip the automatic `.pyc` cache purge (faster re-runs when no
 | `sbom` | Write a CycloneDX 1.6 software bill of materials -- see [SBOM](#software-bill-of-materials-sbom) |
 | `cbom` | Write a CycloneDX 1.6 cryptography bill of materials -- see [CBOM](#cryptography-bill-of-materials-cbom) |
 | `compare`, `pr-comment` | Compare with the target branch; post the result -- see [PR / MR quality check](#pr--mr-quality-check) |
-| `standards list\|validate\|report` | MISRA C, CERT C and Power of 10 rules, deviations, compliance matrix |
+| `standards list\|validate\|report` | MISRA C, CERT C, BARR-C and Power of 10 rules, deviations, compliance matrix |
 | `dump-ast` | Print the libclang AST for one file (see below) |
 
 `analyze` and `report` both accept `--baseline`, `--fail-on-breach`, `--update-baseline`,
@@ -551,6 +551,18 @@ Set `upload-sarif: "true"` (with `permissions: security-events: write`) to send 
 GitHub code scanning. Outside the action, `fwlens analyze --sarif out.sarif` (also on `report` and
 `export`, or `sarif` in `output.formats`) writes SARIF 2.1.0 for `github/codeql-action/upload-sarif`.
 
+The SARIF file also carries the key metrics, so a SARIF viewer shows them without the HTML report:
+
+- `runs[0].properties.fwlens.summary`: files, functions, LOC, average and maximum cyclomatic
+  complexity, maximum cognitive complexity and nesting depth, average maintainability index.
+- `runs[0].properties.fwlens.functions`: the most complex functions first (up to 500), each with
+  file, line, LOC, cyclomatic and cognitive complexity, nesting depth, parameters, return paths,
+  fan-in, fan-out and maintainability index. `functionsTotal` says how many exist.
+- `runs[0].artifacts`: one entry per first-party file with its length and properties for LOC,
+  function count, average and maximum cyclomatic complexity, maintainability, fan-in, fan-out
+  and instability.
+- Metric-breach results carry `properties` with `metric`, `value`, `threshold` and `function`.
+
 Inputs reach the shell as environment variables, not as pasted text. `pip install fwlens` in
 your own workflow works equally well; the pre-commit hook analyses the whole project on each
 commit.
@@ -612,7 +624,7 @@ violations from the MISRA/CERT work will use the same comparison.
 
 ---
 
-## Coding standards (MISRA C, CERT C, Power of 10)
+## Coding standards (MISRA C, CERT C, BARR-C, Power of 10)
 
 Optional and **off by default**: nothing changes unless `standards.enabled` is set. FWLens
 reports what it checked or imported. It never states that a project is compliant: a MISRA
@@ -628,6 +640,8 @@ standards:
     - standard: cert-c
       include_ids: [ENV33-C, MSC30-C]
     - standard: power-of-10                       # NASA/JPL, ids P10-1 to P10-10
+    - standard: misra-c-2023                      # or misra-c-2012
+    - standard: barr-c-2018                       # Barr Group Embedded C, ids such as 6.1.e
   extra_rule_dirs: [./standards]                  # your own *.yaml rule files
   deviations_file: ./standards/deviations.yaml
   imports:                                        # results from other analysers
@@ -746,10 +760,17 @@ guideline text. Point your own tooling at your licensed copy for the official wo
 | Standard | Guidelines | Native | Of which partial | Import only | Manual |
 |---|---|---|---|---|---|
 | MISRA C:2012 (`misra-c-2012`) | 219 | 160 | 61 | 4 | 55 |
+| MISRA C:2023 (`misra-c-2023`) | 222 | 161 | 62 | 4 | 57 |
+| BARR-C:2018 (`barr-c-2018`) | 155 | 89 | 38 | 0 | 66 |
 | SEI CERT C (`cert-c`) | 276 | 96 | 67 | 8 | 172 |
 | NASA/JPL Power of 10 (`power-of-10`) | 10 | 9 | 6 | 0 | 1 |
 
-Every MISRA C:2012 directive and rule is listed, as is every CERT C rule and a selection of the
+`misra-c-2012` already includes Amendments 1 to 4. `misra-c-2023` is the same set plus the
+concurrency directives 5.1 to 5.3, with the same checks behind the shared guidelines, so choose
+the one your project claims. BARR-C ids follow the standard's own numbering (`6.1.e`, `7.1.j`);
+layout rules (white space, indentation, brace placement) read the text of the file and are
+approximate, so they are partial. Barr's categories ("shall" and "should") are read from the
+wording, so check them against your copy. Every MISRA C:2012 directive and rule is listed, as is every CERT C rule and a selection of the
 recommendations. A guideline is `native` when FWLens checks it, `import` when it relies on results
 from another analyser, and `manual` when only review can settle it. **Partial** means the native
 check finds a clear subset of the violations (an essential type model that stays silent when it is
@@ -770,7 +791,7 @@ Limits to know about:
 - The `format` and `format-security` checks (CERT FIO30-C and FIO47-C) switch on libclang's
   built-in knowledge of `printf`, which FWLens normally turns off.
 
-Not implemented yet, each tracked on its own: MISRA C:2023 (#87), message triage and
+Not implemented yet, each tracked on its own: message triage and
 recategorisation records (#88) and a GitLab SAST report (#91).
 
 ### Licensing of the rule data
@@ -784,8 +805,9 @@ This is a record of the position, not legal advice, and the question is **not se
   own tooling at your licensed copy.
 - **Open:** whether MISRA (HORIBA MIRA) permits bundling the ids, categories and decidability
   attributes, and what the CERT and CWE terms allow, has not been confirmed with the owners.
-  Until it is, treat the bundled MISRA data as unconfirmed, and do not add MISRA C:2023 data to
-  the package (#87). Because rules are plain YAML, a project can move them into its own
+  Until it is, treat the bundled MISRA data (C:2012 and C:2023, which carry only ids, categories,
+  decidability and paraphrased titles) as unconfirmed. BARR-C is published by Barr Group, who
+  release the standard for free download. Because rules are plain YAML, a project can move them into its own
   `standards.extra_rule_dirs` and drop the built-in file if that is the safer course.
 
 ---
@@ -830,6 +852,31 @@ sbom:
       supplier: Amazon
       purl: pkg:github/FreeRTOS/FreeRTOS-Kernel@V10.4.3
 ```
+
+### A hand-kept components file
+
+Firmware that is not in the source tree (a bootloader in protected flash, modem firmware
+delivered as a binary, a second processor, the toolchain) goes in a `components.yaml`:
+
+```yaml
+sbom:
+  components_file: sbom/components.yaml
+  application_version: "2.0.1"
+```
+
+The file has a `metadata` section (supplier, author, last review), an optional `product`, and any
+number of component lists; a section may hold lists itself (`application_firmware` with
+`first_party` and `third_party`). Per component: `name`, `version`, `type` (`device`, `firmware`,
+`operating-system`, `library`, `framework`, `application`, `toolchain`, `platform`, `container`,
+`data`, `file`, `device-driver`), `supplier`, `supplier_url`, `supplier_contact`, `license`,
+`spdx_expression`, `license_notes`, `purl`, `cpe`, `location`, `description`, `notes`,
+`copyright`, `cve_checked` and `compliance_actions`.
+
+With a `product` section the product becomes the described component and the scanned firmware
+one of its parts. Empty values and `unknown` are left out of the SBOM and listed in each
+component's `fwlens:gaps` property and in `fwlens:components-file-gaps`, so a missing version,
+licence or CVE check stays visible. The same file format works with
+[py-sbomkit](https://github.com/markbac/py-sbomkit) (`py-sbomkit . --components components.yaml`).
 
 > **Note:** this is an inventory of what is in the source tree, taken before the build
 > (`lifecycles: pre-build`). FWLens is not a package manager, so it cannot see how a binary was
@@ -1947,6 +1994,11 @@ output:
   source_embed_loc_limit: 10000
 ```
 
+Listing `sbom`, `cbom` or `sarif` in `formats` also adds a readable **SBOM**, **CBOM** or **SARIF**
+tab to the HTML report: components with licences, versions and gaps; algorithms, protocols and weak
+items with where they appear; and results by level, rule and file with the key metrics. The tabs
+read the same documents the files contain.
+
 `reports_dir` holds the HTML report, `exports_dir` the CSV, JSON, SARIF, SBOM and CBOM files,
 `cache_dir` the parse cache and `db_path` the [run history](#run-history-trends-and-the-ratchet).
 These paths are relative to the directory you run `fwlens` from. `top_n` is the number of top
@@ -1980,7 +2032,7 @@ See [Software bill of materials](#software-bill-of-materials-sbom) and
 
 `pr_check`, `match`, `standards`, `git` and `estimation` are described in their own sections:
 [PR / MR quality check](#pr--mr-quality-check), [Moved and renamed code](#moved-and-renamed-code),
-[Coding standards](#coding-standards-misra-c-cert-c-power-of-10), [Git history warnings](#git-history-warnings)
+[Coding standards](#coding-standards-misra-c-cert-c-barr-c-power-of-10), [Git history warnings](#git-history-warnings)
 and [COCOMO effort estimate](#cocomo-effort-estimate).
 
 ---

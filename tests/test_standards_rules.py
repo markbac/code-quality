@@ -12,6 +12,7 @@ from standards_harness import analyse, marked_lines, reported
 from fwlens.standards import load_standards
 
 M, C, P = "misra-c-2012", "cert-c", "power-of-10"
+M23, BC = "misra-c-2023", "barr-c-2018"
 
 # (standard, rule id, source). Sources are kept small and every one compiles as plain C.
 CASES: list[tuple[str, str, str]] = [
@@ -86,6 +87,37 @@ CASES: list[tuple[str, str, str]] = [
     # glibc's assert expands to "if (e) ; else ...": the macro's statement is not the author's
     (C, "EXP15-C", "#include <assert.h>\nint f(int *p) {\n    assert(p != 0);\n    return 1;\n}\n"),
     (M, "15.6", "#include <assert.h>\nint f(int *p) {\n    assert(p != 0);\n    return 1;\n}\n"),
+    # --- MISRA C:2023 ---
+    (M23, "D5.3", "typedef int thrd_t;\nint thrd_create(thrd_t *t, int (*f)(void *), void *a);\nstatic int worker(void *a) { (void)a; return 0; }\nvoid f(void) {\n thrd_t t;\n (void)thrd_create(&t, worker, 0); /* BAD */\n}\n"),
+    (M23, "15.1", "void f(int a) {\n if (a) goto end; /* BAD */\n a++;\n end: return;\n}\n"),
+    # --- BARR-C:2018 ---
+    (BC, "3.5.a", "int a;\nint b;\n\tint c; /* BAD */\n"),
+    (BC, "1.2.a", "int a; /* a very long comment that goes on and on past the eighty column limit of the standard */ /* BAD */\nint b;\n".replace(" /* BAD */\n", "\n").replace("standard */\n", "standard */ /* BAD */\n")),
+    (BC, "1.7.d", "void f(int n) {\n while (n) {\n n--;\n continue; /* BAD */\n }\n}\n"),
+    (BC, "1.7.a", "void f(void) {\n auto int x = 0; /* BAD */\n (void)x;\n}\n"),
+    (BC, "5.2.b", "short value; /* BAD */\nlong other; /* BAD */\nint fine;\n"),
+    (BC, "5.1.a", "typedef int Counter; /* BAD */\ntypedef int counter_t;\n"),
+    (BC, "5.1.b", "struct point { int x; }; /* BAD */\ntypedef struct { int y; } pair_t;\n"),
+    (BC, "5.3.a", "struct s { int a : 2; /* BAD */\n unsigned int b : 2; };\n"),
+    (BC, "5.3.b", "int f(int a) {\n return a & 0xF0; /* BAD */\n}\nunsigned f2(unsigned a) {\n return a & 0xF0U;\n}\n"),
+    (BC, "5.4.b.iv", "int f(float a, float b) {\n return a == b; /* BAD */\n}\n"),
+    (BC, "6.1.e", "void MixedCase(void) { /* BAD */\n}\n"),
+    (BC, "6.1.f", "#define lower_macro 1 /* BAD */\n#define UPPER_MACRO 1\n"),
+    (BC, "6.3.b.iii", "#define SQUARE(x) ((x) * (x)) /* BAD */\n#define DOUBLE(x) ((x) + (x)) /* BAD */\n#define ONCE(x) ((x) + 1)\n"),
+    (BC, "6.3.b.iv", "#define CHECK(x) if (!(x)) return /* BAD */\n"),
+    (BC, "7.1.e", "void f(void) {\n int i = 0; /* BAD */\n int count = 0;\n (void)i;\n (void)count;\n}\n"),
+    (BC, "7.1.j", "int counter; /* BAD */\nint g_counter;\n"),
+    (BC, "7.1.k", "void f(void) {\n int *value = 0; /* BAD */\n int *p_value = 0;\n (void)value;\n (void)p_value;\n}\n"),
+    (BC, "7.1.m", "void f(void) {\n _Bool flag = 0; /* BAD */\n _Bool b_flag = 0;\n (void)flag;\n (void)b_flag;\n}\n"),
+    (BC, "7.2.d", "void f(void) {\n int *p_a; /* BAD */\n int *p_b = 0;\n (void)p_a;\n (void)p_b;\n}\n"),
+    (BC, "8.2.b", "void f(int a, int b, int c) {\n if (a) {\n if (b) {\n if (c) { /* BAD */\n a++;\n }\n }\n }\n}\n"),
+    (BC, "8.4.a", "void f(void) {\n int i;\n for (i = 0; i < 10; i++) { /* BAD */\n }\n for (i = 0; i < 1; i++) {\n }\n}\n"),
+    (BC, "8.4.c", "void f(int a) {\n while (1) { /* BAD */\n a++;\n }\n for (;;) {\n a--;\n }\n}\n"),
+    (BC, "8.5.b", "#include <stdlib.h>\nvoid f(void) {\n exit(1); /* BAD */\n}\n"),
+    (BC, "8.6.a", "int f(int a) {\n return a == 0; /* BAD */\n}\nint g(int a) {\n return 0 == a;\n}\n"),
+    (BC, "1.4.b", "int f(int a, int b, int c) {\n return a < b && c > 0; /* BAD */\n}\nint g(int a, int b) {\n return (a < b) && (b > 0);\n}\n"),
+    (BC, "3.3.a", "void f(int a) {\n int b; b = a; /* BAD */\n (void)b;\n}\n"),
+    (BC, "1.3.b", "void f(int a) { /* BAD */\n if (a) { /* BAD */\n a++;\n }\n}\n"),
     # --- NASA/JPL Power of 10 ---
     (P, "P10-1", "void f(int a) {\n if (a) goto end; /* BAD */\n end: return;\n}\n"),
     (P, "P10-3", "#include <stdlib.h>\nvoid f(void) {\n void *p = malloc(4); /* BAD */\n (void)p;\n}\n"),
@@ -120,6 +152,13 @@ PROJECTS: list[tuple[str, str, dict[str, str], dict[str, list[int]]]] = [
                 "b.c": "extern int g;\nextern int f(void);\nint h(void) { return f() + g; }\n"},
      {"a.c": [2]}),
     (M, "2.3", {"a.c": "typedef int unused_t;\ntypedef int used_t;\nused_t v;\n"}, {"a.c": [1]}),
+    (BC, "6.2.e", {"a.c": "int helper(void) { return 1; }\nint pub(void) { return helper(); }\n",
+                   "b.c": "extern int pub(void);\nint use(void) { return pub(); }\n"}, {"a.c": [1]}),
+    (BC, "4.2.c.ii", {"a.h": "int shared = 1;\nextern int other;\n", "a.c": "#include \"a.h\"\nint f(void) { return shared; }\n"}, {"a.h": [1]}),
+    (BC, "4.2.c.i", {"a.h": "extern int shared;\nextern int f(void);\n", "a.c": "#include \"a.h\"\nint shared;\n"}, {"a.h": [1]}),
+    (BC, "4.1.a", {"Bad-Name.c": "int a;\n", "good_name.c": "int b;\n"}, {"Bad-Name.c": [1]}),
+    (BC, "4.3.c", {"mod.c": "int f(void) { return 0; }\n", "mod.h": "int f(void);\n"}, {"mod.c": [1]}),
+    (BC, "4.3.d", {"a.c": "#include \"/abs/x.h\"\n"}, {"a.c": [1]}),
     (M, "5.8", {"a.c": "static int x;\n", "b.c": "static int x;\n"}, {}),
     (M, "5.9", {"a.c": "static int x;\nint f(void) { return x; }\n", "b.c": "static int x;\nint g(void) { return x; }\n"},
      {"a.c": [1], "b.c": [1]}),

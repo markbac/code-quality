@@ -155,6 +155,32 @@ def _standards_context(model: ProjectModel, config: FwLensConfig) -> dict | None
             "names": {sid: f"{s.name} ({s.revision})" for sid, s in result.standards.items()}}
 
 
+def _supply_chain_context(model: ProjectModel, config: FwLensConfig) -> dict | None:
+    """Readable SBOM, CBOM and SARIF views, for each of those formats listed in output.formats (#97)."""
+    wanted = set(config.output.formats) & {"sbom", "cbom", "sarif"}
+    if not wanted:
+        return None
+    from fwlens.output import supply_chain as sc
+    out: dict = {}
+
+    def build(name, make):
+        try:
+            out[name] = make()
+        except Exception as e:      # a failed export must not lose the report
+            out[name] = {"error": f"{type(e).__name__}: {e}"}
+
+    if "sbom" in wanted:
+        from fwlens.sbom import build_sbom
+        build("sbom", lambda: sc.sbom_view(build_sbom(config)))
+    if "cbom" in wanted:
+        from fwlens.cbom import build_cbom
+        build("cbom", lambda: sc.cbom_view(build_cbom(config)))
+    if "sarif" in wanted:
+        from fwlens.output.sarif import generate_sarif_report
+        build("sarif", lambda: sc.sarif_view(generate_sarif_report(model, config)))
+    return out
+
+
 def _history_rows(model: ProjectModel, config: FwLensConfig) -> list[dict]:
     """Stored runs (output.db_path) plus this run, newest last, for the Trend table. Empty without history."""
     from fwlens.baseline import compute_breaches
@@ -963,6 +989,7 @@ def generate_html_report(model: ProjectModel, config: FwLensConfig):
     meta["diag_error_module_count"] = len(error_diag_modules)
     meta["history"] = _history_rows(model, config)
     meta["standards"] = _standards_context(model, config)
+    meta["supply_chain"] = _supply_chain_context(model, config)
     diagnostic_rows = []
     for m in sorted(error_diag_modules, key=lambda m: -len(m.parse_diagnostics))[:20]:
         worst = next(d for d in m.parse_diagnostics if d["severity"] in ("fatal", "error"))

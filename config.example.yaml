@@ -267,13 +267,15 @@ output:
 #   # usage_functions: [xQueueSend, xQueueReceive, xSemaphoreTake, xSemaphoreGive]
 #   # return_value_functions: [xQueueCreate, xSemaphoreCreateBinary, xSemaphoreCreateMutex]
 
-# Optional coding-standard checks (MISRA C, CERT C, Power of 10). Off unless enabled. See FWLENS_GUIDE.md.
+# Optional coding-standard checks (MISRA C, CERT C, BARR-C, Power of 10). Off unless enabled. See FWLENS_GUIDE.md.
 # standards:
 #   enabled:
 #     - standard: misra-c-2012
 #       include_categories: [mandatory, required]
 #     - standard: cert-c
 #     - standard: power-of-10
+#     - standard: misra-c-2023
+#     - standard: barr-c-2018
 #   extra_rule_dirs: [./standards]
 #   deviations_file: ./standards/deviations.yaml
 #   imports:
@@ -303,6 +305,7 @@ output:
 # sbom:
 #   application_version: "1.4.2"        # default: git describe, else unknown
 #   include_files: false                # list each source file with its SHA-256
+#   components_file: sbom/components.yaml   # hand-kept parts the scan cannot see: bootloader, modem, toolchain
 #   components:
 #     - name: FreeRTOS
 #       path: Lib/FreeRTOS              # relative to this file

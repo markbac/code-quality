@@ -61,3 +61,19 @@ def test_misspelt_format_is_rejected(tmp_path, monkeypatch):
     result = run(monkeypatch, tmp_path, "report", "--config", str(cfg))
     assert result.exit_code != 0
     assert "sarfi" in result.output
+
+
+def test_sarif_carries_key_metrics_and_breach_values(tmp_path, monkeypatch):
+    cfg = project(tmp_path, formats="[json]")
+    out = tmp_path / "out" / "metrics.sarif"
+    assert run(monkeypatch, tmp_path, "analyze", "--config", str(cfg), "--sarif", str(out)).exit_code == 0
+    doc = validate(out)
+    run_ = doc["runs"][0]
+    metrics = run_["properties"]["fwlens"]
+    assert metrics["summary"]["functions"] == 1 and metrics["summary"]["maxCyclomaticComplexity"] == 21
+    top = metrics["functions"][0]
+    assert top["name"] == "f" and top["file"].endswith("a.c") and top["cyclomaticComplexity"] == 21
+    artifact = run_["artifacts"][0]
+    assert artifact["location"]["uri"].endswith("a.c") and artifact["properties"]["maxCyclomaticComplexity"] == 21
+    breach = next(r for r in run_["results"] if r["ruleId"] == "FWLENS-CYCLOMATIC_COMPLEXITY")
+    assert breach["properties"] == {"metric": "cyclomatic_complexity", "value": 21, "threshold": 15, "function": "f"}

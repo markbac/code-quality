@@ -558,6 +558,12 @@
             "string",
             "null"
           ]
+        },
+        "components_file": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "additionalProperties": false

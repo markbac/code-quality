@@ -48,7 +48,8 @@ def test_builtin_rule_files_are_valid():
 
 def test_builtin_files_carry_no_guideline_text():
     for f in BUILTIN_DIR.glob("*.yaml"):
-        assert yaml.safe_load(f.read_text())["standard"]["guideline_text"] in ("user-supplied", "https://wiki.sei.cmu.edu/confluence/display/c", "https://spinroot.com/gerard/pdf/P10.pdf")
+        assert yaml.safe_load(f.read_text())["standard"]["guideline_text"] in ("user-supplied", "https://wiki.sei.cmu.edu/confluence/display/c", "https://spinroot.com/gerard/pdf/P10.pdf",
+                                                                     "https://barrgroup.com/embedded-systems/books/embedded-c-coding-standard")
         for rule in yaml.safe_load(f.read_text())["rules"]:
             assert len(rule["title"]) < 90   # short paraphrase, not a pasted paragraph
 

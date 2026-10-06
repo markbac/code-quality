@@ -265,6 +265,7 @@
   <button type="button" class="tab" role="tab" id="tab-defects" aria-controls="pane-defects" aria-selected="false" tabindex="-1" onclick="show('defects', this)">Defects &amp; Estimation</button>
   <button type="button" class="tab" role="tab" id="tab-parsediag" aria-controls="pane-parsediag" aria-selected="false" tabindex="-1" onclick="show('parsediag', this)">Parse Diagnostics</button>
   {% if meta.standards %}<button type="button" class="tab" role="tab" id="tab-standards" aria-controls="pane-standards" aria-selected="false" tabindex="-1" onclick="show('standards', this)">Standards</button>{% endif %}
+  {% for key, label in (('sbom', 'SBOM'), ('cbom', 'CBOM'), ('sarif', 'SARIF')) %}{% if meta.supply_chain and meta.supply_chain[key] %}<button type="button" class="tab" role="tab" id="tab-{{ key }}" aria-controls="pane-{{ key }}" aria-selected="false" tabindex="-1" onclick="show('{{ key }}', this)">{{ label }}</button>{% endif %}{% endfor %}
   <button type="button" class="tab" role="tab" id="tab-reference" aria-controls="pane-reference" aria-selected="false" tabindex="-1" onclick="show('reference', this)">Metrics Reference</button>
 </div>
 </div>
@@ -2711,6 +2712,132 @@
     {% endfor %}
     </tbody>
   </table>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if meta.supply_chain and meta.supply_chain.sbom %}
+{% set v = meta.supply_chain.sbom %}
+<!-- SBOM -->
+<div class="pane" id="pane-sbom" role="tabpanel" aria-labelledby="tab-sbom">
+  <div class="section-title">Software bill of materials</div>
+  {% if v.error %}<p class="red">The SBOM could not be built: {{ v.error }}</p>{% else %}
+  <p style="color:var(--dim);font-size:12px;margin-bottom:12px;max-width:900px">
+    {{ v.spec }} document for <strong>{{ v.name }}</strong>{% if v.version %} version {{ v.version }}{% endif %}{% if v.supplier %}, supplied by {{ v.supplier }}{% endif %}, generated {{ v.timestamp }}.
+    {% if v.components_file %}Declared components come from <code>{{ v.components_file }}</code>.{% endif %}
+    {{ v.completeness }}{% if not v.completeness.endswith('.') %}.{% endif %} The same data is in <code>sbom.cdx.json</code>.
+  </p>
+  <p style="margin-bottom:12px">
+    <span class="badge badge-blue">{{ v.total }} components</span>
+    {% for kind, n in v.licence_kinds.items() %}<span class="badge {% if kind == 'unknown' %}badge-red{% elif kind in ('copyleft', 'proprietary') %}badge-yellow{% else %}badge-green{% endif %}">{{ n }} {{ kind }}</span> {% endfor %}
+    {% if v.missing_version %}<span class="badge badge-red">{{ v.missing_version | length }} without a version</span>{% endif %}
+  </p>
+  {% if v.attention %}
+  <div class="section-title">Needs attention</div>
+  <p style="color:var(--dim);font-size:12px;margin-bottom:8px">Facts the components file leaves unknown, and open compliance actions. FWLens never fills these in.</p>
+  <table>
+    <thead><tr><th>Component</th><th>Missing</th><th>Open actions</th></tr></thead>
+    <tbody>{% for a in v.attention %}<tr><td>{{ a.name }}</td><td>{{ a.gaps }}</td><td>{{ a.actions }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% endif %}
+  <div class="section-title">Components</div>
+  <table>
+    <thead><tr><th>Component</th><th>Type</th><th>Version</th><th>Supplier</th><th>Licence</th><th>Where</th><th>Evidence</th><th>Files</th><th>Linked</th><th>Depends on</th></tr></thead>
+    <tbody>
+    {% for r in v.rows %}
+    <tr>
+      <td>{{ r.name }}</td><td>{{ r.type }}</td>
+      <td class="{% if not r.version %}red{% endif %}">{{ r.version or 'unknown' }}</td>
+      <td>{{ r.supplier }}</td>
+      <td><span class="badge {% if r.licence_kind == 'unknown' %}badge-red{% elif r.licence_kind in ('copyleft', 'proprietary') %}badge-yellow{% else %}badge-green{% endif %}">{{ r.licences | join(', ') or 'unknown' }}</span></td>
+      <td class="dim">{{ r.location }}</td><td>{{ r.source }}</td><td>{{ r.files }}</td><td>{{ r.linked }}</td><td>{{ r.depends_on }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if meta.supply_chain and meta.supply_chain.cbom %}
+{% set v = meta.supply_chain.cbom %}
+<!-- CBOM -->
+<div class="pane" id="pane-cbom" role="tabpanel" aria-labelledby="tab-cbom">
+  <div class="section-title">Cryptographic bill of materials</div>
+  {% if v.error %}<p class="red">The CBOM could not be built: {{ v.error }}</p>{% else %}
+  <p style="color:var(--dim);font-size:12px;margin-bottom:12px;max-width:900px">{{ v.completeness }}{% if not v.completeness.endswith('.') %}.{% endif %} Generated {{ v.timestamp }}, {{ v.files_scanned }} files scanned ({{ v.scopes }}). The same data is in <code>cbom.cdx.json</code>.</p>
+  <p style="margin-bottom:12px">
+    <span class="badge badge-blue">{{ v.algorithms }} algorithms</span> <span class="badge badge-blue">{{ v.protocols }} protocols</span>
+    <span class="badge {% if v.weak %}badge-red{% else %}badge-green{% endif %}">{{ v.weak | length }} weak</span>
+    <span class="badge badge-blue">{{ v.libraries | length }} crypto libraries present</span>
+  </p>
+  {% if v.weak %}
+  <div class="section-title">Weak or discouraged</div>
+  <table>
+    <thead><tr><th>Asset</th><th>Why</th><th>Where</th></tr></thead>
+    <tbody>{% for a in v.weak %}<tr><td>{{ a.name }}</td><td class="red">{{ a.weak }}</td><td class="dim">{{ a.where | join(', ') }}{% if a.more %} and {{ a.more }} more{% endif %}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% endif %}
+  <div class="section-title">Algorithms and protocols</div>
+  <table>
+    <thead><tr><th>Asset</th><th>Kind</th><th>Detail</th><th>Evidence</th><th>Library</th><th>Uses</th><th>Where</th></tr></thead>
+    <tbody>
+    {% for a in v.assets %}
+    <tr><td>{{ a.name }}</td><td>{{ a.kind }}</td><td>{{ a.detail }}</td><td>{{ a.evidence }}</td><td>{{ a.library }}</td><td>{{ a.count }}</td>
+      <td class="dim">{{ a.where | join(', ') }}{% if a.more %} and {{ a.more }} more{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if v.libraries %}
+  <div class="section-title">Crypto libraries present</div>
+  <table>
+    <thead><tr><th>Library</th><th>Found because</th></tr></thead>
+    <tbody>{% for l in v.libraries %}<tr><td>{{ l.name }}</td><td>{{ l.evidence }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+{% if meta.supply_chain and meta.supply_chain.sarif %}
+{% set v = meta.supply_chain.sarif %}
+<!-- SARIF -->
+<div class="pane" id="pane-sarif" role="tabpanel" aria-labelledby="tab-sarif">
+  <div class="section-title">SARIF results</div>
+  {% if v.error %}<p class="red">The SARIF results could not be built: {{ v.error }}</p>{% else %}
+  <p style="color:var(--dim);font-size:12px;margin-bottom:12px;max-width:900px">SARIF {{ v.version }} from {{ v.tool }}: what a code-scanning viewer such as GitHub shows. The same data is in <code>fwlens.sarif</code>.</p>
+  <p style="margin-bottom:12px">
+    <span class="badge badge-blue">{{ v.total }} result{{ '' if v.total == 1 else 's' }}</span>
+    {% for level, n in v.levels.items() %}<span class="badge {% if level == 'error' %}badge-red{% elif level == 'warning' %}badge-yellow{% else %}badge-blue{% endif %}">{{ n }} {{ level }}</span> {% endfor %}
+    <span class="badge badge-blue">{{ v.metric_breaches }} metric breaches</span>
+    {% for std, n in v.standards.items() %}<span class="badge badge-blue">{{ n }} {{ std }}</span> {% endfor %}
+  </p>
+  {% if v.summary %}
+  <div class="section-title">Key metrics carried in the file</div>
+  <table>
+    <thead><tr><th>Files</th><th>Functions</th><th>LOC</th><th>Average cyclomatic</th><th>Max cyclomatic</th><th>Max cognitive</th><th>Max nesting</th><th>Average maintainability</th></tr></thead>
+    <tbody><tr><td>{{ v.summary.files }}</td><td>{{ v.summary.functions }}</td><td>{{ v.summary.loc }}</td><td>{{ v.summary.averageCyclomaticComplexity }}</td><td>{{ v.summary.maxCyclomaticComplexity }}</td><td>{{ v.summary.maxCognitiveComplexity }}</td><td>{{ v.summary.maxBlockDepth }}</td><td>{{ v.summary.averageMaintainabilityIndex }}</td></tr></tbody>
+  </table>
+  {% if v.functions %}
+  <div class="section-title">Most complex functions ({{ v.functions | length }} of {{ v.functions_total }})</div>
+  <table>
+    <thead><tr><th>Function</th><th>File</th><th>Line</th><th>LOC</th><th>Cyclomatic</th><th>Cognitive</th><th>Nesting</th><th>Parameters</th><th>Fan-in</th><th>Fan-out</th><th>Maintainability</th></tr></thead>
+    <tbody>{% for f in v.functions %}<tr><td>{{ f.name }}</td><td class="dim">{{ f.file }}</td><td>{{ f.line }}</td><td>{{ f.loc }}</td><td>{{ f.cyclomaticComplexity }}</td><td>{{ f.cognitiveComplexity }}</td><td>{{ f.blockDepth }}</td><td>{{ f.parameterCount }}</td><td>{{ f.fanIn }}</td><td>{{ f.fanOut }}</td><td>{{ f.maintainabilityIndex }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% endif %}
+  {% endif %}
+  {% if v.rule_rows %}
+  <div class="section-title">Results by rule ({{ v.rule_rows | length }} of {{ v.rule_count }})</div>
+  <table>
+    <thead><tr><th>Rule</th><th>Meaning</th><th>Level</th><th>Results</th></tr></thead>
+    <tbody>{% for r in v.rule_rows %}<tr><td>{{ r.id }}</td><td>{{ r.title }}</td><td>{{ r.level }}</td><td>{{ r.count }}</td></tr>{% endfor %}</tbody>
+  </table>
+  <div class="section-title">Results by file ({{ v.file_rows | length }} of {{ v.file_count }})</div>
+  <table>
+    <thead><tr><th>File</th><th>Results</th></tr></thead>
+    <tbody>{% for f in v.file_rows %}<tr><td class="dim">{{ f.file }}</td><td>{{ f.count }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% else %}<p>No results.</p>{% endif %}
   {% endif %}
 </div>
 {% endif %}

@@ -389,6 +389,17 @@ def build_sbom(config: FwLensConfig, now: datetime | None = None) -> dict:
     app_deps = sorted(refs[o] for o in includes_of(app_files) if o is not None)
     dependencies.insert(0, {"ref": refs[None], "dependsOn": app_deps})
 
+    metadata_extra: dict = {}
+    properties = [
+        {"name": "fwlens:method", "value": "source tree and project file scan"},
+        {"name": "fwlens:completeness",
+         "value": "components found under the project's scope directories and sbom.components; "
+                  "versions and licences only where they can be read from the tree"},
+    ]
+    if config.sbom.components_file:
+        metadata_component = _merge_components_file(config, metadata_component, app_version, out_components,
+                                                    dependencies, metadata_extra, properties, refs[None])
+
     return {
         "bomFormat": "CycloneDX",
         "specVersion": SPEC_VERSION,
@@ -399,16 +410,51 @@ def build_sbom(config: FwLensConfig, now: datetime | None = None) -> dict:
             "lifecycles": [{"phase": "pre-build"}],
             "tools": {"components": tools},
             "component": metadata_component,
-            "properties": [
-                {"name": "fwlens:method", "value": "source tree and project file scan"},
-                {"name": "fwlens:completeness",
-                 "value": "components found under the project's scope directories and sbom.components; "
-                          "versions and licences only where they can be read from the tree"},
-            ],
+            **metadata_extra,
+            "properties": properties,
         },
         "components": out_components,
         "dependencies": dependencies,
     }
+
+
+def _merge_components_file(config, app_entry, app_version, out_components, dependencies, metadata_extra,
+                           properties, app_ref) -> dict:
+    """
+    Add the components of ``sbom.components_file``. With a ``product`` section the product becomes the
+    described component and the scanned firmware one of its parts. Returns the metadata component.
+    """
+    from fwlens.sbom_components import known, load_components_file, refs_for, to_component, to_product
+    cf = load_components_file(config.sbom.components_file)
+    refs = refs_for(cf.components)
+    declared = [to_component(c, r) for c, r in zip(cf.components, refs)]
+    meta = cf.metadata
+    supplier = {k: v for k, v in (("name", known(meta.get("supplier"))),
+                                  ("url", [meta["supplier_url"]] if known(meta.get("supplier_url")) else None)) if v}
+    if supplier:
+        metadata_extra["supplier"] = supplier
+    if known(meta.get("sbom_author")):
+        metadata_extra["authors"] = [{"name": known(meta["sbom_author"])}]
+    if known(meta.get("last_reviewed")):
+        properties.append({"name": "fwlens:last-reviewed", "value": known(meta["last_reviewed"])})
+    properties.append({"name": "fwlens:components-file", "value": config.sbom.components_file.name})
+    gaps = cf.gaps()
+    if gaps:
+        properties.append({"name": "fwlens:components-file-gaps",
+                           "value": "; ".join(f"{name}: {', '.join(items)}" for name, items in gaps.items())})
+    out_components.extend(declared)
+    top = dependencies[0]
+    if cf.product is None:
+        top["dependsOn"] = sorted(set(top["dependsOn"]) | set(refs))
+        return app_entry
+    product = to_product(cf.product, "product", app_version)
+    product["type"] = cf.product.type if cf.product.type != "library" else "device"
+    scanned = dict(app_entry)
+    scanned["bom-ref"] = app_ref
+    scanned["name"] = f"{app_entry['name']} (scanned sources)"
+    out_components.insert(0, scanned)
+    dependencies.insert(0, {"ref": "product", "dependsOn": sorted({app_ref, *refs})})
+    return product
 
 
 def _inside(path: Path, component: Path) -> bool:

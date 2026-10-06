@@ -1,0 +1,133 @@
+# components.yaml - example components file for a fictional NB-IoT smart meter.
+# Empty values and "unknown" are left out of the SBOM and reported as gaps.
+
+metadata:
+  project: "Acme Smart Meter"
+  supplier: "Acme Meters Ltd"
+  supplier_url: "https://example.com/"
+  sbom_author: ""
+  last_reviewed: ""
+
+product:
+  name: "Acme Smart Meter"
+  version: ""
+  type: device
+  supplier: "Acme Meters Ltd"
+  supplier_url: "https://example.com/"
+  copyright: "Copyright (c) Acme Meters Ltd. All rights reserved."
+  description: >
+    Example NB-IoT smart meter made of application firmware, a bootloader, a cellular modem
+    and a metrology processor.
+
+application_firmware:
+  first_party:
+    - name: "Acme Application Firmware"
+      type: firmware
+      supplier: "Acme Meters Ltd"
+      license: "Proprietary"
+      location: "src/"
+      description: "Application firmware. All source code is proprietary unless noted."
+
+  third_party:
+    - name: "Example RTOS"
+      version: "5.1.0"
+      type: operating-system
+      supplier: "Example RTOS GmbH"
+      supplier_url: "https://example.com/rtos"
+      supplier_contact: "support@example.com"
+      license: "Proprietary"
+      license_notes: >
+        Commercial licence required. Delivered as a precompiled library.
+      location: "lib/rtos/"
+      cve_checked: ""
+
+    - name: "Example LwM2M Client"
+      version: "3.8.0"
+      type: library
+      supplier: "Example IoT sp. z o.o."
+      license: "Example Commercial"
+      license_notes: >
+        Binary redistribution outside a physical device must include the copyright notice.
+      purl: "pkg:github/example/lwm2m-client"
+      location: "lib/lwm2m/"
+      cve_checked: ""
+      compliance_actions:
+        - "Confirm LwM2M client version"
+
+    - name: "ExampleCrypto"
+      version: "unknown"
+      type: library
+      supplier: "Example Security GmbH"
+      license: "Proprietary"
+      location: "lib/examplecrypto/"
+      cve_checked: ""
+      notes: "Compiled from source. Covers AES, RSA, ECC, SHA-2 and HMAC."
+      compliance_actions:
+        - "Confirm ExampleCrypto version"
+
+    - name: "Example Network Stack"
+      version: "unknown"
+      type: library
+      supplier: "Example Networks Inc"
+      license: "Proprietary"
+      location: "lib/netstack/"
+      cve_checked: ""
+      notes: "Only DTLS 1.2 is used."
+
+    - name: "Vendor MCU SDK"
+      version: "unknown"
+      type: framework
+      supplier: "Example Semiconductor Inc"
+      license: "Zlib"
+      spdx_expression: "Zlib"
+      purl: "pkg:github/example/mcu_sdk"
+      location: "sdk/platform/"
+      cve_checked: ""
+
+    - name: "Arm CMSIS (headers, bundled in the MCU SDK)"
+      version: "unknown"
+      type: library
+      supplier: "Arm Limited"
+      license: "Apache-2.0"
+      spdx_expression: "Apache-2.0"
+      purl: "pkg:github/ARM-software/CMSIS_5"
+      location: "sdk/platform/CMSIS/Include"
+      cve_checked: ""
+
+    - name: "Example Toolchain"
+      version: "9.1.2"
+      type: toolchain
+      supplier: "Example Tools AB"
+      license: "Proprietary - commercial"
+      location: "Toolchain - not in repo"
+      cve_checked: ""
+
+application_bootloader:
+  - name: "Vendor Bootloader"
+    version: "unknown"
+    type: firmware
+    supplier: "Example Semiconductor Inc"
+    license: "Zlib"
+    spdx_expression: "Zlib"
+    location: "Protected flash region - not in the application image"
+    cve_checked: ""
+
+modem_firmware:
+  - name: "Example Cellular Modem Firmware"
+    version: "unknown"
+    type: firmware
+    supplier: "Example Wireless Co. Ltd."
+    license: "Proprietary"
+    license_notes: "Distributed as a binary image. Updates are obtained from the supplier."
+    location: "Modem module"
+    cve_checked: ""
+
+metrology_firmware:
+  - name: "Example Metrology Firmware"
+    version: "unknown"
+    type: firmware
+    supplier: "Example Metering AG"
+    license: "Proprietary"
+    location: "Separate processor, integrated into the meter"
+    cve_checked: ""
+    notes: "Runs on its own processor and talks to the application over a UART."

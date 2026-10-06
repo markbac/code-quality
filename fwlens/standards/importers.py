@@ -32,7 +32,7 @@ class RawFinding:
     message: str
 
 
-_MISRA_RE = re.compile(r"misra-?c-?2012-(dir-)?(\d+\.\d+)")
+_MISRA_RE = re.compile(r"misra-?c-?(?:2012|2023)-(dir-)?(\d+\.\d+)")
 _CERT_RE = re.compile(r"cert-([a-z]{3}\d{2})-c\b")
 
 

@@ -1,0 +1,1319 @@
+# Built-in BARR-C:2018 rule set: the Barr Group Embedded C Coding Standard. Ids follow the
+# standard's own numbering (section, rule, letter). Titles are short paraphrases. The standard is
+# published by Barr Group at https://barrgroup.com/embedded-systems/books/embedded-c-coding-standard
+# and the full text is there.
+#
+# The standard has two strengths of wording (rules that say "shall" and recommendations that say
+# "should"). `category` records the strength that FWLens read from the wording, so check it
+# against your copy.
+#
+# How each guideline is checked is in its `check`:
+#   native    a built-in check. `coverage: partial` means it finds some violations, not all, so
+#             "no findings" for that guideline does not show compliance. Layout checks (white
+#             space, indentation) work on the text of the file and are approximate.
+#   manual    needs review, FWLens lists it in the matrix as such
+schema_version: 1
+standard:
+  id: barr-c-2018
+  name: BARR-C Embedded C Coding Standard
+  revision: "2018"
+  language: c
+  guideline_text: https://barrgroup.com/embedded-systems/books/embedded-c-coding-standard
+  categories: [rule, recommendation]
+  undeviable_categories: []
+  severity_map: { rule: warning, recommendation: note }
+
+rules:
+  - id: "1.1.a"
+    kind: rule
+    title: "Write programs to comply with the C99 standard"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "diagnostic", match: { pattern: ".", severity: "error" } }
+    notes: "Reports clang errors. Use of compiler extensions is not checked."
+
+  - id: "1.1.b"
+    kind: rule
+    title: "Use compiler options that restrict C++ compilers to ISO C"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "1.1.c"
+    kind: rule
+    title: "Minimise proprietary keywords, pragmas and inline assembly"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check:
+      - { type: "native", engine: "source", match: { pattern: "^[ \\t]*#[ \\t]*pragma\\b", target: "code" } }
+      - { type: "native", engine: "source", match: { pattern: "\\b(?:__asm__|__asm|asm)\\b", target: "code" } }
+
+  - id: "1.1.d"
+    kind: rule
+    title: "Do not use #define to change language keywords"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "keyword_macro" } }
+
+  - id: "1.2.a"
+    kind: rule
+    title: "Limit line width to 80 characters"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "line_too_long", limit: 80 } }
+
+  - id: "1.3.a"
+    kind: rule
+    title: "Always surround the body of a control statement with braces"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "compound_body" }
+
+  - id: "1.3.b"
+    kind: rule
+    title: "Put the opening brace on the line below the statement"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "opening_brace_same_line" } }
+    notes: "Checks functions and control statements. Initialiser lists and type definitions are not checked."
+
+  - id: "1.4.a"
+    kind: rule
+    title: "Use parentheses to make operator precedence explicit"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "implicit_precedence" } }
+
+  - id: "1.4.b"
+    kind: rule
+    title: "Put the operands of && and || in parentheses"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "logical_operand_parens" } }
+
+  - id: "1.5.a"
+    kind: rule
+    title: "Avoid abbreviations unless widely understood in engineering"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "1.5.b"
+    kind: rule
+    title: "Keep a version-controlled table of the project's abbreviations"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "1.6.a"
+    kind: rule
+    title: "Comment each cast to say why it is safe across the value range"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "1.7.a"
+    kind: rule
+    title: "Do not use the auto keyword"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { pattern: "\\bauto\\b", target: "code" } }
+
+  - id: "1.7.b"
+    kind: rule
+    title: "Do not use the register keyword"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { pattern: "\\bregister\\b", target: "code" } }
+
+  - id: "1.7.c"
+    kind: rule
+    title: "Avoid goto, and only jump forward within the same or an enclosing block"
+    category: recommendation
+    decidable: true
+    scope: single-tu
+    check:
+      - { type: "native", engine: "detector", match: { name: "goto_backward" } }
+      - { type: "native", engine: "detector", match: { name: "goto_label_block" } }
+
+  - id: "1.7.d"
+    kind: rule
+    title: "Avoid the continue keyword in loops"
+    category: recommendation
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "ast", match: { cursor: "CONTINUE_STMT" } }
+
+  - id: "1.8.a"
+    kind: rule
+    title: "Use static for functions and variables not visible outside the file"
+    category: rule
+    decidable: false
+    scope: system
+    coverage: partial
+    check: { type: "native", engine: "system", match: { name: "external_only_used_in_own_unit" } }
+    notes: "Finds functions that are only used inside their own file. A function nothing uses is not reported."
+
+  - id: "1.8.b"
+    kind: rule
+    title: "Use const for read-only variables, parameters and structure fields"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "1.8.c"
+    kind: rule
+    title: "Use volatile for interrupt-shared variables, threaded variables and I/O registers"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "2.1.a"
+    kind: rule
+    title: "C++ style comments are acceptable as an alternative to C comments"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "2.1.b"
+    kind: rule
+    title: "Comments never contain /*, // or a backslash"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "comment_markers" } }
+    notes: "Checks for /* and // inside comments. Backslashes are not checked."
+
+  - id: "2.1.c"
+    kind: rule
+    title: "Do not comment out code, use #if 0 instead"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "commented_out_code" } }
+
+  - id: "2.1.c.ii"
+    kind: rule
+    title: "Surround debug code with #ifndef NDEBUG"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "2.2.a"
+    kind: rule
+    title: "Write comments as clear, complete sentences"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "2.2.b"
+    kind: rule
+    title: "Precede code blocks with comments at the same indentation"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "2.2.c"
+    kind: rule
+    title: "Avoid comments that explain the obvious"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "2.2.d"
+    kind: rule
+    title: "Make comment length proportional to code complexity"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "2.2.e"
+    kind: rule
+    title: "Reference external specifications for algorithms defined elsewhere"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "2.2.f"
+    kind: rule
+    title: "Keep diagrams under version control and refer to them by file name"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "2.2.g"
+    kind: rule
+    title: "Spell out all assumptions in comments"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "2.2.h"
+    kind: rule
+    title: "Comment modules and functions for automatic documentation"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "2.2.i.i"
+    kind: rule
+    title: "Use WARNING: to alert maintainers of risky code"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "2.2.i.ii"
+    kind: rule
+    title: "Use NOTE: for comments that explain why"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "2.2.i.iii"
+    kind: rule
+    title: "Use TODO: to mark incomplete code"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "3.1.a"
+    kind: rule
+    title: "Follow if, while, for, switch and return with one space"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { pattern: "\\b(?:if|while|for|switch|return)\\(", target: "code" } }
+
+  - id: "3.1.b"
+    kind: rule
+    title: "Put one space before and after assignment operators"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "space_around_operators" } }
+
+  - id: "3.1.c"
+    kind: rule
+    title: "Put one space before and after binary operators"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "space_around_operators" } }
+
+  - id: "3.1.d"
+    kind: rule
+    title: "Write unary operators with no space from their operand"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "3.1.e"
+    kind: rule
+    title: "Put spaces around * and & only in declarations"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "3.1.f"
+    kind: rule
+    title: "Put one space before and after the ternary operator"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "3.1.g"
+    kind: rule
+    title: "Write -> and . with no surrounding spaces"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "space_around_member_access" } }
+
+  - id: "3.1.h"
+    kind: rule
+    title: "Write array subscript brackets with no surrounding spaces"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { pattern: "\\w[ \\t]+\\[", target: "code" } }
+
+  - id: "3.1.i"
+    kind: rule
+    title: "Put no spaces next to parentheses in expressions"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "space_inside_parentheses" } }
+
+  - id: "3.1.j"
+    kind: rule
+    title: "Write function calls with no space before the parenthesis"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "3.1.k"
+    kind: rule
+    title: "Follow each comma between parameters with one space"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "space_after_comma" } }
+
+  - id: "3.1.l"
+    kind: rule
+    title: "Follow each semicolon in a for statement with one space"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { pattern: "\\bfor\\s*\\([^;)\\n]*;[^ \\n;][^;)\\n]*;|\\bfor\\s*\\([^;)\\n]*;[^;)\\n]*;[^ \\n)]", target: "code" } }
+
+  - id: "3.1.m"
+    kind: rule
+    title: "Put no space before the statement-ending semicolon"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "space_before_semicolon" } }
+
+  - id: "3.2.a"
+    kind: rule
+    title: "Align the names in adjacent variable declarations"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "3.2.b"
+    kind: rule
+    title: "Align the member names in structures and unions"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "3.2.c"
+    kind: rule
+    title: "Align the operators in adjacent assignment statements"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "3.2.d"
+    kind: rule
+    title: "Put # at the start of the line and indent directives inside conditionals"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "3.3.a"
+    kind: rule
+    title: "Put no more than one statement on a line"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "several_statements_per_line" } }
+
+  - id: "3.3.b"
+    kind: rule
+    title: "Put a blank line before and after natural code blocks"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "3.3.c"
+    kind: rule
+    title: "End each source file with an end-of-file comment"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "no_end_of_file_comment" } }
+
+  - id: "3.4.a"
+    kind: rule
+    title: "Indent in multiples of four characters"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "indent_not_multiple_of_four" } }
+    notes: "Continuation lines are not checked."
+
+  - id: "3.4.b"
+    kind: rule
+    title: "Align case labels with the switch and indent their contents once"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "3.4.c"
+    kind: rule
+    title: "Indent continuation lines for readability"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "3.5.a"
+    kind: rule
+    title: "Never use the tab character"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "tab_character" } }
+
+  - id: "3.6.a"
+    kind: rule
+    title: "End lines with a single LF, not CR-LF"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "crlf_line_ending" } }
+
+  - id: "3.6.b"
+    kind: rule
+    title: "Use form feed as the only other non-printing character"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "4.1.a"
+    kind: rule
+    title: "Name modules with lowercase letters, digits and underscores"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "module_file_name" } }
+
+  - id: "4.1.b"
+    kind: rule
+    title: "Make module names unique in their first eight characters"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "4.1.c"
+    kind: rule
+    title: "Do not give a header the name of a standard library header"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "4.1.d"
+    kind: rule
+    title: "Put main in a file whose name contains main"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "main_file_name" } }
+
+  - id: "4.2.a"
+    kind: rule
+    title: "Provide one header per source file with the same root name"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "4.2.b"
+    kind: rule
+    title: "Guard every header against multiple inclusion"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "missing_include_guard" } }
+
+  - id: "4.2.c"
+    kind: rule
+    title: "Declare only what other modules need in a header"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "4.2.c.i"
+    kind: rule
+    title: "Do not declare variables with extern in a header"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "header_extern_variable" } }
+
+  - id: "4.2.c.ii"
+    kind: rule
+    title: "Do not allocate storage for variables in a header"
+    category: rule
+    decidable: true
+    scope: system
+    check: { type: "native", engine: "system", match: { name: "header_variable_definition" } }
+
+  - id: "4.2.d"
+    kind: rule
+    title: "Do not include private headers from a public header"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "4.3.a"
+    kind: rule
+    title: "Make each source file control one entity"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "4.3.b"
+    kind: rule
+    title: "Order source file sections: comments, includes, types, data, prototypes, functions"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "4.3.c"
+    kind: rule
+    title: "Include the header of the same name so prototypes are checked"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "own_header_not_included" } }
+
+  - id: "4.3.d"
+    kind: rule
+    title: "Use no absolute paths in include file names"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "absolute_include_path" } }
+
+  - id: "4.3.e"
+    kind: rule
+    title: "Remove unused include files"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "4.3.f"
+    kind: rule
+    title: "Never include a source file from another source file"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "include_source_file" } }
+
+  - id: "4.4.a"
+    kind: rule
+    title: "Keep project templates for header and source files"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "5.1.a"
+    kind: rule
+    title: "Name new types with lowercase words and a _t suffix"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "type_naming" } }
+
+  - id: "5.1.b"
+    kind: rule
+    title: "Name every structure, union and enumeration through a typedef"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "tagged_type_without_typedef" } }
+
+  - id: "5.1.c"
+    kind: rule
+    title: "Prefix public type names with the module name"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "5.2.a"
+    kind: rule
+    title: "Use fixed-width integer types when size matters"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "basic_numerical_type" } }
+    notes: "Reports every use of a basic numerical type, whether or not its size matters."
+
+  - id: "5.2.b"
+    kind: rule
+    title: "Do not use the short and long keywords"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { pattern: "\\b(?:short|long)\\b", target: "code" } }
+
+  - id: "5.2.c"
+    kind: rule
+    title: "Restrict char to strings and string operations"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "5.3.a"
+    kind: rule
+    title: "Do not define bit-fields of signed integer type"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "signed_bit_field" } }
+
+  - id: "5.3.b"
+    kind: rule
+    title: "Do not use bitwise operators on signed integers"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "bitwise_signed_operand" } }
+
+  - id: "5.3.c"
+    kind: rule
+    title: "Never mix signed and unsigned integers in comparisons or expressions"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "operands_same_category" } }
+
+  - id: "5.4.a"
+    kind: rule
+    title: "Avoid floating-point constants and variables when possible"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "5.4.b.i"
+    kind: rule
+    title: "Use the C99 names float32_t, float64_t and float128_t"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "5.4.b.ii"
+    kind: rule
+    title: "Append f to single-precision floating-point constants"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "5.4.b.iii"
+    kind: rule
+    title: "Make sure the compiler supports double precision if the maths needs it"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "5.4.b.iv"
+    kind: rule
+    title: "Never test floating-point values for equality or inequality"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "float_equality" } }
+
+  - id: "5.4.b.v"
+    kind: rule
+    title: "Use isfinite to check for infinity or NaN results"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "5.5.a"
+    kind: rule
+    title: "Stop the compiler padding structures and unions"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "5.5.b"
+    kind: rule
+    title: "Stop the compiler changing the intended bit order of bit-fields"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "5.6.a"
+    kind: rule
+    title: "Declare boolean variables as bool"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "5.6.b"
+    kind: rule
+    title: "Convert non-boolean values to boolean with relational operators"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "non_boolean_condition" } }
+
+  - id: "6.1.a"
+    kind: rule
+    title: "Do not name procedures after keywords or language extensions"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check:
+      - { type: "native", engine: "source", match: { name: "keyword_macro" } }
+      - { type: "native", engine: "detector", match: { name: "reserved_identifier" } }
+
+  - id: "6.1.b"
+    kind: rule
+    title: "Do not name procedures after standard library functions"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "reserved_identifier" } }
+
+  - id: "6.1.c"
+    kind: rule
+    title: "Do not begin procedure names with an underscore"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "function_naming", check: "underscore_start" } }
+
+  - id: "6.1.d"
+    kind: rule
+    title: "Limit procedure names to 31 characters"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "function_naming", check: "length", limit: 31 } }
+
+  - id: "6.1.e"
+    kind: rule
+    title: "Use no uppercase letters in function names"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "function_naming", check: "lowercase" } }
+
+  - id: "6.1.f"
+    kind: rule
+    title: "Use no lowercase letters in macro names"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "macro_name_has_lowercase" } }
+
+  - id: "6.1.g"
+    kind: rule
+    title: "Separate words in procedure names with underscores"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "6.1.h"
+    kind: rule
+    title: "Name procedures for their purpose, preferably noun then verb"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "6.1.i"
+    kind: rule
+    title: "Prefix public function names with the module name"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "function_naming", check: "module_prefix" } }
+
+  - id: "6.2.a"
+    kind: rule
+    title: "Limit functions to one printed page, 100 lines"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "function_length", limit: 100 } }
+
+  - id: "6.2.b"
+    kind: rule
+    title: "Start functions at the top of a printed page"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "6.2.c"
+    kind: rule
+    title: "Prefer a single return at the bottom of a function"
+    category: recommendation
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "single_exit" } }
+
+  - id: "6.2.d"
+    kind: rule
+    title: "Declare each public function in the module header"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "definition_without_declaration" } }
+
+  - id: "6.2.e"
+    kind: rule
+    title: "Declare every private function static"
+    category: rule
+    decidable: false
+    scope: system
+    coverage: partial
+    check: { type: "native", engine: "system", match: { name: "external_only_used_in_own_unit" } }
+    notes: "Finds functions that are only used inside their own file. A function nothing uses is not reported."
+
+  - id: "6.2.f"
+    kind: rule
+    title: "Declare all parameters with meaningful names"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "function_prototype_form" } }
+
+  - id: "6.3.a"
+    kind: rule
+    title: "Use functions instead of parameterised macros when possible"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "function_like_macro" } }
+
+  - id: "6.3.b.i"
+    kind: rule
+    title: "Put the body of a parameterised macro in parentheses"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "macro_body_unparenthesised" } }
+
+  - id: "6.3.b.ii"
+    kind: rule
+    title: "Put each parameter use in a macro in parentheses"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "macro_param_parens" } }
+
+  - id: "6.3.b.iii"
+    kind: rule
+    title: "Use each macro parameter at most once"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "macro_parameter_used_twice" } }
+
+  - id: "6.3.b.iv"
+    kind: rule
+    title: "Never put a transfer of control in a macro"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "macro_transfers_control" } }
+
+  - id: "6.4.a"
+    kind: rule
+    title: "End thread function names with _thread, _task or _process"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "6.5.a"
+    kind: rule
+    title: "Tell the compiler a function is an ISR with a pragma or keyword"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "6.5.b"
+    kind: rule
+    title: "End interrupt service routine names with _isr"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "6.5.c"
+    kind: rule
+    title: "Declare ISRs static or place them at the end of the module"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "6.5.d"
+    kind: rule
+    title: "Install a stub ISR at every unexpected interrupt source"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "7.1.a"
+    kind: rule
+    title: "Do not name variables after keywords or language extensions"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "keyword_macro" } }
+
+  - id: "7.1.b"
+    kind: rule
+    title: "Do not name variables after standard library variables"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "reserved_identifier" } }
+
+  - id: "7.1.c"
+    kind: rule
+    title: "Do not begin variable names with an underscore"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "variable_naming", check: "underscore_start" } }
+
+  - id: "7.1.d"
+    kind: rule
+    title: "Limit variable names to 31 characters"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "variable_naming", check: "length", limit: 31 } }
+
+  - id: "7.1.e"
+    kind: rule
+    title: "Give variable names at least three characters, loop counters included"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "variable_naming", check: "min_length", limit: 3 } }
+
+  - id: "7.1.f"
+    kind: rule
+    title: "Use no uppercase letters in variable names"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "variable_naming", check: "lowercase" } }
+
+  - id: "7.1.g"
+    kind: rule
+    title: "Do not put in a variable name a number that appears elsewhere"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "7.1.h"
+    kind: rule
+    title: "Separate words in variable names with underscores"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "7.1.i"
+    kind: rule
+    title: "Name variables for their purpose"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "7.1.j"
+    kind: rule
+    title: "Begin global variable names with g"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "variable_naming", check: "global_prefix" } }
+
+  - id: "7.1.k"
+    kind: rule
+    title: "Begin pointer variable names with p"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "variable_naming", check: "pointer_prefix" } }
+    notes: "Function pointers are not checked."
+
+  - id: "7.1.l"
+    kind: rule
+    title: "Begin pointer-to-pointer names with pp"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "variable_naming", check: "pointer_prefix" } }
+
+  - id: "7.1.m"
+    kind: rule
+    title: "Begin boolean variable names with b"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "variable_naming", check: "bool_prefix" } }
+
+  - id: "7.1.n"
+    kind: rule
+    title: "Begin handle variable names with h"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "7.1.o"
+    kind: rule
+    title: "Order prefixes g, then p or pp, then b or h, before the first underscore"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "variable_naming", check: "pointer_prefix" } }
+
+  - id: "7.2.a"
+    kind: rule
+    title: "Initialise all variables before use"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "diagnostic", match: { option: ["uninitialized", "sometimes-uninitialized", "conditional-uninitialized"], flags: ["-Wuninitialized", "-Wsometimes-uninitialized", "-Wconditional-uninitialized"] } }
+
+  - id: "7.2.b"
+    kind: rule
+    title: "Declare local variables where needed rather than at the top of the function"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "7.2.c"
+    kind: rule
+    title: "Group file-global variable definitions at the top of the file"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "7.2.d"
+    kind: rule
+    title: "Initialise pointers without an address to NULL"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "pointer_uninitialised" } }
+
+  - id: "8.1.a"
+    kind: rule
+    title: "Do not use the comma operator in variable declarations"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "multiple_declarators" } }
+
+  - id: "8.2.a"
+    kind: rule
+    title: "Put the shortest if or else clause first"
+    category: recommendation
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "8.2.b"
+    kind: rule
+    title: "Nest if...else no deeper than two levels"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "if_else_nesting", limit: 2 } }
+
+  - id: "8.2.c"
+    kind: rule
+    title: "Do not assign inside if or else if conditions"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "assignment_in_condition" } }
+
+  - id: "8.2.d"
+    kind: rule
+    title: "End an if with else if with a final else"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "else_if_without_else" } }
+
+  - id: "8.3.a"
+    kind: rule
+    title: "Align each break with its case label"
+    category: rule
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "8.3.b"
+    kind: rule
+    title: "Give every switch a default block"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "switch_default" } }
+
+  - id: "8.3.c"
+    kind: rule
+    title: "Comment each case that falls through"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "switch_break_terminated" } }
+
+  - id: "8.4.a"
+    kind: rule
+    title: "Use no magic numbers in a loop's initialisation or end test"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "loop_magic_number" } }
+
+  - id: "8.4.b"
+    kind: rule
+    title: "Do not assign in a loop's controlling expression"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "assignment_in_condition" } }
+
+  - id: "8.4.c"
+    kind: rule
+    title: "Write infinite loops as for (;;)"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "infinite_loop_form" } }
+
+  - id: "8.4.d"
+    kind: rule
+    title: "Put braces and a comment in an empty loop body"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "empty_control_body" } }
+
+  - id: "8.5.a"
+    kind: rule
+    title: "Use goto only as Rule 1.7.c allows"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check:
+      - { type: "native", engine: "detector", match: { name: "goto_backward" } }
+      - { type: "native", engine: "detector", match: { name: "goto_label_block" } }
+
+  - id: "8.5.b"
+    kind: rule
+    title: "Do not use abort, exit, setjmp or longjmp"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "ast", match: { cursor: "CALL_EXPR", callee_in: ["abort", "exit", "setjmp", "longjmp", "_Exit", "quick_exit"] } }
+
+  - id: "8.6.a"
+    kind: rule
+    title: "Put the constant on the left of an equality test"
+    category: rule
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "constant_on_right" } }

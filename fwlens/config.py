@@ -300,6 +300,7 @@ class SbomConfig:
     components: list[SbomComponent] = field(default_factory=list)
     include_files: bool = False      # list every file with its hash, not just one hash per component
     application_version: str | None = None   # version of the firmware the SBOM describes
+    components_file: Path | None = None      # a hand-kept components.yaml: bootloader, modem, toolchain and the like
 
 
 @dataclass
@@ -649,7 +650,8 @@ def load_config(config_path: Path) -> FwLensConfig:
             description=c.get("description")))
     sbom = SbomConfig(components=sbom_components, include_files=bool(sbom_raw.get("include_files", False)),
                       application_version=None if sbom_raw.get("application_version") is None
-                      else str(sbom_raw["application_version"]))
+                      else str(sbom_raw["application_version"]),
+                      components_file=resolve(str(sbom_raw["components_file"])) if sbom_raw.get("components_file") else None)
 
     cbom_raw = raw.get("cbom") or {}
     scan_scopes = [str(x) for x in cbom_raw.get("scan_scopes", ["first_party"])]

@@ -344,6 +344,7 @@ def run_system_engines(records: Records, rules: list[Rule]) -> list[Hit]:
 
 # Importing the check modules registers their detectors and system checks.
 from fwlens.standards import (  # noqa: E402,F401
+    barrc,
     cflow,
     declarations,
     expressions,

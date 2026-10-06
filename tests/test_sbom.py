@@ -154,3 +154,39 @@ def test_cli_writes_the_file_and_the_report_format_does_too(project, monkeypatch
     doc = json.loads((project / "out" / "sbom.json").read_text())
     validate_bom(doc)
     assert "3 component(s), 1 without a version" in " ".join(res.output.split())
+
+
+# --- a hand-kept components file (#97) -------------------------------------------------------
+
+COMPONENTS = __import__("pathlib").Path(__file__).parent / "fixtures" / "components_example.yaml"
+
+
+def test_components_file_adds_declared_parts_and_a_product(project):
+    doc = build_sbom(make_config(project, f"sbom:\n  components_file: {COMPONENTS}\n  application_version: '1.2.3'\n"))
+    validate_bom(doc)
+    meta = doc["metadata"]["component"]
+    assert meta["name"] == "Acme Smart Meter" and meta["type"] == "device" and meta["version"] == "1.2.3"
+    assert meta["supplier"]["name"] == "Acme Meters Ltd"
+    names = by_name(doc)
+    modem = names["Example Cellular Modem Firmware"]
+    assert modem["type"] == "firmware" and "version" not in modem            # "unknown" is left out, not guessed
+    assert {"name": "fwlens:gaps", "value": "version, CVE check"} in modem["properties"]
+    embos = names["Example RTOS"]
+    assert embos["version"] == "5.1.0" and embos["type"] == "operating-system"
+    assert names["Vendor MCU SDK"]["licenses"] == [{"expression": "Zlib"}]
+    assert names["Example Toolchain"]["type"] == "application"
+    refs = {c["bom-ref"] for c in doc["components"]}
+    product_deps = next(d for d in doc["dependencies"] if d["ref"] == "product")["dependsOn"]
+    assert set(product_deps) <= refs and len(product_deps) >= 12
+    gaps = next(p for p in doc["metadata"]["properties"] if p["name"] == "fwlens:components-file-gaps")["value"]
+    assert "ExampleCrypto: version, CVE check" in gaps
+
+
+def test_components_file_errors_are_clear(project, tmp_path):
+    from fwlens.sbom_components import ComponentsFileError, load_components_file
+    bad = tmp_path / "bad.yaml"
+    bad.write_text("modem:\n  - name: X\n    type: spaceship\n")
+    with pytest.raises(ComponentsFileError, match="spaceship"):
+        load_components_file(bad)
+    with pytest.raises(ComponentsFileError, match="cannot read"):
+        load_components_file(tmp_path / "missing.yaml")
