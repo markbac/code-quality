@@ -7,6 +7,14 @@
 # those of a catalogue entry.
 context_words: [key, keys, encrypt, decrypt, cipher, crypt, crypto, hash, digest, sign, verify, mac, iv, nonce, tag,
                 block, setkey, init, update, final, finish, ctx, handshake, session, cert, certificate, suite]
+# Words that say what a function does with a certificate, the first group with a word in the name wins.
+certificate_usage:
+  private-key: [privkey, private]
+  hostname: [host, hostname, cn, san, domain]
+  trust-anchor: [ca, root, trust, anchor, truststore, chain]
+  verify: [verify, validate, check, valid, expiry, expired, revoked, revocation]
+  parse: [parse, load, read, decode, import, der, pem, get, extract]
+  own-certificate: [set, use, own, client, install, provision, store, write]
 keywords:
   - {match: ["aes"], name: AES, primitive: block-cipher, functions: [encrypt, decrypt], bits_from_name: true, mode_from_name: true}
   - {match: ["3 des", "des 3", "tdes", "triple des", "des ede"], name: 3DES, primitive: block-cipher, parameter_set: "112", functions: [encrypt, decrypt], weak: "3DES is deprecated (64-bit block, Sweet32)"}
@@ -54,3 +62,4 @@ keywords:
   - {match: ["tls", "dtls"], context: true, name: TLS, kind: protocol, protocol: tls}
   - {match: ["ssh"], context: true, name: SSH, kind: protocol, protocol: ssh}
   - {match: ["ipsec"], name: IPsec, kind: protocol, protocol: ipsec}
+  - {match: ["cert", "certs", "certificate", "certificates", "x 509", "crl", "ocsp", "truststore", "trust store"], name: Certificate handling, kind: certificate}

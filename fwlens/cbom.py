@@ -282,7 +282,10 @@ def build_cbom(config: FwLensConfig, now: datetime | None = None) -> dict:
             elif config.cbom.autodetect and not ignored(token, config.cbom.ignore_identifiers):
                 line = line_of(m.start())
                 if line not in include_lines and not _SUITE.fullmatch(token):      # suites have their own asset
+                    called = code[m.end():m.end() + 40].lstrip().startswith("(")
                     for kw in keywords.match(token):
+                        if kw.entry.kind == "certificate" and not called:
+                            continue                      # a variable named cert_len is not a function that uses one
                         record(None, kw.entry, token, where, line, "keyword", file_curves, forced=(kw.bits, kw.mode))
 
     # A library named anywhere in the project file counts as present, even when its own sources are

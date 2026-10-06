@@ -208,3 +208,32 @@ def test_certificates_can_be_switched_off_and_library_folders_are_respected(tmp_
     assert found() == {"CN=meter.acme.example, O=Acme, C=GB"}                # lib/ is third party, not scanned
     assert "CN=ec.acme.example, O=Acme" in found("cbom:\n  scan_scopes: [first_party, third_party_lib]\n")
     assert found("cbom:\n  certificates: false\n") == set()
+
+
+# --- certificate functions found by name -------------------------------------------------------------------------
+
+@pytest.mark.parametrize("token, usage", [
+    ("app_verify_certificate", "verify"),
+    ("LoadCaCert", "trust-anchor"),
+    ("x509_parse_der", "parse"),
+    ("modem_set_client_cert", "own-certificate"),
+    ("cert_check_hostname", "hostname"),
+    ("cert_privkey_load", "private-key"),
+    ("ocsp_refresh", "other"),
+])
+def test_certificate_words_give_the_usage(token, usage):
+    hits = load_keywords().match(token)
+    assert [h.entry.usage for h in hits if h.entry.kind == "certificate"] == [usage]
+
+
+def test_functions_that_may_use_certificates_are_found_by_name_but_variables_are_not(tmp_path):
+    write(tmp_path, {"src/main.c": ("int cert_len;\nint tls_verify_cert(const unsigned char *c);\n"
+                                    "void f(void) { tls_verify_cert(0); cert_len = 1; }\n"
+                                    "static void certification_notice(void);\n")})
+    found = assets(build_cbom(make_config(tmp_path)))
+    cert = [c for n, c in found.items() if "by name" in n]
+    assert [c["name"] for c in cert] == ["Certificate handling by name: verify"]
+    assert prop(cert[0], "fwlens:identifiers") == "tls_verify_cert" and prop(cert[0], "fwlens:occurrence-count") == "2"
+    assert "low" in prop(cert[0], "fwlens:confidence")
+    assert prop(cert[0], "fwlens:certificate-usage") == "verify"
+    validate_bom(build_cbom(make_config(tmp_path)))

@@ -998,6 +998,11 @@ Unless `cbom.certificates: false`, the CBOM also lists:
 - PEM blocks inside C strings and DER certificates written as byte arrays in source
 - calls that handle certificates: parsing, chain verification, trust anchors, own certificate,
   private key loading and server name checks (Mbed TLS, OpenSSL, wolfSSL)
+- functions that may use certificates, found by name: a call or definition whose name has `cert`,
+  `certificate`, `x509`, `crl`, `ocsp` or `truststore` (`app_verify_certificate`, `LoadCaCert`).
+  The other words give the usage (verify, parse, trust anchor, own certificate, hostname, private
+  key), and the asset is `Certificate handling by name: <usage>` with `fwlens:confidence: low`.
+  Variables such as `cert_len` and words such as `certification` do not count
 
 Certificates are read directly (subject, issuer, validity, signature algorithm, key type and size)
 and appear as `certificate` assets, keys and keystores as `related-crypto-material`. `fwlens:weak`

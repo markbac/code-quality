@@ -8,7 +8,7 @@ than a catalogue hit and the CBOM marks it as such.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from fnmatch import fnmatchcase
 from pathlib import Path
 
@@ -65,7 +65,8 @@ def _parse(items, where: str) -> list[Keyword]:
 
 
 class Keywords:
-    def __init__(self, keywords: list[Keyword], context_words: set[str]):
+    def __init__(self, keywords: list[Keyword], context_words: set[str], usage_words: dict[str, set[str]] | None = None):
+        self._usage = usage_words or {}
         self._ordered = sorted(((p, k) for k in keywords for p in k.phrases), key=lambda t: -len(t[0]))
         self._context = context_words
         self._cache: dict[str, list[Hit]] = {}
@@ -93,6 +94,10 @@ class Keywords:
                 continue
             seen.add(kw.entry.id)
             e = kw.entry
+            if e.kind == "certificate":
+                usage = next((u for u, ws in self._usage.items() if ws.intersection(words)), "other")
+                e = replace(e, id=f"{e.id}-{usage}", usage=usage,
+                            name=f"{e.name} by name: {usage.replace('-', ' ')}" if usage != "other" else f"{e.name} by name")
             hits.append(Hit(e, bits if e.bits_from_name else None,
                             (mode if mode in _MODE_VALUES else "other" if mode else None) if e.mode_from_name else e.mode))
         self._cache[token] = hits
@@ -116,7 +121,8 @@ def load_keywords(extra: list[dict] | None = None) -> Keywords:
         for k in added:
             by_id[k.entry.id] = k                  # the same name replaces the bundled keyword
         keywords = list(by_id.values())
-    return Keywords(keywords, {str(w) for w in raw.get("context_words", [])})
+    usage = {u: {str(w) for w in ws} for u, ws in (raw.get("certificate_usage") or {}).items()}
+    return Keywords(keywords, {str(w) for w in raw.get("context_words", [])}, usage)
 
 
 def ignored(token: str, patterns: list[str]) -> bool:
