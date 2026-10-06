@@ -1,0 +1,274 @@
+# Built-in FWLens rule set: checks that are not part of a published coding standard.
+#   SEC-n   secrets and weak cryptography found in the source
+#   DEAD-n  unused and unreachable code
+#   ISR-n   interrupt handler safety
+#   IMP-n   a landing place for findings imported from other analysers that no enabled
+#           standard maps to a rule (see the tool_map at the end of this file)
+#
+# The secrets scan is pattern based. It finds the common shapes, not every secret: it does not
+# replace a dedicated scanner over the whole repository history.
+# Interrupt handlers are found by name (SysTick_Handler, TIM2_IRQHandler, ISR_x) or by an attribute
+# (__interrupt, __irq, __attribute__((interrupt))). Only the handler's own body is read.
+# `coverage: partial` means a check finds some violations, not all, so "no findings" does not
+# show compliance.
+schema_version: 1
+standard:
+  id: fwlens
+  name: FWLens built-in checks
+  revision: "1"
+  language: c
+  guideline_text: https://github.com/markbac/code-quality
+  categories: [required, advisory]
+  undeviable_categories: []
+  severity_map: { required: warning, advisory: note }
+
+rules:
+  - id: "SEC-1"
+    kind: rule
+    title: "Hard-coded password, secret or key in a string literal"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-259, CWE-798]
+    check: { type: "native", engine: "source", match: { pattern: "(?i)\\b(?:pass(?:word|wd)?|pwd|secret|api[_-]?key|apikey|auth[_-]?token|access[_-]?token|private[_-]?key|credential)\\w*\\s*(?:\\[\\s*\\w*\\s*\\])?\\s*=\\s*\"[^\"\\s]{4,}\\\"", target: "text" } }
+    notes: "Looks for names such as password, secret or api_key assigned a string. A value held in a variable with another name is not found."
+
+  - id: "SEC-2"
+    kind: rule
+    title: "Private key material in source"
+    category: required
+    decidable: true
+    scope: single-tu
+    cwe: [CWE-321, CWE-798]
+    check: { type: "native", engine: "source", match: { pattern: "-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?: BLOCK)?-----", target: "text" } }
+
+  - id: "SEC-3"
+    kind: rule
+    title: "Known access token or cloud key format in source"
+    category: required
+    decidable: true
+    scope: single-tu
+    cwe: [CWE-798]
+    check: { type: "native", engine: "source", match: { pattern: "\\b(?:AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{40,}|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_\\-]{35}|sk_live_[0-9a-zA-Z]{20,}|eyJ[A-Za-z0-9_-]{10,}\\.eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,})\\b", target: "text" } }
+
+  - id: "SEC-4"
+    kind: rule
+    title: "Credentials embedded in a URL"
+    category: required
+    decidable: true
+    scope: single-tu
+    cwe: [CWE-798, CWE-522]
+    check: { type: "native", engine: "source", match: { pattern: "[a-zA-Z][a-zA-Z0-9+.-]*://[^/\\s:@\\\"]+:[^/\\s@\\\"]+@[^/\\s\\\"]+", target: "text" } }
+
+  - id: "SEC-5"
+    kind: rule
+    title: "Use of a broken or risky cryptographic algorithm"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-327, CWE-328]
+    check: { type: "native", engine: "ast", match: { cursor: "CALL_EXPR", callee_in: ["MD5", "MD5_Init", "MD5_Update", "MD5_Final", "md5", "SHA1", "SHA1_Init", "sha1", "DES_ecb_encrypt", "DES_set_key", "RC4", "RC4_set_key", "EVP_md5", "EVP_sha1", "EVP_des_ecb", "EVP_rc4", "mbedtls_md5", "mbedtls_sha1", "mbedtls_des_crypt_ecb", "mbedtls_arc4_crypt", "mbedtls_md5_ret", "mbedtls_sha1_ret", "wc_Md5Hash", "wc_ShaHash"] } }
+    notes: "Names of the common library functions. Use cbom for a full list of the algorithms named in the source."
+
+  - id: "SEC-6"
+    kind: rule
+    title: "Hard-coded IPv4 address"
+    category: advisory
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-547]
+    check: { type: "native", engine: "source", match: { pattern: "\\\"(?:(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\\"", target: "text" } }
+    notes: "Loopback and broadcast addresses are reported too. Deviate them where they are meant."
+
+  - id: "DEAD-1"
+    kind: rule
+    title: "Unreachable code"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-561]
+    check:
+      - { type: "native", engine: "detector", match: { name: "unreachable_code" } }
+      - { type: "native", engine: "diagnostic", match: { option: ["unreachable-code", "unused-function"], flags: ["-Wunreachable-code"] } }
+
+  - id: "DEAD-2"
+    kind: rule
+    title: "Static function that is never used"
+    category: required
+    decidable: true
+    scope: single-tu
+    cwe: [CWE-561]
+    check: { type: "native", engine: "detector", match: { name: "unused_static_function" } }
+
+  - id: "DEAD-3"
+    kind: rule
+    title: "Unused function parameter"
+    category: advisory
+    decidable: true
+    scope: single-tu
+    cwe: [CWE-1164]
+    check:
+      - { type: "native", engine: "detector", match: { name: "unused_parameter" } }
+      - { type: "native", engine: "diagnostic", match: { option: "unused-parameter" } }
+
+  - id: "DEAD-4"
+    kind: rule
+    title: "Unused local variable or file-scope object"
+    category: required
+    decidable: true
+    scope: single-tu
+    cwe: [CWE-563]
+    check: { type: "native", engine: "detector", match: { name: "unused_object" } }
+
+  - id: "DEAD-5"
+    kind: rule
+    title: "Local variable that is assigned but never read"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-563]
+    check: { type: "native", engine: "detector", match: { name: "write_only_local" } }
+
+  - id: "DEAD-6"
+    kind: rule
+    title: "Unused macro"
+    category: advisory
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-1164]
+    check: { type: "native", engine: "source", match: { name: "macro_defined_unused" } }
+
+  - id: "DEAD-7"
+    kind: rule
+    title: "Unused type or tag declaration"
+    category: advisory
+    decidable: false
+    scope: system
+    coverage: partial
+    cwe: [CWE-1164]
+    check: { type: "native", engine: "system", match: { name: "typedef_unused" } }
+
+  - id: "DEAD-8"
+    kind: rule
+    title: "Code that has been commented out"
+    category: advisory
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-561]
+    check: { type: "native", engine: "source", match: { name: "commented_out_code" } }
+
+  - id: "DEAD-9"
+    kind: rule
+    title: "Statement with no effect"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-482, CWE-561]
+    check: { type: "native", engine: "detector", match: { name: "no_effect_statement" } }
+
+  - id: "DEAD-10"
+    kind: rule
+    title: "Unused label"
+    category: advisory
+    decidable: true
+    scope: single-tu
+    cwe: [CWE-1164]
+    check: { type: "native", engine: "detector", match: { name: "unused_label" } }
+
+  - id: "ISR-1"
+    kind: rule
+    title: "Shared variable written in an interrupt handler is not volatile"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-362, CWE-820]
+    check: { type: "native", engine: "detector", match: { name: "isr_shared_not_volatile" } }
+    notes: "Handlers are found by name or attribute. A variable written in the handler and used by another function in the same file is reported. Use across files is not seen."
+
+  - id: "ISR-2"
+    kind: rule
+    title: "Interrupt handler calls a function that blocks or waits"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-833]
+    check: { type: "native", engine: "detector", match: { name: "isr_calls", callee_in: ["malloc", "calloc", "realloc", "free", "printf", "fprintf", "sprintf", "snprintf", "puts", "fopen", "fclose", "sleep", "usleep", "HAL_Delay", "vTaskDelay", "vTaskDelayUntil", "osDelay", "OS_Delay", "OS_TASK_Delay", "OS_TASK_Delayus", "k_sleep", "xQueueReceive", "xSemaphoreTake", "xTaskNotifyWait", "ulTaskNotifyTake", "osMutexAcquire", "osSemaphoreAcquire", "osMessageQueueGet", "pthread_mutex_lock", "OS_MUTEX_LockBlocked", "OS_MUTEX_Lock", "OS_SEMAPHORE_TakeBlocked", "OS_SEMAPHORE_TakeTimed", "OS_MAILBOX_GetBlocked", "OS_MAILBOX_GetTimed", "OS_QUEUE_GetPtrBlocked", "OS_EVENT_WaitTimed", "OS_EVENT_Wait", "OS_TASK_Suspend"] } }
+    notes: "Direct calls from the handler only. The list of names is a default: edit it in your own rule file for other RTOS or HAL."
+
+  - id: "ISR-3"
+    kind: rule
+    title: "Interrupt handler calls an RTOS function that is not an ISR-safe variant"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-663]
+    check: { type: "native", engine: "detector", match: { name: "isr_calls", callee_in: ["xQueueSend", "xQueueSendToBack", "xQueueSendToFront", "xQueueOverwrite", "xSemaphoreGive", "xTaskNotify", "xTaskNotifyGive", "xEventGroupSetBits", "xEventGroupClearBits", "xTimerStart", "xTimerStop", "xTimerReset", "xTimerChangePeriod", "xTaskResume", "vTaskSuspend", "xQueueReceive", "xSemaphoreTake", "xTaskAbortDelay", "osMessageQueuePut", "osSemaphoreRelease", "osEventFlagsSet"] } }
+    notes: "FreeRTOS and CMSIS-RTOS names. Use the FromISR variant."
+
+  - id: "ISR-4"
+    kind: rule
+    title: "Interrupt handler uses dynamic memory, stdio or another non-reentrant function"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-663]
+    check: { type: "native", engine: "detector", match: { name: "isr_calls", callee_in: ["malloc", "calloc", "realloc", "free", "printf", "fprintf", "sprintf", "snprintf", "vprintf", "puts", "fopen", "fclose", "fread", "fwrite", "scanf", "strtok", "rand", "srand", "localtime", "asctime", "ctime"] } }
+
+  - id: "ISR-5"
+    kind: rule
+    title: "Interrupt handler is longer than 40 lines"
+    category: advisory
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "isr_length", limit: 40 } }
+
+  - id: "IMP-1"
+    kind: rule
+    title: "Finding from clang-tidy or the clang static analyser"
+    category: required
+    decidable: false
+    scope: single-tu
+    check: { type: "import" }
+    notes: "Read from standards.imports: the clang-tidy text, the clang-tidy YAML, or the analyser plist."
+
+  - id: "IMP-2"
+    kind: rule
+    title: "Finding from cppcheck"
+    category: required
+    decidable: false
+    scope: single-tu
+    check: { type: "import" }
+    notes: "Read from standards.imports: cppcheck XML."
+
+  - id: "IMP-3"
+    kind: rule
+    title: "Finding from GCC -fanalyzer or another SARIF tool"
+    category: required
+    decidable: false
+    scope: single-tu
+    check: { type: "import" }
+    notes: "Read from standards.imports: SARIF."
+
+tool_map:
+  clang-tidy:
+    "clang-analyzer-*": "IMP-1"
+    "bugprone-*": "IMP-1"
+    "cert-*": "IMP-1"
+    "concurrency-*": "IMP-1"
+    "misc-*": "IMP-1"
+  cppcheck:
+    "*": "IMP-2"
+  sarif:
+    "*": "IMP-3"

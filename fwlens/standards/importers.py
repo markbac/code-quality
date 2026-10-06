@@ -5,16 +5,21 @@ Most MISRA and CERT coverage comes from tools built for it. FWLens reads their o
 each finding onto a rule from the enabled standards, so results land in the same compliance
 matrix, baseline and PR comment.
 
-    cppcheck    XML (``cppcheck --xml``), with the MISRA addon or Premium ids
-    clang-tidy  text output, ``cert-*`` checks
-    sarif       SARIF 2.1.0 from any tool
+    cppcheck        XML (``cppcheck --xml``), with the MISRA addon or Premium ids
+    clang-tidy      text output, ``cert-*`` and ``clang-analyzer-*`` checks
+    clang-tidy-yaml the YAML written by ``clang-tidy --export-fixes=file``
+    clang-analyzer  plist output of the clang static analyser (``scan-build -plist``)
+    sarif           SARIF 2.1.0 from any tool, for example ``gcc -fanalyzer -fdiagnostics-format=sarif``
 
-Mapping order: the standard's ``tool_map``, then built-in id patterns.
+Mapping order: the standard's ``tool_map`` (an exact id, then a ``*`` pattern), then built-in id
+patterns.
 """
 
 from __future__ import annotations
 
+import fnmatch
 import json
+import plistlib
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -59,6 +64,10 @@ def map_to_rule(raw: RawFinding, standards: list[Standard]) -> Rule | None:
             for rid, rule in std.rules.items():
                 if rid.lower() == cand.lower():
                     return rule
+    for std in standards:
+        for pattern, mapped in std.tool_map.get(raw.tool, {}).items():
+            if any(ch in pattern for ch in "*?[") and fnmatch.fnmatchcase(raw.tool_id, pattern) and mapped in std.rules:
+                return std.rules[mapped]
     return None
 
 
@@ -86,6 +95,44 @@ def parse_clang_tidy(path: Path) -> list[RawFinding]:
     return out
 
 
+def parse_clang_tidy_yaml(path: Path) -> list[RawFinding]:
+    """The YAML from ``clang-tidy --export-fixes``. It gives a file offset, so the line is worked out here."""
+    import yaml
+    data = yaml.safe_load(Path(path).read_text(encoding="utf-8", errors="replace")) or {}
+    out = []
+    lines_of: dict[str, list[int]] = {}
+    for diag in data.get("Diagnostics", []):
+        msg = diag.get("DiagnosticMessage", {})
+        file = msg.get("FilePath", "")
+        if file not in lines_of:
+            try:
+                text = Path(file).read_text(encoding="utf-8", errors="replace")
+                lines_of[file] = [i for i, ch in enumerate(text) if ch == "\n"]
+            except OSError:
+                lines_of[file] = []
+        offset = int(msg.get("FileOffset", 0) or 0)
+        newlines = lines_of[file]
+        line = sum(1 for n in newlines if n < offset) + 1 if newlines else 0
+        out.append(RawFinding("clang-tidy", diag.get("DiagnosticName", ""), file, line, msg.get("Message", "")))
+    return out
+
+
+def parse_clang_analyzer_plist(path: Path) -> list[RawFinding]:
+    """Plist from the clang static analyser. A check is reported as clang-analyzer-<check name>."""
+    with open(path, "rb") as fh:
+        data = plistlib.load(fh)
+    files = data.get("files", [])
+    out = []
+    for diag in data.get("diagnostics", []):
+        loc = diag.get("location", {})
+        idx = loc.get("file", 0)
+        file = files[idx] if isinstance(idx, int) and 0 <= idx < len(files) else ""
+        check = diag.get("check_name", "") or diag.get("category", "")
+        out.append(RawFinding("clang-tidy", f"clang-analyzer-{check}", file, int(loc.get("line", 0) or 0),
+                              diag.get("description", "")))
+    return out
+
+
 def parse_sarif(path: Path) -> list[RawFinding]:
     out = []
     data = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -101,7 +148,8 @@ def parse_sarif(path: Path) -> list[RawFinding]:
     return out
 
 
-PARSERS = {"cppcheck": parse_cppcheck_xml, "clang-tidy": parse_clang_tidy, "sarif": parse_sarif}
+PARSERS = {"cppcheck": parse_cppcheck_xml, "clang-tidy": parse_clang_tidy, "clang-tidy-yaml": parse_clang_tidy_yaml,
+           "clang-analyzer": parse_clang_analyzer_plist, "sarif": parse_sarif}
 
 
 def read_import(tool: str, path: Path) -> list[RawFinding]:

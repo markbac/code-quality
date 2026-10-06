@@ -210,4 +210,6 @@ def load_standards(extra_dirs: Iterable[Path] = ()) -> dict[str, Standard]:
         for f in sorted(directory.glob("*.yaml")):
             std = load_standard_file(f)
             standards[std.id] = std
+    from fwlens.standards.cwe import apply_map
+    apply_map(standards)
     return standards

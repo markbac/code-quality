@@ -2826,6 +2826,16 @@
   </table>
   {% endif %}
   {% endif %}
+  {% if v.cwe %}
+  <div class="section-title">Weaknesses (CWE)</div>
+  <p style="color:var(--dim);font-size:12px;margin-bottom:8px;max-width:900px">CWE Top 25 ({{ v.cwe.edition }}): {{ v.cwe.top25_checked | length }} of {{ v.cwe.top25_size }} have a rule that checks for them, {{ v.cwe.top25_found | length }} have findings{% if v.cwe.top25_found %} ({{ v.cwe.top25_found | join(', ') }}){% endif %}.</p>
+  {% if v.cwe.rows %}
+  <table>
+    <thead><tr><th>CWE</th><th>Results</th></tr></thead>
+    <tbody>{% for r in v.cwe.rows %}<tr><td><a href="https://cwe.mitre.org/data/definitions/{{ r.cwe.replace('CWE-', '') }}.html" target="_blank" rel="noopener">{{ r.cwe }}</a></td><td>{{ r.count }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% endif %}
+  {% endif %}
   {% if v.rule_rows %}
   <div class="section-title">Results by rule ({{ v.rule_rows | length }} of {{ v.rule_count }})</div>
   <table>

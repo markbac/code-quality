@@ -13,6 +13,7 @@ from fwlens.standards import load_standards
 
 M, C, P = "misra-c-2012", "cert-c", "power-of-10"
 M23, BC = "misra-c-2023", "barr-c-2018"
+FW, AS, TS = "fwlens", "autosar-cpp14", "iso-ts-17961"
 
 # (standard, rule id, source). Sources are kept small and every one compiles as plain C.
 CASES: list[tuple[str, str, str]] = [
@@ -122,6 +123,33 @@ CASES: list[tuple[str, str, str]] = [
     (P, "P10-1", "void f(int a) {\n if (a) goto end; /* BAD */\n end: return;\n}\n"),
     (P, "P10-3", "#include <stdlib.h>\nvoid f(void) {\n void *p = malloc(4); /* BAD */\n (void)p;\n}\n"),
     (P, "P10-9", "void f(int **p) { /* BAD */\n (void)p;\n}\n"),
+    # --- FWLens built-in checks ---
+    (FW, "SEC-1", "static const char password[] = \"letmein1\"; /* BAD */\nstatic const char user[] = \"letmein1\";\n"),
+    (FW, "SEC-2", "const char *k = \"-----BEGIN RSA PRIVATE KEY-----\"; /* BAD */\nconst char *n = \"-----BEGIN CERTIFICATE-----\";\n"),
+    (FW, "SEC-3", "const char *k = \"AKIAIOSFODNN7EXAMPLE\"; /* BAD */\nconst char *n = \"AKIA\";\n"),
+    (FW, "SEC-4", "const char *u = \"https://admin:hunter2@host/x\"; /* BAD */\nconst char *v = \"https://host/x\";\n"),
+    (FW, "SEC-5", "extern int MD5(const void *d);\nvoid f(void) {\n MD5(0); /* BAD */\n}\n"),
+    (FW, "SEC-6", "const char *ip = \"192.168.1.10\"; /* BAD */\nconst char *v = \"1.2\";\n"),
+    (FW, "DEAD-2", "static int unused(void) { return 1; } /* BAD */\nstatic int used(void) { return 2; }\nint pub(void) { return used(); }\n"),
+    (FW, "DEAD-5", "void f(void) {\n int a = 0;\n int b; /* BAD */\n b = 3;\n a++;\n (void)a;\n}\n"),
+    (FW, "ISR-1", "int flag;\nvolatile int vflag;\nvoid TIM2_IRQHandler(void) {\n flag = 1; /* BAD */\n vflag = 1;\n}\n"
+                  "int get(void) { return flag + vflag; }\n"),
+    (FW, "ISR-2", "void vTaskDelay(int t);\nvoid TIM2_IRQHandler(void) {\n vTaskDelay(1); /* BAD */\n}\nvoid task(void) {\n vTaskDelay(1);\n}\n"),
+    (FW, "ISR-3", "int xQueueSend(void *q, void *i, int t);\nvoid ISR_uart(void) {\n xQueueSend(0, 0, 0); /* BAD */\n}\n"),
+    (FW, "ISR-4", "#include <stdlib.h>\nvoid SysTick_Handler(void) {\n void *p = malloc(4); /* BAD */\n (void)p;\n}\n"),
+    (FW, "ISR-5", "void X_IRQHandler(void) { /* BAD */\n" + " (void)0;\n" * 45 + "}\nvoid Y_IRQHandler(void) {\n (void)0;\n}\n"),
+    # --- AUTOSAR C++14 (C subset) ---
+    (AS, "A6-5-3", "void f(int a) {\n do { /* BAD */\n a++;\n } while (a < 3);\n}\n"),
+    (AS, "A2-11-1", "volatile int v; /* BAD */\nint w;\n"),
+    (AS, "A16-7-1", "#pragma pack(1) /* BAD */\nint a;\n"),
+    (AS, "M18-2-1", "#include <stddef.h>\nstruct s { int a; };\nunsigned long f(void) {\n return offsetof(struct s, a); /* BAD */\n}\n"),
+    (AS, "M19-3-1", "#include <errno.h>\nint f(void) {\n return errno; /* BAD */\n}\n"),
+    (AS, "M18-0-5", "#include <string.h>\nvoid f(char *d, const char *s) {\n strcpy(d, s); /* BAD */\n}\n"),
+    (AS, "A0-1-3", "static int unused(void) { return 1; } /* BAD */\nint pub(void) { return 0; }\n"),
+    # --- ISO/IEC TS 17961 ---
+    (TS, "syscall", "#include <stdlib.h>\nvoid f(void) {\n system(\"ls\"); /* BAD */\n}\n"),
+    (TS, "addrescape", "int *f(void) {\n int a = 1;\n return &a; /* BAD */\n}\n"),
+    (TS, "swtchdflt", "void f(int a) {\n switch (a) { /* BAD */\n case 1:\n break;\n }\n}\n"),
 ]
 
 

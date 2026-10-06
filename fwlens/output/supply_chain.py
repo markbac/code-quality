@@ -132,7 +132,12 @@ def sarif_view(doc: dict, top_rules: int = 15, top_files: int = 15, top_function
     metrics = run.get("properties", {}).get("fwlens", {})
     breaches = [{"rule": r["ruleId"], **r["properties"]} for r in results if r.get("properties", {}).get("metric")]
     standards = Counter(r["ruleId"].split(":")[0] for r in results if ":" in r["ruleId"])
+    cwe = metrics.get("cwe") or {}
+    cwe_rows = [{"cwe": c, "count": n} for c, n in list(cwe.get("findingsByCwe", {}).items())[:top_rules]]
     return {
+        "cwe": ({"edition": cwe.get("top25Edition", ""), "rows": cwe_rows, "total": len(cwe.get("findingsByCwe", {})),
+                 "top25_checked": cwe.get("top25CheckedByRules", []), "top25_found": cwe.get("top25WithFindings", []),
+                 "top25_size": len(cwe.get("top25", []))} if cwe else None),
         "version": doc.get("version", ""), "tool": f"{run['tool']['driver']['name']} {run['tool']['driver'].get('version', '')}",
         "total": len(results), "levels": dict(levels), "rule_rows": rule_rows, "rule_count": len(by_rule),
         "file_rows": [{"file": f, "count": n} for f, n in by_file.most_common(top_files)], "file_count": len(by_file),

@@ -1,0 +1,447 @@
+# Built-in ISO/IEC TS 17961:2013 rule set (C secure coding rules). Ids are the mnemonics the
+# technical specification gives each rule (ptrcomp, accfree, ...), which is how analysers cite
+# them. Titles are short paraphrases, check the exact wording in your copy. TS 17961 is published
+# by ISO/IEC.
+#
+# Each rule uses the check of the CERT C rule it corresponds to, so findings agree with CERT C.
+# `coverage: partial` means a check finds some violations, not all, so "no findings" does not
+# show compliance. The two taint rules need whole-program taint analysis and are manual: import
+# the results of an analyser that does it.
+schema_version: 1
+standard:
+  id: iso-ts-17961
+  name: ISO/IEC TS 17961 C Secure Coding Rules
+  revision: "2013"
+  language: c
+  guideline_text: user-supplied
+  categories: [rule]
+  undeviable_categories: []
+  severity_map: { rule: warning }
+
+rules:
+  - id: "ptrcomp"
+    kind: rule
+    title: "Accessing an object through a pointer to an incompatible type"
+    category: rule
+    decidable: false
+    scope: single-tu
+    cwe: [CWE-843]
+    check: { type: "manual" }
+
+  - id: "accfree"
+    kind: rule
+    title: "Accessing freed memory"
+    category: rule
+    decidable: false
+    scope: single-tu
+    cwe: [CWE-416]
+    check: { type: "import" }
+
+  - id: "accsig"
+    kind: rule
+    title: "Accessing shared objects in signal handlers"
+    category: rule
+    decidable: false
+    scope: single-tu
+    cwe: [CWE-662]
+    check: { type: "manual" }
+
+  - id: "boolasgn"
+    kind: rule
+    title: "No assignment in conditional expressions"
+    category: rule
+    decidable: true
+    scope: single-tu
+    cwe: [CWE-481]
+    check: { type: "native", engine: "detector", match: { name: "assignment_in_condition" } }
+
+  - id: "argcomp"
+    kind: rule
+    title: "Calling functions with incorrect arguments"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-686]
+    check:
+      - { type: "native", engine: "diagnostic", match: { option: ["incompatible-pointer-types", "int-conversion", "implicit-function-declaration"] } }
+      - { type: "native", engine: "diagnostic", match: { pattern: "too (?:many|few) arguments", severity: "error" } }
+
+  - id: "asyncsig"
+    kind: rule
+    title: "Calling library functions other than abort, _Exit and signal in signal handlers"
+    category: rule
+    decidable: false
+    scope: single-tu
+    cwe: [CWE-479]
+    check: { type: "manual" }
+
+  - id: "sigcall"
+    kind: rule
+    title: "Calling signal from interruptible signal handlers"
+    category: rule
+    decidable: false
+    scope: single-tu
+    cwe: [CWE-364]
+    check: { type: "manual" }
+
+  - id: "syscall"
+    kind: rule
+    title: "Calling system"
+    category: rule
+    decidable: true
+    scope: single-tu
+    cwe: [CWE-78]
+    check: { type: "native", engine: "ast", match: { cursor: "CALL_EXPR", callee_in: ["system"] } }
+
+  - id: "padcomp"
+    kind: rule
+    title: "Comparing padding data"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-697]
+    check: { type: "native", engine: "detector", match: { name: "memcmp_operand_types" } }
+
+  - id: "intptrconv"
+    kind: rule
+    title: "Converting a pointer to integer or integer to pointer"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-587]
+    check: { type: "native", engine: "detector", match: { name: "cast_pointer_integer" } }
+
+  - id: "alignconv"
+    kind: rule
+    title: "Converting pointer values to more strictly aligned pointer types"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-704]
+    check: { type: "native", engine: "detector", match: { name: "cast_alignment" } }
+
+  - id: "filecpy"
+    kind: rule
+    title: "Copying a FILE object"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-664]
+    check: { type: "native", engine: "detector", match: { name: "file_object_declared" } }
+
+  - id: "funcdecl"
+    kind: rule
+    title: "Declaring the same function or object in incompatible ways"
+    category: rule
+    decidable: false
+    scope: system
+    coverage: partial
+    cwe: [CWE-628]
+    check:
+      - { type: "native", engine: "system", match: { name: "declarations_agree" } }
+      - { type: "native", engine: "diagnostic", match: { pattern: "conflicting types", severity: "error" } }
+
+  - id: "nullref"
+    kind: rule
+    title: "Dereferencing an out-of-domain pointer"
+    category: rule
+    decidable: false
+    scope: single-tu
+    cwe: [CWE-476]
+    check: { type: "import" }
+
+  - id: "addrescape"
+    kind: rule
+    title: "Escaping of the address of an automatic object"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-562]
+    check: { type: "native", engine: "detector", match: { name: "address_of_automatic_escapes" } }
+
+  - id: "signconv"
+    kind: rule
+    title: "Conversion of signed characters to wider integer types before a check for EOF"
+    category: rule
+    decidable: false
+    scope: single-tu
+    cwe: [CWE-197]
+    check: { type: "import" }
+
+  - id: "swtchdflt"
+    kind: rule
+    title: "Use of an implied default in a switch statement"
+    category: rule
+    decidable: true
+    scope: single-tu
+    cwe: [CWE-478]
+    check: { type: "native", engine: "detector", match: { name: "switch_default" } }
+
+  - id: "fileclose"
+    kind: rule
+    title: "Failing to close files or free dynamic memory when they are no longer needed"
+    category: rule
+    decidable: false
+    scope: single-tu
+    cwe: [CWE-404]
+    check: { type: "import" }
+
+  - id: "liberr"
+    kind: rule
+    title: "Failing to detect and handle standard library errors"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-252]
+    check:
+      - { type: "native", engine: "ast", match: { cursor: "CALL_EXPR", callee_in: ["fopen", "freopen", "fclose", "fread", "fwrite", "fseek", "fgetc", "fputc", "fgets", "fputs", "fflush", "fgetpos", "fsetpos", "ftell", "remove", "rename", "tmpfile", "setvbuf", "malloc", "calloc", "realloc", "aligned_alloc", "mbstowcs", "wcstombs", "snprintf", "ungetc", "strtol", "strtoul", "strtod", "signal", "time", "clock", "mktime", "timespec_get", "setlocale", "raise", "atexit", "at_quick_exit", "getenv"], unused_result: true } }
+      - { type: "import" }
+
+  - id: "invptr"
+    kind: rule
+    title: "Forming or using out-of-bounds pointers or array subscripts"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-119]
+    check:
+      - { type: "native", engine: "detector", match: { name: "array_index_out_of_bounds" } }
+      - { type: "native", engine: "diagnostic", match: { option: "array-bounds" } }
+      - { type: "import" }
+
+  - id: "dblfree"
+    kind: rule
+    title: "Freeing memory multiple times"
+    category: rule
+    decidable: false
+    scope: single-tu
+    cwe: [CWE-415]
+    check: { type: "import" }
+
+  - id: "usrfmt"
+    kind: rule
+    title: "Including tainted or out-of-domain input in a format string"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-134]
+    check: { type: "native", engine: "diagnostic", match: { option: "format-security", flags: ["-Wformat-security", "-fbuiltin"] } }
+
+  - id: "inverrno"
+    kind: rule
+    title: "Incorrectly setting and using errno"
+    category: rule
+    decidable: false
+    scope: single-tu
+    cwe: [CWE-456]
+    check: { type: "manual" }
+
+  - id: "diverr"
+    kind: rule
+    title: "Integer division errors"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-369]
+    check:
+      - { type: "native", engine: "diagnostic", match: { option: "division-by-zero" } }
+      - { type: "import" }
+
+  - id: "intoflow"
+    kind: rule
+    title: "Overflowing signed integers"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-190]
+    check:
+      - { type: "native", engine: "diagnostic", match: { option: "integer-overflow" } }
+      - { type: "import" }
+
+  - id: "ioileave"
+    kind: rule
+    title: "Interleaving stream inputs and outputs without a flush or positioning call"
+    category: rule
+    decidable: false
+    scope: single-tu
+    cwe: [CWE-664]
+    check: { type: "manual" }
+
+  - id: "strmod"
+    kind: rule
+    title: "Modifying string literals"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-758]
+    check: { type: "native", engine: "detector", match: { name: "string_literal_to_mutable" } }
+
+  - id: "libmod"
+    kind: rule
+    title: "Modifying the string returned by getenv, localeconv, setlocale and strerror"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-758]
+    check: { type: "native", engine: "detector", match: { name: "const_return_used_as_mutable" } }
+
+  - id: "nonnullcs"
+    kind: rule
+    title: "Passing a non-null-terminated sequence to a library function that expects a string"
+    category: rule
+    decidable: false
+    scope: single-tu
+    cwe: [CWE-170]
+    check: { type: "manual" }
+
+  - id: "restrict"
+    kind: rule
+    title: "Passing pointers to the same object as arguments to different restrict parameters"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-628]
+    check: { type: "native", engine: "source", match: { pattern: "\\b(?:restrict|__restrict|__restrict__)\\b", target: "code" } }
+
+  - id: "xfree"
+    kind: rule
+    title: "Reallocating or freeing memory that was not dynamically allocated"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-590]
+    check:
+      - { type: "native", engine: "detector", match: { name: "free_of_non_heap" } }
+      - { type: "import" }
+
+  - id: "uninitref"
+    kind: rule
+    title: "Referencing uninitialised memory"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-457]
+    check:
+      - { type: "native", engine: "diagnostic", match: { option: ["uninitialized", "sometimes-uninitialized", "conditional-uninitialized"] } }
+      - { type: "import" }
+
+  - id: "ptrobj"
+    kind: rule
+    title: "Subtracting or comparing two pointers that do not refer to the same array"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-469]
+    check: { type: "native", engine: "detector", match: { name: "pointer_relational" } }
+
+  - id: "taintsink"
+    kind: rule
+    title: "Tainted or out-of-domain integer values are used in a restricted sink"
+    category: rule
+    decidable: false
+    scope: single-tu
+    cwe: [CWE-20]
+    check: { type: "manual" }
+    notes: "Needs taint analysis across the program. Review, or import a taint-aware analyser."
+
+  - id: "sizeofptr"
+    kind: rule
+    title: "Taking the size of a pointer to determine the size of the pointed-to type"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-467]
+    check: { type: "native", engine: "detector", match: { name: "sizeof_array_parameter" } }
+
+  - id: "taintformatio"
+    kind: rule
+    title: "Using a tainted value to write to an object using a formatted input or output function"
+    category: rule
+    decidable: false
+    scope: single-tu
+    cwe: [CWE-134]
+    check: { type: "manual" }
+    notes: "Needs taint analysis across the program. Review, or import a taint-aware analyser."
+
+  - id: "fsetpos"
+    kind: rule
+    title: "Using a value for fsetpos other than a value returned from fgetpos"
+    category: rule
+    decidable: false
+    scope: single-tu
+    cwe: [CWE-664]
+    check: { type: "manual" }
+
+  - id: "libptr"
+    kind: rule
+    title: "Using an object overwritten by getenv, localeconv, setlocale and strerror"
+    category: rule
+    decidable: false
+    scope: single-tu
+    cwe: [CWE-825]
+    check: { type: "manual" }
+
+  - id: "chrsgnext"
+    kind: rule
+    title: "Using character values that are indistinguishable from EOF"
+    category: rule
+    decidable: false
+    scope: single-tu
+    cwe: [CWE-704]
+    check: { type: "import" }
+
+  - id: "invfmtstr"
+    kind: rule
+    title: "Using invalid format strings"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-686]
+    check: { type: "native", engine: "diagnostic", match: { option: "format", flags: ["-Wformat", "-fbuiltin"] } }
+
+  - id: "taintstrcpy"
+    kind: rule
+    title: "Copying a tainted string without checking its length"
+    category: rule
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-120]
+    check: { type: "native", engine: "detector", match: { name: "string_function_bounds" } }
+
+  - id: "nonarrayptr"
+    kind: rule
+    title: "Adding or subtracting an integer to a pointer to a non-array object"
+    category: rule
+    decidable: false
+    scope: single-tu
+    cwe: [CWE-468]
+    check: { type: "manual" }
+
+  - id: "zerosize"
+    kind: rule
+    title: "Allocating or reallocating with a size of zero"
+    category: rule
+    decidable: false
+    scope: single-tu
+    cwe: [CWE-687]
+    check: { type: "manual" }

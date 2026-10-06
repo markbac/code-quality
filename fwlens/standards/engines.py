@@ -348,6 +348,7 @@ from fwlens.standards import (  # noqa: E402,F401
     cflow,
     declarations,
     expressions,
+    extra,
     functions,
     library,
     pointers,

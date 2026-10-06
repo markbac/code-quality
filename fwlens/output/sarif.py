@@ -40,7 +40,20 @@ def result_level(b: Breach) -> str:
     return METRIC_INFO[b.metric][2]
 
 
-def build_rules(breaches: list[Breach] = ()) -> list[dict[str, Any]]:
+def rule_cwes(model: ProjectModel) -> dict[str, list[str]]:
+    """CWE ids of the coding-standard rules that ran, by rule key. Empty when standards were not run."""
+    result = getattr(model, "_standards_result", None)
+    return {r.key: list(r.cwe) for r in result.rules if r.cwe} if result is not None else {}
+
+
+def _cwe_properties(cwes: list[str]) -> tuple[list[str], list[dict[str, Any]]]:
+    tags = [f"external/cwe/{c.lower()}" for c in cwes]
+    relationships = [{"target": {"id": c.removeprefix("CWE-"), "toolComponent": {"name": "CWE"}}, "kinds": ["relevant"]}
+                     for c in cwes]
+    return tags, relationships
+
+
+def build_rules(breaches: list[Breach] = (), cwe_by_rule: dict[str, list[str]] | None = None) -> list[dict[str, Any]]:
     rules = []
     for metric, (name, short, level) in METRIC_INFO.items():
         rules.append({
@@ -55,14 +68,47 @@ def build_rules(breaches: list[Breach] = ()) -> list[dict[str, Any]]:
         if b.metric in METRIC_INFO or b.metric in declared:
             continue
         declared.add(b.metric)
-        rules.append({
+        entry: dict[str, Any] = {
             "id": rule_id(b.metric),
             "name": b.metric,
             "shortDescription": {"text": b.description or b.metric},
             "defaultConfiguration": {"level": result_level(b)},
             "properties": {"category": b.category},
-        })
+        }
+        cwes = (cwe_by_rule or {}).get(b.metric)
+        if cwes:
+            tags, relationships = _cwe_properties(cwes)
+            entry["properties"]["tags"] = tags
+            entry["properties"]["cwe"] = cwes
+            entry["relationships"] = relationships
+        rules.append(entry)
     return rules
+
+
+def build_cwe(breaches: list[Breach], cwe_by_rule: dict[str, list[str]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """The CWE taxonomy that the rules point at, and a summary of findings per CWE against the Top 25."""
+    from fwlens.standards.cwe import TOP25, TOP25_EDITION
+    by_cwe: dict[str, int] = {}
+    for b in breaches:
+        for cwe in cwe_by_rule.get(b.metric, ()):
+            by_cwe[cwe] = by_cwe.get(cwe, 0) + 1
+    covered = sorted({c for cwes in cwe_by_rule.values() for c in cwes} & set(TOP25), key=TOP25.index)
+    taxonomy = []
+    if cwe_by_rule:
+        ids = sorted({c for cwes in cwe_by_rule.values() for c in cwes}, key=lambda c: int(c.removeprefix("CWE-")))
+        taxonomy = [{"name": "CWE", "organization": "MITRE", "shortDescription": {"text": "Common Weakness Enumeration"},
+                     "informationUri": "https://cwe.mitre.org/",
+                     "taxa": [{"id": c.removeprefix("CWE-"), "name": c,
+                               "helpUri": f"https://cwe.mitre.org/data/definitions/{c.removeprefix('CWE-')}.html"} for c in ids]}]
+    summary = {
+        "top25Edition": TOP25_EDITION,
+        "top25": TOP25,
+        "top25CheckedByRules": covered,
+        "top25WithFindings": [c for c in TOP25 if c in by_cwe],
+        "findingsByCwe": dict(sorted(by_cwe.items(), key=lambda kv: (-kv[1], kv[0]))),
+        "rulesWithCwe": len(cwe_by_rule),
+    }
+    return taxonomy, summary
 
 
 def breach_to_result(b: Breach, rule_index: dict[str, int]) -> dict[str, Any]:
@@ -158,7 +204,8 @@ def generate_sarif_report(model: ProjectModel, config: FwLensConfig,
     """Generate SARIF 2.1.0 JSON payload from project breaches (computed unless given)."""
     if breaches is None:
         breaches = compute_breaches(model, config)
-    rules = build_rules(breaches)
+    cwe_by_rule = rule_cwes(model)
+    rules = build_rules(breaches, cwe_by_rule)
     rule_index = {r["id"]: i for i, r in enumerate(rules)}
 
     metrics, artifacts = build_metrics(model, config)
@@ -168,6 +215,10 @@ def generate_sarif_report(model: ProjectModel, config: FwLensConfig,
         "results": [breach_to_result(b, rule_index) for b in breaches],
         "properties": {"fwlens": metrics},
     }
+    if cwe_by_rule:
+        taxonomy, cwe_summary = build_cwe(breaches, cwe_by_rule)
+        run["taxonomies"] = taxonomy
+        metrics["cwe"] = cwe_summary
     return {
         "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
         "version": "2.1.0",

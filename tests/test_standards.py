@@ -49,7 +49,8 @@ def test_builtin_rule_files_are_valid():
 def test_builtin_files_carry_no_guideline_text():
     for f in BUILTIN_DIR.glob("*.yaml"):
         assert yaml.safe_load(f.read_text())["standard"]["guideline_text"] in ("user-supplied", "https://wiki.sei.cmu.edu/confluence/display/c", "https://spinroot.com/gerard/pdf/P10.pdf",
-                                                                     "https://barrgroup.com/embedded-systems/books/embedded-c-coding-standard")
+                                                                     "https://barrgroup.com/embedded-systems/books/embedded-c-coding-standard",
+                                                                     "https://github.com/markbac/code-quality")
         for rule in yaml.safe_load(f.read_text())["rules"]:
             assert len(rule["title"]) < 90   # short paraphrase, not a pasted paragraph
 
@@ -264,7 +265,10 @@ def test_mapping_uses_tool_map_then_patterns():
     standards = list(load_standards([]).values())
     assert map_to_rule(RawFinding("cppcheck", "misra-c2012-21.3", "a.c", 1, ""), standards).key == "misra-c-2012:21.3"
     assert map_to_rule(RawFinding("clang-tidy", "cert-env33-c", "a.c", 1, ""), standards).key == "cert-c:ENV33-C"
-    assert map_to_rule(RawFinding("cppcheck", "unusedFunction", "a.c", 1, ""), standards) is None
+    # nothing maps this id, so it lands on the FWLens catch-all rule when that standard is enabled
+    assert map_to_rule(RawFinding("cppcheck", "unusedFunction", "a.c", 1, ""), standards).key == "fwlens:IMP-2"
+    others = [s for s in standards if s.id != "fwlens"]
+    assert map_to_rule(RawFinding("cppcheck", "unusedFunction", "a.c", 1, ""), others) is None
 
 
 def test_imports_end_to_end_with_dedupe_and_unmapped(parsed):

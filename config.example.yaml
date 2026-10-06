@@ -267,7 +267,7 @@ output:
 #   # usage_functions: [xQueueSend, xQueueReceive, xSemaphoreTake, xSemaphoreGive]
 #   # return_value_functions: [xQueueCreate, xSemaphoreCreateBinary, xSemaphoreCreateMutex]
 
-# Optional coding-standard checks (MISRA C, CERT C, BARR-C, Power of 10). Off unless enabled. See FWLENS_GUIDE.md.
+# Optional coding-standard checks (MISRA C, CERT C, BARR-C, AUTOSAR, TS 17961, Power of 10, FWLens). Off unless enabled. See FWLENS_GUIDE.md.
 # standards:
 #   enabled:
 #     - standard: misra-c-2012
@@ -276,10 +276,14 @@ output:
 #     - standard: power-of-10
 #     - standard: misra-c-2023
 #     - standard: barr-c-2018
+#     - standard: autosar-cpp14      # AUTOSAR C++14 guidelines that apply to C
+#     - standard: iso-ts-17961       # ISO/IEC TS 17961 C secure coding
+#     - standard: fwlens             # secrets, dead code, interrupt safety
 #   extra_rule_dirs: [./standards]
 #   deviations_file: ./standards/deviations.yaml
 #   imports:
 #     - { tool: cppcheck, path: build/cppcheck.xml }
+#     - { tool: clang-analyzer, path: build/report.plist }   # also clang-tidy, clang-tidy-yaml, sarif
 
 # Defaults for `fwlens compare` / `fwlens pr-comment` (command-line options override these).
 # pr_check:

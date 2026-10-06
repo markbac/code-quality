@@ -1,0 +1,723 @@
+# Built-in AUTOSAR rule set. The AUTOSAR "Guidelines for the use of the C++14 language in
+# critical and safety-related systems" are written for C++, so FWLens includes only the guidelines
+# that mean something in C: loops, switch, goto, preprocessor, pointers, unused code, and the
+# parts of the library that C has. Rules about classes, templates, exceptions, namespaces and
+# lambdas are left out. The ids (A and M for rules carried over from MISRA C++:2008) and the
+# titles are short paraphrases. The guidelines are published by AUTOSAR at
+# https://www.autosar.org and the full text is there.
+#
+# Where a guideline matches a MISRA C or CERT C rule, it uses the same check. `coverage: partial`
+# means the native check finds some violations, not all, so "no findings" does not show
+# compliance.
+#
+# A2-11-1 (no volatile) is a real AUTOSAR rule but embedded code cannot follow it. Turn it off with
+# `exclude_rules: [A2-11-1]` or deviate it.
+schema_version: 1
+standard:
+  id: autosar-cpp14
+  name: AUTOSAR C++14 guidelines (rules that apply to C)
+  revision: "19-03"
+  language: c
+  guideline_text: user-supplied
+  categories: [required, advisory]
+  undeviable_categories: []
+  severity_map: { required: warning, advisory: note }
+
+rules:
+  - id: "A0-1-1"
+    kind: rule
+    title: "Do not assign a value to a non-volatile variable that is never used"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "write_only_local" } }
+    notes: "Finds local variables that are assigned and never read. Other useless assignments are not found."
+
+  - id: "A0-1-2"
+    kind: rule
+    title: "Use the return value of every non-void function"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "unused_call_result" } }
+
+  - id: "A0-1-3"
+    kind: rule
+    title: "Every static function shall be used"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "unused_static_function" } }
+
+  - id: "A0-1-4"
+    kind: rule
+    title: "A named function parameter shall be used"
+    category: required
+    decidable: true
+    scope: single-tu
+    check:
+      - { type: "native", engine: "detector", match: { name: "unused_parameter" } }
+      - { type: "native", engine: "diagnostic", match: { option: "unused-parameter" } }
+
+  - id: "A0-1-6"
+    kind: rule
+    title: "There shall be no unused type declarations"
+    category: required
+    decidable: false
+    scope: system
+    coverage: partial
+    check: { type: "native", engine: "system", match: { name: "typedef_unused" } }
+
+  - id: "M0-1-1"
+    kind: rule
+    title: "A project shall not contain unreachable code"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check:
+      - { type: "native", engine: "detector", match: { name: "unreachable_code" } }
+      - { type: "native", engine: "diagnostic", match: { option: ["unreachable-code", "unused-function"], flags: ["-Wunreachable-code"] } }
+
+  - id: "M0-1-2"
+    kind: rule
+    title: "A project shall not contain infeasible paths"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "invariant_condition" } }
+
+  - id: "M0-1-3"
+    kind: rule
+    title: "A project shall not contain unused variables"
+    category: required
+    decidable: false
+    scope: system
+    coverage: partial
+    check:
+      - { type: "native", engine: "detector", match: { name: "unused_object" } }
+      - { type: "native", engine: "system", match: { name: "external_object_unused" } }
+      - { type: "native", engine: "diagnostic", match: { option: "unused-variable" } }
+
+  - id: "M0-1-9"
+    kind: rule
+    title: "There shall be no dead code"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check:
+      - { type: "native", engine: "detector", match: { name: "no_effect_statement" } }
+      - { type: "native", engine: "diagnostic", match: { option: "unused-value" } }
+
+  - id: "M0-1-10"
+    kind: rule
+    title: "Every defined function should be called at least once"
+    category: advisory
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "unused_static_function" } }
+    notes: "Only static functions are checked. A global function used nowhere is not found."
+
+  - id: "M0-3-2"
+    kind: rule
+    title: "If a function generates error information, it shall be tested"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "unused_call_result" } }
+
+  - id: "A2-5-1"
+    kind: rule
+    title: "Trigraphs shall not be used"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { pattern: "\\?\\?[=/'()!<>-]", target: "raw" } }
+
+  - id: "M2-7-1"
+    kind: rule
+    title: "The character sequence /* shall not be used within a C-style comment"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "comment_markers" } }
+
+  - id: "A2-7-1"
+    kind: rule
+    title: "A line comment shall not end with a backslash"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "line_splice_comment" } }
+
+  - id: "A2-7-2"
+    kind: rule
+    title: "Sections of code shall not be commented out"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "commented_out_code" } }
+
+  - id: "A2-10-1"
+    kind: rule
+    title: "An identifier shall not hide an identifier in an outer scope"
+    category: required
+    decidable: true
+    scope: single-tu
+    check:
+      - { type: "native", engine: "detector", match: { name: "identifier_hiding" } }
+      - { type: "native", engine: "diagnostic", match: { option: "shadow", flags: ["-Wshadow"] } }
+
+  - id: "A2-10-5"
+    kind: rule
+    title: "A static function or object name shall not be reused"
+    category: advisory
+    decidable: true
+    scope: system
+    check: { type: "native", engine: "system", match: { name: "internal_identifier_unique" } }
+
+  - id: "A2-11-1"
+    kind: rule
+    title: "The volatile keyword shall not be used"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { pattern: "\\bvolatile\\b", target: "code" } }
+    notes: "Embedded code needs volatile for registers and shared data. Exclude this rule or deviate it where that applies."
+
+  - id: "A2-13-1"
+    kind: rule
+    title: "Only the escape sequences defined by the language shall be used"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "unterminated_escape" } }
+
+  - id: "A3-9-1"
+    kind: rule
+    title: "Fixed-width integer types shall be used instead of the basic types"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "basic_numerical_type" } }
+
+  - id: "M3-2-1"
+    kind: rule
+    title: "All declarations of an object or function shall have compatible types"
+    category: required
+    decidable: false
+    scope: system
+    coverage: partial
+    check: { type: "native", engine: "system", match: { name: "declarations_agree" } }
+
+  - id: "M3-2-4"
+    kind: rule
+    title: "An identifier with external linkage shall have exactly one definition"
+    category: required
+    decidable: false
+    scope: system
+    coverage: partial
+    check: { type: "native", engine: "system", match: { name: "multiple_definitions" } }
+
+  - id: "A3-3-1"
+    kind: rule
+    title: "Objects or functions with external linkage shall be declared in a header file"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "definition_without_declaration" } }
+
+  - id: "A4-7-1"
+    kind: rule
+    title: "An integer expression shall not lead to data loss"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check:
+      - { type: "native", engine: "diagnostic", match: { option: "integer-overflow" } }
+      - { type: "import" }
+
+  - id: "A5-0-2"
+    kind: rule
+    title: "The condition of an if or loop statement shall be of boolean type"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "non_boolean_condition" } }
+
+  - id: "A5-3-2"
+    kind: rule
+    title: "Null pointers shall not be dereferenced"
+    category: required
+    decidable: false
+    scope: single-tu
+    check: { type: "import" }
+
+  - id: "A5-6-1"
+    kind: rule
+    title: "The right hand operand of division or modulus shall not be zero"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check:
+      - { type: "native", engine: "diagnostic", match: { option: "division-by-zero" } }
+      - { type: "import" }
+
+  - id: "M5-0-15"
+    kind: rule
+    title: "Array indexing shall be the only form of pointer arithmetic"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "pointer_arithmetic" } }
+
+  - id: "M5-0-17"
+    kind: rule
+    title: "Subtraction between pointers shall only be applied to the same array"
+    category: required
+    decidable: false
+    scope: single-tu
+    check: { type: "manual" }
+
+  - id: "M5-0-18"
+    kind: rule
+    title: "The relational operators shall not be applied to unrelated pointers"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "pointer_relational" } }
+
+  - id: "M5-0-21"
+    kind: rule
+    title: "Bitwise operators shall only be applied to operands of unsigned type"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "essential_operand_type" } }
+
+  - id: "M5-3-4"
+    kind: rule
+    title: "The sizeof operator shall not be applied to an expression with side effects"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "sizeof_side_effects" } }
+
+  - id: "M5-14-1"
+    kind: rule
+    title: "The right hand operand of && or || shall not have side effects"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "logical_rhs_side_effects" } }
+
+  - id: "M5-18-1"
+    kind: rule
+    title: "The comma operator shall not be used"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "comma_operator" } }
+
+  - id: "M5-19-1"
+    kind: rule
+    title: "Evaluation of constant unsigned expressions shall not wrap around"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "constant_wraparound" } }
+
+  - id: "M6-2-1"
+    kind: rule
+    title: "Assignment operators shall not be used in sub-expressions"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "assignment_result_used" } }
+
+  - id: "M6-2-2"
+    kind: rule
+    title: "Floating-point expressions shall not be tested for equality or inequality"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "float_equality" } }
+
+  - id: "M6-3-1"
+    kind: rule
+    title: "The statement of a loop shall be a compound statement"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "compound_body" }
+
+  - id: "M6-4-1"
+    kind: rule
+    title: "An if or else statement shall be followed by a compound statement"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "compound_body" }
+
+  - id: "M6-4-2"
+    kind: rule
+    title: "An if ... else if construct shall be terminated with an else clause"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "else_if_without_else" } }
+
+  - id: "M6-4-3"
+    kind: rule
+    title: "A switch statement shall be a well-formed switch statement"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "switch_well_formed" } }
+
+  - id: "M6-4-4"
+    kind: rule
+    title: "A switch label shall only be used where the enclosing block is the switch body"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "switch_label_placement" } }
+
+  - id: "M6-4-5"
+    kind: rule
+    title: "An unconditional break shall terminate every non-empty switch clause"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "switch_break_terminated" } }
+
+  - id: "M6-4-6"
+    kind: rule
+    title: "The final clause of a switch statement shall be the default clause"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "switch_default_position" } }
+
+  - id: "M6-4-7"
+    kind: rule
+    title: "The condition of a switch shall not have boolean type"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "switch_boolean" } }
+
+  - id: "A6-4-1"
+    kind: rule
+    title: "A switch statement shall have at least two case labels"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "switch_min_clauses" } }
+
+  - id: "A6-5-2"
+    kind: rule
+    title: "A for loop shall contain a single loop counter that is not floating point"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "float_loop_counter" } }
+
+  - id: "M6-5-3"
+    kind: rule
+    title: "The loop counter shall not be modified in the loop body"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "for_loop_well_formed" } }
+
+  - id: "A6-5-3"
+    kind: rule
+    title: "Do statements should not be used"
+    category: advisory
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "ast", match: { cursor: "DO_STMT" } }
+
+  - id: "M6-6-1"
+    kind: rule
+    title: "A goto label shall be declared in the same or an enclosing block"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "goto_label_block" } }
+
+  - id: "M6-6-2"
+    kind: rule
+    title: "The goto statement shall jump to a label declared later in the same function"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "goto_backward" } }
+
+  - id: "A6-6-1"
+    kind: rule
+    title: "The goto statement shall not be used"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "ast", match: { cursor: "GOTO_STMT" } }
+
+  - id: "A7-4-1"
+    kind: rule
+    title: "The asm declaration shall not be used"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { pattern: "\\b(?:__asm__|__asm|asm)\\b", target: "code" } }
+
+  - id: "A7-5-2"
+    kind: rule
+    title: "Functions shall not call themselves, either directly or indirectly"
+    category: required
+    decidable: true
+    scope: system
+    check: { type: "native", engine: "callgraph", match: { cycle: true } }
+
+  - id: "A8-4-1"
+    kind: rule
+    title: "Functions shall not be defined using the ellipsis notation"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { pattern: "^[ \\t]*#[ \\t]*include[ \\t]*<(?:stdarg\\.h)>", target: "text" } }
+
+  - id: "M8-4-2"
+    kind: rule
+    title: "The identifiers used for parameters shall be identical in declaration and definition"
+    category: required
+    decidable: false
+    scope: system
+    coverage: partial
+    check: { type: "native", engine: "system", match: { name: "declarations_agree" } }
+
+  - id: "M8-4-4"
+    kind: rule
+    title: "A function identifier shall only be used to call the function or with &"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "bare_function_identifier" } }
+
+  - id: "A8-5-0"
+    kind: rule
+    title: "All memory shall be initialised before it is read"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check:
+      - { type: "native", engine: "diagnostic", match: { option: ["uninitialized", "sometimes-uninitialized", "conditional-uninitialized"] } }
+      - { type: "import" }
+
+  - id: "M8-0-1"
+    kind: rule
+    title: "An init-declarator-list shall consist of a single init-declarator"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "multiple_declarators" } }
+
+  - id: "A9-5-1"
+    kind: rule
+    title: "Unions shall not be used"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "detector", match: { name: "union_declared" } }
+
+  - id: "M16-0-1"
+    kind: rule
+    title: "#include directives shall only be preceded by preprocessor directives or comments"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "include_not_first" } }
+
+  - id: "A16-2-1"
+    kind: rule
+    title: "The characters ', \", /*, // and \\ shall not appear in a header file name"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { pattern: "^[ \\t]*#[ \\t]*include[ \\t]*[<\\\"][^>\\\"\\n]*(?:'|\\\\|/\\*|//)[^>\\\"\\n]*[>\\\"]", target: "text" } }
+
+  - id: "M16-0-6"
+    kind: rule
+    title: "In a function-like macro each parameter shall be enclosed in parentheses"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "macro_param_parens" } }
+
+  - id: "M16-0-7"
+    kind: rule
+    title: "Undefined macro identifiers shall not be used in #if or #elif"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "diagnostic", match: { option: "undef", flags: ["-Wundef"] } }
+
+  - id: "M16-0-8"
+    kind: rule
+    title: "A # that starts a line shall be followed by a preprocessing directive"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "invalid_directive" } }
+
+  - id: "M16-1-2"
+    kind: rule
+    title: "All #else, #elif and #endif shall be in the same file as the #if"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "directive_balance" } }
+
+  - id: "M16-2-3"
+    kind: rule
+    title: "Include guards shall be provided"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "missing_include_guard" } }
+
+  - id: "M16-3-1"
+    kind: rule
+    title: "There shall be at most one occurrence of the # or ## operators in a macro"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { name: "stringise_then_paste" } }
+
+  - id: "A16-6-1"
+    kind: rule
+    title: "The #error directive shall not be used"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { pattern: "^[ \\t]*#[ \\t]*error\\b", target: "text" } }
+
+  - id: "A16-7-1"
+    kind: rule
+    title: "The #pragma directive shall not be used"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { pattern: "^[ \\t]*#[ \\t]*pragma\\b", target: "text" } }
+
+  - id: "M17-0-2"
+    kind: rule
+    title: "The names of standard library macros and objects shall not be reused"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "reserved_identifier" } }
+
+  - id: "M17-0-3"
+    kind: rule
+    title: "The names of standard library functions shall not be overridden"
+    category: required
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "detector", match: { name: "reserved_identifier" } }
+
+  - id: "M17-0-5"
+    kind: rule
+    title: "The setjmp macro and the longjmp function shall not be used"
+    category: required
+    decidable: true
+    scope: single-tu
+    check:
+      - { type: "native", engine: "ast", match: { cursor: "CALL_EXPR", callee_in: ["setjmp", "longjmp"] } }
+      - { type: "native", engine: "source", match: { pattern: "^[ \\t]*#[ \\t]*include[ \\t]*<(?:setjmp\\.h)>", target: "text" } }
+
+  - id: "M18-0-3"
+    kind: rule
+    title: "The functions abort, exit, getenv and system shall not be used"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "ast", match: { cursor: "CALL_EXPR", callee_in: ["abort", "exit", "_Exit", "quick_exit", "getenv", "system"] } }
+
+  - id: "M18-0-4"
+    kind: rule
+    title: "The time handling functions of <ctime> shall not be used"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "ast", match: { cursor: "CALL_EXPR", callee_in: ["clock", "time", "difftime", "mktime", "asctime", "ctime", "gmtime", "localtime", "strftime", "timespec_get", "wcsftime"] } }
+
+  - id: "M18-0-5"
+    kind: rule
+    title: "The unbounded functions of <cstring> shall not be used"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "ast", match: { cursor: "CALL_EXPR", callee_in: ["strcpy", "strcat", "sprintf", "vsprintf", "gets", "strtok"] } }
+
+  - id: "M18-2-1"
+    kind: rule
+    title: "The macro offsetof shall not be used"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { pattern: "\\boffsetof\\b", target: "code" } }
+
+  - id: "A18-5-1"
+    kind: rule
+    title: "The malloc, calloc, realloc and free functions shall not be used"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "ast", match: { cursor: "CALL_EXPR", callee_in: ["malloc", "calloc", "realloc", "free", "aligned_alloc"] } }
+
+  - id: "M18-7-1"
+    kind: rule
+    title: "The signal handling facilities of <csignal> shall not be used"
+    category: required
+    decidable: true
+    scope: single-tu
+    check:
+      - { type: "native", engine: "source", match: { pattern: "^[ \\t]*#[ \\t]*include[ \\t]*<(?:signal\\.h)>", target: "text" } }
+      - { type: "native", engine: "ast", match: { cursor: "CALL_EXPR", callee_in: ["signal", "raise"] } }
+
+  - id: "M19-3-1"
+    kind: rule
+    title: "The error indicator errno shall not be used"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "source", match: { pattern: "\\berrno\\b(?!\\.h)", target: "code" } }
+
+  - id: "M27-0-1"
+    kind: rule
+    title: "The stream input/output library <cstdio> shall not be used"
+    category: required
+    decidable: true
+    scope: single-tu
+    check: { type: "native", engine: "ast", match: { cursor: "CALL_EXPR", callee_in: ["printf", "fprintf", "sprintf", "snprintf", "vprintf", "vfprintf", "vsprintf", "vsnprintf", "scanf", "fscanf", "sscanf", "vscanf", "vfscanf", "vsscanf", "fopen", "freopen", "fclose", "fread", "fwrite", "fgets", "fputs", "gets", "puts", "getc", "getchar", "putc", "putchar", "fgetc", "fputc", "ungetc", "fseek", "ftell", "fgetpos", "fsetpos", "rewind", "fflush", "remove", "rename", "tmpfile", "tmpnam", "perror", "setbuf", "setvbuf", "clearerr", "feof", "ferror", "wprintf", "fwprintf", "swprintf", "vwprintf", "vfwprintf", "vswprintf", "wscanf", "fwscanf", "swscanf", "fgetwc", "fgetws", "fputwc", "fputws", "getwc", "getwchar", "putwc", "putwchar", "ungetwc"] } }

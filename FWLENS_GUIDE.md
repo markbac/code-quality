@@ -642,12 +642,17 @@ standards:
     - standard: power-of-10                       # NASA/JPL, ids P10-1 to P10-10
     - standard: misra-c-2023                      # or misra-c-2012
     - standard: barr-c-2018                       # Barr Group Embedded C, ids such as 6.1.e
+    - standard: autosar-cpp14                     # AUTOSAR C++14 guidelines that apply to C
+    - standard: iso-ts-17961                      # ISO/IEC TS 17961 C secure coding, ids such as ptrcomp
+    - standard: fwlens                            # secrets, dead code, interrupt safety
   extra_rule_dirs: [./standards]                  # your own *.yaml rule files
   deviations_file: ./standards/deviations.yaml
   imports:                                        # results from other analysers
     - { tool: cppcheck,   path: build/cppcheck.xml }
     - { tool: clang-tidy, path: build/tidy.txt }
-    - { tool: sarif,      path: build/other.sarif }
+    - { tool: clang-tidy-yaml, path: build/tidy-fixes.yaml }   # clang-tidy --export-fixes
+    - { tool: clang-analyzer,  path: build/report.plist }      # scan-build -plist
+    - { tool: sarif,      path: build/gcc.sarif }              # gcc -fanalyzer -fdiagnostics-format=sarif
 ```
 
 Findings join the normal breach list, so baseline gating (`--baseline`, `--fail-on-breach`),
@@ -764,6 +769,9 @@ guideline text. Point your own tooling at your licensed copy for the official wo
 | BARR-C:2018 (`barr-c-2018`) | 155 | 89 | 38 | 0 | 66 |
 | SEI CERT C (`cert-c`) | 276 | 96 | 67 | 8 | 172 |
 | NASA/JPL Power of 10 (`power-of-10`) | 10 | 9 | 6 | 0 | 1 |
+| AUTOSAR C++14, C subset (`autosar-cpp14`) | 81 | 79 | 26 | 1 | 1 |
+| ISO/IEC TS 17961 (`iso-ts-17961`) | 43 | 24 | 21 | 6 | 13 |
+| FWLens checks (`fwlens`) | 24 | 21 | 13 | 3 | 0 |
 
 `misra-c-2012` already includes Amendments 1 to 4. `misra-c-2023` is the same set plus the
 concurrency directives 5.1 to 5.3, with the same checks behind the shared guidelines, so choose
@@ -777,6 +785,41 @@ check finds a clear subset of the violations (an essential type model that stays
 unsure, direct calls only, first-party code only). Such a guideline never reads as compliant:
 "no findings" for it means nothing was found, not that the code complies. Use `fwlens standards
 list` to see how each guideline is checked.
+
+**AUTOSAR.** The AUTOSAR guidelines are written for C++14. `autosar-cpp14` holds only those that
+mean something in C (loops, `switch`, `goto`, the preprocessor, pointers, unused code, the
+library functions C has). Each reuses the check of the MISRA C or CERT C rule it matches. Rule
+A2-11-1 (no `volatile`) is real but embedded code cannot follow it: use `exclude_rules`.
+
+**TS 17961.** `iso-ts-17961` uses the specification's mnemonics as ids (`ptrcomp`, `accfree`,
+`liberr`). Each rule uses the check of the CERT C rule it corresponds to. The two taint rules need
+whole-program taint analysis, so they are manual: import an analyser that does it.
+
+**FWLens checks.** The `fwlens` standard holds checks that are not in a published standard:
+
+- `SEC-1` to `SEC-6`: hard-coded passwords and keys, private key blocks, known token formats
+  (AWS, GitHub, Slack, Google, JWT), credentials in URLs, MD5, SHA-1, DES and RC4 calls, and
+  hard-coded IPv4 addresses. Pattern based: it finds common shapes, not every secret, and does
+  not replace a scanner over the repository history.
+- `DEAD-1` to `DEAD-10`: unreachable code, unused static functions, parameters, locals, objects,
+  macros, types and labels, locals that are assigned and never read, commented-out code.
+- `ISR-1` to `ISR-5`: interrupt handlers are found by name (`SysTick_Handler`,
+  `TIM2_IRQHandler`, `ISR_uart`) or by an attribute on the declaration (`__interrupt`, `__irq`,
+  `__attribute__((interrupt))`). The checks report a shared variable written in a handler without
+  `volatile`, a blocking call, an RTOS call that is not the `FromISR` variant, dynamic memory or
+  stdio, and a handler over 40 lines. Only the handler's own body is read, so a hazard reached
+  through another function is not seen. The call lists are defaults: copy the rule into your own
+  rule file to change them.
+- `IMP-1` to `IMP-3`: where imported clang-tidy, clang static analyser, cppcheck and SARIF findings
+  land when no enabled standard maps them to a rule. A standard's own `tool_map` entry wins, and
+  `tool_map` keys may end in `*` (`"clang-analyzer-*": IMP-1`).
+
+**CWE.** Rules carry CWE ids (`cwe-map.yaml` for MISRA, CERT, Barr, Power of 10 and AUTOSAR, the
+rule files themselves for TS 17961 and FWLens). SARIF writes them as rule tags
+(`external/cwe/cwe-476`), a `CWE` taxonomy, and a summary in `run.properties.fwlens.cwe` that says
+which of the CWE Top 25 (2024) have a rule that checks for them, which have findings, and the
+findings per CWE. The HTML SARIF tab shows the same. A guideline can relate to several CWEs: use
+them to group findings, not as a statement that a finding is that weakness.
 
 Limits to know about:
 
