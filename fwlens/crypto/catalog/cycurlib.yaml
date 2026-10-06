@@ -1,0 +1,11 @@
+# ESCRYPT CycurLIB (ETAS), an embedded cryptographic library that is usually delivered as a
+# precompiled archive with headers. FWLens knows it is present from the project file, a library
+# directory or an #include. It does not know the library's function names, so no algorithms are
+# listed: add entries for the functions your code calls in a file under cbom.extra_catalog_dirs
+# (same `library: id: cycurlib`), see the guide's CBOM section.
+library:
+  id: cycurlib
+  name: ESCRYPT CycurLIB
+  include_fragments: ["cycurlib"]
+  dir_names: ["cycurlib"]
+entries: []

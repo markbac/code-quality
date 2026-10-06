@@ -990,6 +990,13 @@ def generate_html_report(model: ProjectModel, config: FwLensConfig):
     meta["history"] = _history_rows(model, config)
     meta["standards"] = _standards_context(model, config)
     meta["supply_chain"] = _supply_chain_context(model, config)
+    try:
+        from fwlens.output.inputs import inputs_view
+        meta["inputs"] = inputs_view(config)
+    except Exception as exc:     # the Inputs tab must not lose the report
+        meta["inputs"] = {"error": f"{type(exc).__name__}: {exc}", "version": "", "generated": "", "config_path": "",
+                          "config_sha": "", "warnings": [], "project_files": [], "build_files": [], "files": None,
+                          "settings": [], "config_text": "", "config_truncated": False}
     diagnostic_rows = []
     for m in sorted(error_diag_modules, key=lambda m: -len(m.parse_diagnostics))[:20]:
         worst = next(d for d in m.parse_diagnostics if d["severity"] in ("fatal", "error"))

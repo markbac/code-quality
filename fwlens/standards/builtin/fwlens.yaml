@@ -33,6 +33,7 @@ rules:
     cwe: [CWE-259, CWE-798]
     check: { type: "native", engine: "source", match: { pattern: "(?i)\\b(?:pass(?:word|wd)?|pwd|secret|api[_-]?key|apikey|auth[_-]?token|access[_-]?token|private[_-]?key|credential)\\w*\\s*(?:\\[\\s*\\w*\\s*\\])?\\s*=\\s*\"[^\"\\s]{4,}\\\"", target: "text" } }
     notes: "Looks for names such as password, secret or api_key assigned a string. A value held in a variable with another name is not found."
+    help: "Remove the secret from the source. Load it at run time from protected storage (a secure element, a key store or provisioned flash) and rotate any value that was committed."
 
   - id: "SEC-2"
     kind: rule
@@ -42,6 +43,7 @@ rules:
     scope: single-tu
     cwe: [CWE-321, CWE-798]
     check: { type: "native", engine: "source", match: { pattern: "-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?: BLOCK)?-----", target: "text" } }
+    help: "Never keep a private key in source or in a header. Provision it into protected storage at manufacture, and treat a committed key as compromised: generate a new one."
 
   - id: "SEC-3"
     kind: rule
@@ -51,6 +53,7 @@ rules:
     scope: single-tu
     cwe: [CWE-798]
     check: { type: "native", engine: "source", match: { pattern: "\\b(?:AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{40,}|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_\\-]{35}|sk_live_[0-9a-zA-Z]{20,}|eyJ[A-Za-z0-9_-]{10,}\\.eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,})\\b", target: "text" } }
+    help: "A token or cloud key in source can be used by anyone who reads the repository. Revoke it, issue a new one and keep it out of the code."
 
   - id: "SEC-4"
     kind: rule
@@ -60,6 +63,7 @@ rules:
     scope: single-tu
     cwe: [CWE-798, CWE-522]
     check: { type: "native", engine: "source", match: { pattern: "[a-zA-Z][a-zA-Z0-9+.-]*://[^/\\s:@\\\"]+:[^/\\s@\\\"]+@[^/\\s\\\"]+", target: "text" } }
+    help: "Do not put a user name and password in a URL. Pass credentials through the protocol's own authentication and keep them out of source."
 
   - id: "SEC-5"
     kind: rule
@@ -71,6 +75,7 @@ rules:
     cwe: [CWE-327, CWE-328]
     check: { type: "native", engine: "ast", match: { cursor: "CALL_EXPR", callee_in: ["MD5", "MD5_Init", "MD5_Update", "MD5_Final", "md5", "SHA1", "SHA1_Init", "sha1", "DES_ecb_encrypt", "DES_set_key", "RC4", "RC4_set_key", "EVP_md5", "EVP_sha1", "EVP_des_ecb", "EVP_rc4", "mbedtls_md5", "mbedtls_sha1", "mbedtls_des_crypt_ecb", "mbedtls_arc4_crypt", "mbedtls_md5_ret", "mbedtls_sha1_ret", "wc_Md5Hash", "wc_ShaHash"] } }
     notes: "Names of the common library functions. Use cbom for a full list of the algorithms named in the source."
+    help: "MD5, SHA-1, DES and RC4 are broken or deprecated. Use SHA-256 or better for hashing and AES-GCM or ChaCha20-Poly1305 for encryption."
 
   - id: "SEC-6"
     kind: rule
@@ -82,6 +87,7 @@ rules:
     cwe: [CWE-547]
     check: { type: "native", engine: "source", match: { pattern: "\\\"(?:(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\\"", target: "text" } }
     notes: "Loopback and broadcast addresses are reported too. Deviate them where they are meant."
+    help: "A fixed IP address makes the device hard to move and hard to secure. Read the address from configuration or resolve a host name."
 
   - id: "DEAD-1"
     kind: rule
@@ -94,6 +100,7 @@ rules:
     check:
       - { type: "native", engine: "detector", match: { name: "unreachable_code" } }
       - { type: "native", engine: "diagnostic", match: { option: ["unreachable-code", "unused-function"], flags: ["-Wunreachable-code"] } }
+    help: "Delete code that can never run, or fix the condition that makes it unreachable. A compiler warning about unreachable code usually points at a real mistake."
 
   - id: "DEAD-2"
     kind: rule
@@ -103,6 +110,7 @@ rules:
     scope: single-tu
     cwe: [CWE-561]
     check: { type: "native", engine: "detector", match: { name: "unused_static_function" } }
+    help: "Delete the function, or call it. If it is only used in some builds, guard it with the same #if as its callers."
 
   - id: "DEAD-3"
     kind: rule
@@ -114,6 +122,7 @@ rules:
     check:
       - { type: "native", engine: "detector", match: { name: "unused_parameter" } }
       - { type: "native", engine: "diagnostic", match: { option: "unused-parameter" } }
+    help: "Remove the parameter, or mark it deliberately unused with (void)name; if the signature is fixed by a callback type."
 
   - id: "DEAD-4"
     kind: rule
@@ -123,6 +132,7 @@ rules:
     scope: single-tu
     cwe: [CWE-563]
     check: { type: "native", engine: "detector", match: { name: "unused_object" } }
+    help: "Delete the variable, or use it. A variable kept for the debugger belongs behind a debug macro."
 
   - id: "DEAD-5"
     kind: rule
@@ -133,6 +143,7 @@ rules:
     coverage: partial
     cwe: [CWE-563]
     check: { type: "native", engine: "detector", match: { name: "write_only_local" } }
+    help: "The value is assigned and never read, so the assignment does nothing. Delete both, or add the read that was meant."
 
   - id: "DEAD-6"
     kind: rule
@@ -143,6 +154,7 @@ rules:
     coverage: partial
     cwe: [CWE-1164]
     check: { type: "native", engine: "source", match: { name: "macro_defined_unused" } }
+    help: "Delete the macro. If it is part of a configuration header used by other builds, keep it and deviate the rule."
 
   - id: "DEAD-7"
     kind: rule
@@ -153,6 +165,7 @@ rules:
     coverage: partial
     cwe: [CWE-1164]
     check: { type: "native", engine: "system", match: { name: "typedef_unused" } }
+    help: "Delete the type, or use it."
 
   - id: "DEAD-8"
     kind: rule
@@ -163,6 +176,7 @@ rules:
     coverage: partial
     cwe: [CWE-561]
     check: { type: "native", engine: "source", match: { name: "commented_out_code" } }
+    help: "Delete commented-out code. Version control keeps the history, and old code in comments misleads readers."
 
   - id: "DEAD-9"
     kind: rule
@@ -173,6 +187,7 @@ rules:
     coverage: partial
     cwe: [CWE-482, CWE-561]
     check: { type: "native", engine: "detector", match: { name: "no_effect_statement" } }
+    help: "A statement with no effect is usually a typo (== for =, a missing call). Fix it or delete it."
 
   - id: "DEAD-10"
     kind: rule
@@ -182,6 +197,7 @@ rules:
     scope: single-tu
     cwe: [CWE-1164]
     check: { type: "native", engine: "detector", match: { name: "unused_label" } }
+    help: "Delete the label, or add the goto that uses it."
 
   - id: "ISR-1"
     kind: rule
@@ -193,6 +209,7 @@ rules:
     cwe: [CWE-362, CWE-820]
     check: { type: "native", engine: "detector", match: { name: "isr_shared_not_volatile" } }
     notes: "Handlers are found by name or attribute. A variable written in the handler and used by another function in the same file is reported. Use across files is not seen."
+    help: "Declare the variable volatile, and make updates atomic: on a Cortex-M a 32-bit aligned access is atomic, larger or read-modify-write accesses need interrupts masked or an atomic type."
 
   - id: "ISR-2"
     kind: rule
@@ -204,6 +221,7 @@ rules:
     cwe: [CWE-833]
     check: { type: "native", engine: "detector", match: { name: "isr_calls", callee_in: ["malloc", "calloc", "realloc", "free", "printf", "fprintf", "sprintf", "snprintf", "puts", "fopen", "fclose", "sleep", "usleep", "HAL_Delay", "vTaskDelay", "vTaskDelayUntil", "osDelay", "OS_Delay", "OS_TASK_Delay", "OS_TASK_Delayus", "k_sleep", "xQueueReceive", "xSemaphoreTake", "xTaskNotifyWait", "ulTaskNotifyTake", "osMutexAcquire", "osSemaphoreAcquire", "osMessageQueueGet", "pthread_mutex_lock", "OS_MUTEX_LockBlocked", "OS_MUTEX_Lock", "OS_SEMAPHORE_TakeBlocked", "OS_SEMAPHORE_TakeTimed", "OS_MAILBOX_GetBlocked", "OS_MAILBOX_GetTimed", "OS_QUEUE_GetPtrBlocked", "OS_EVENT_WaitTimed", "OS_EVENT_Wait", "OS_TASK_Suspend"] } }
     notes: "Direct calls from the handler only. The list of names is a default: edit it in your own rule file for other RTOS or HAL."
+    help: "An interrupt handler must not wait. Post to a queue or semaphore with the FromISR variant, set a flag, and let a task do the work that can block."
 
   - id: "ISR-3"
     kind: rule
@@ -215,6 +233,7 @@ rules:
     cwe: [CWE-663]
     check: { type: "native", engine: "detector", match: { name: "isr_calls", callee_in: ["xQueueSend", "xQueueSendToBack", "xQueueSendToFront", "xQueueOverwrite", "xSemaphoreGive", "xTaskNotify", "xTaskNotifyGive", "xEventGroupSetBits", "xEventGroupClearBits", "xTimerStart", "xTimerStop", "xTimerReset", "xTimerChangePeriod", "xTaskResume", "vTaskSuspend", "xQueueReceive", "xSemaphoreTake", "xTaskAbortDelay", "osMessageQueuePut", "osSemaphoreRelease", "osEventFlagsSet"] } }
     notes: "FreeRTOS and CMSIS-RTOS names. Use the FromISR variant."
+    help: "Use the interrupt-safe variant (for FreeRTOS the call ending in FromISR), and pass the higher-priority-task-woken flag to portYIELD_FROM_ISR."
 
   - id: "ISR-4"
     kind: rule
@@ -225,6 +244,7 @@ rules:
     coverage: partial
     cwe: [CWE-663]
     check: { type: "native", engine: "detector", match: { name: "isr_calls", callee_in: ["malloc", "calloc", "realloc", "free", "printf", "fprintf", "sprintf", "snprintf", "vprintf", "puts", "fopen", "fclose", "fread", "fwrite", "scanf", "strtok", "rand", "srand", "localtime", "asctime", "ctime"] } }
+    help: "Keep heap, stdio and other non-reentrant library calls out of handlers. Use pre-allocated buffers and defer logging to a task."
 
   - id: "ISR-5"
     kind: rule
@@ -233,6 +253,7 @@ rules:
     decidable: true
     scope: single-tu
     check: { type: "native", engine: "detector", match: { name: "isr_length", limit: 40 } }
+    help: "Do the minimum in the handler: capture the data, clear the flag, signal a task. Long handlers delay other interrupts and hurt real-time behaviour."
 
   - id: "IMP-1"
     kind: rule
@@ -242,6 +263,7 @@ rules:
     scope: single-tu
     check: { type: "import" }
     notes: "Read from standards.imports: the clang-tidy text, the clang-tidy YAML, or the analyser plist."
+    help: "The rule behind the finding is the analyser's own. Read the message and the check name in the analyser's documentation."
 
   - id: "IMP-2"
     kind: rule
@@ -251,6 +273,7 @@ rules:
     scope: single-tu
     check: { type: "import" }
     notes: "Read from standards.imports: cppcheck XML."
+    help: "The rule behind the finding is cppcheck's own. Read the message and the check id in cppcheck's documentation."
 
   - id: "IMP-3"
     kind: rule
@@ -260,6 +283,7 @@ rules:
     scope: single-tu
     check: { type: "import" }
     notes: "Read from standards.imports: SARIF."
+    help: "The rule behind the finding comes from the SARIF tool that produced it. Read the message and its rule id in that tool's documentation."
 
 tool_map:
   clang-tidy:

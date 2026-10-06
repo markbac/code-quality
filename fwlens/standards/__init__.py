@@ -20,6 +20,7 @@ from fwlens.standards.importers import map_to_rule, read_import
 from fwlens.standards.rules import Rule, RuleFileError, Standard, load_standards
 from fwlens.standards.sourcechecks import (
     diagnostic_flags,
+    analysed_modules,
     first_party_files,
     run_diagnostic_engine,
     run_source_engines,
@@ -95,7 +96,7 @@ def _native_hits(model: ProjectModel, config: FwLensConfig, rules: list[Rule]) -
         from fwlens.parser.ast_walker import _ensure_clang, build_clang_args
         _ensure_clang(config)
         ci = walker._clang
-        first_party = {Path(m.path) for m in model.first_party_modules()}
+        first_party = {Path(m.path) for m in analysed_modules(model, config)}
         fp_files = {str(p) for p in first_party_files(model, config)}
         extra = diagnostic_flags(diag_rules)
         for tu in model.translation_units:

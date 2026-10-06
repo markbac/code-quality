@@ -55,7 +55,7 @@ def test_tabs_are_a_keyboard_reachable_tablist(report_html):
     c = Collector()
     c.feed(report_html)
     tabs = [(t, a) for t, a in c.tags if a.get("role") == "tab"]
-    assert len(tabs) == 14
+    assert len(tabs) == 15
     assert all(t == "button" for t, _ in tabs)
     assert sum(1 for _, a in tabs if a.get("aria-selected") == "true") == 1
     assert sum(1 for _, a in tabs if a.get("tabindex") == "0") == 1
@@ -68,7 +68,7 @@ def test_tabs_are_a_keyboard_reachable_tablist(report_html):
 
 def test_every_pane_is_a_pane(report_html):
     assert "paneNone" not in report_html
-    assert len(re.findall(r'class="pane( active)?" id="pane-', report_html)) == 14
+    assert len(re.findall(r'class="pane( active)?" id="pane-', report_html)) == 15
 
 
 def test_about_panel_does_not_push_the_scorecards_down(report_html):

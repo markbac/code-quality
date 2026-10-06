@@ -40,10 +40,42 @@ def result_level(b: Breach) -> str:
     return METRIC_INFO[b.metric][2]
 
 
-def rule_cwes(model: ProjectModel) -> dict[str, list[str]]:
-    """CWE ids of the coding-standard rules that ran, by rule key. Empty when standards were not run."""
+def rule_info(model: ProjectModel) -> dict[str, dict[str, Any]]:
+    """What is known about the coding-standard rules that ran, by rule key. Empty when standards were not run."""
     result = getattr(model, "_standards_result", None)
-    return {r.key: list(r.cwe) for r in result.rules if r.cwe} if result is not None else {}
+    if result is None:
+        return {}
+    info: dict[str, dict[str, Any]] = {}
+    for r in result.rules:
+        std = result.standards.get(r.standard)
+        engines = sorted({c.engine for c in r.native_checks if c.engine})
+        checked = (f"native ({', '.join(engines)})" if r.check_type == "native"
+                   else "imported from another analyser" if r.check_type == "import" else "manual review")
+        info[r.key] = {
+            "cwe": list(r.cwe), "standard": r.standard, "standardName": f"{std.name} ({std.revision})" if std else r.standard,
+            "id": r.id, "kind": r.kind, "category": r.category, "coverage": r.coverage, "checkedBy": checked,
+            "notes": r.notes, "help": r.help, "title": r.title,
+            "guidelineUri": (std.guideline_uri if std and getattr(std, "guideline_uri", "") else ""),
+        }
+    return info
+
+
+def rule_cwes(model: ProjectModel) -> dict[str, list[str]]:
+    """CWE ids of the coding-standard rules that ran, by rule key."""
+    return {k: v["cwe"] for k, v in rule_info(model).items() if v["cwe"]}
+
+
+def _help_text(b_title: str, level: str, meta: dict[str, Any]) -> str:
+    lines = [b_title, "", f"Standard: {meta['standardName']}. Guideline {meta['id']}, {meta['category']}."]
+    lines.append(f"Checked by: {meta['checkedBy']}" + (" (partial: it finds some violations, not all)" if meta["coverage"] == "partial" else "") + ".")
+    if meta["help"]:
+        lines += ["", "How to fix: " + meta["help"]]
+    if meta["notes"]:
+        lines += ["", "Notes: " + meta["notes"]]
+    if meta["cwe"]:
+        lines += ["", "Related weaknesses: " + ", ".join(meta["cwe"])]
+    lines += ["", "FWLens carries a short description of each guideline, not its text. Read the guideline in your licensed copy of the standard."]
+    return "\n".join(lines)
 
 
 def _cwe_properties(cwes: list[str]) -> tuple[list[str], list[dict[str, Any]]]:
@@ -53,7 +85,7 @@ def _cwe_properties(cwes: list[str]) -> tuple[list[str], list[dict[str, Any]]]:
     return tags, relationships
 
 
-def build_rules(breaches: list[Breach] = (), cwe_by_rule: dict[str, list[str]] | None = None) -> list[dict[str, Any]]:
+def build_rules(breaches: list[Breach] = (), info: dict[str, dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     rules = []
     for metric, (name, short, level) in METRIC_INFO.items():
         rules.append({
@@ -61,7 +93,9 @@ def build_rules(breaches: list[Breach] = (), cwe_by_rule: dict[str, list[str]] |
             "name": name,
             "shortDescription": {"text": short},
             "defaultConfiguration": {"level": level},
-            "properties": {"metric": metric},
+            "help": {"text": f"{short}.\n\nThe limit is set under thresholds.{metric} in the FWLens config. "
+                             "Split the function or module, or raise the limit for this project."},
+            "properties": {"metric": metric, "standard": "fwlens-metrics", "standardName": "FWLens metric thresholds"},
         })
     declared: set[str] = set()
     for b in breaches:
@@ -75,12 +109,21 @@ def build_rules(breaches: list[Breach] = (), cwe_by_rule: dict[str, list[str]] |
             "defaultConfiguration": {"level": result_level(b)},
             "properties": {"category": b.category},
         }
-        cwes = (cwe_by_rule or {}).get(b.metric)
-        if cwes:
-            tags, relationships = _cwe_properties(cwes)
-            entry["properties"]["tags"] = tags
-            entry["properties"]["cwe"] = cwes
-            entry["relationships"] = relationships
+        meta = (info or {}).get(b.metric)
+        if meta:
+            entry["name"] = f"{meta['standard']} {meta['id']}"
+            entry["fullDescription"] = {"text": meta["title"]}
+            entry["help"] = {"text": _help_text(meta["title"], result_level(b), meta)}
+            entry["properties"].update({"standard": meta["standard"], "standardName": meta["standardName"],
+                                        "guideline": meta["id"], "kind": meta["kind"], "checkedBy": meta["checkedBy"],
+                                        "coverage": meta["coverage"]})
+            if meta["guidelineUri"]:
+                entry["helpUri"] = meta["guidelineUri"]
+            if meta["cwe"]:
+                tags, relationships = _cwe_properties(meta["cwe"])
+                entry["properties"]["tags"] = tags
+                entry["properties"]["cwe"] = meta["cwe"]
+                entry["relationships"] = relationships
         rules.append(entry)
     return rules
 
@@ -199,13 +242,31 @@ def build_metrics(model: ProjectModel, config: FwLensConfig) -> tuple[dict[str, 
     return props, artifacts
 
 
+def outside_first_party(model: ProjectModel, config: FwLensConfig, uris: set[str]) -> list[str]:
+    """The result files that are SDK or third-party code: a parsed module's class, else the scope folders in the path."""
+    root = project_root(config)
+    known = {relative_posix(m.path, root): m.boundary_class.value for m in model.modules}
+    sdk = {s.lower() for s in config.scope.sdk}
+    lib = {s.lower() for s in config.scope.third_party_lib}
+    out = []
+    for uri in sorted(uris):
+        cls = known.get(uri)
+        if cls is None:
+            parts = {p.lower() for p in uri.split("/")[:-1]}
+            cls = "sdk" if parts & sdk else "third_party_lib" if parts & lib else "first_party"
+        if cls in ("sdk", "third_party_lib"):
+            out.append(uri)
+    return out
+
+
 def generate_sarif_report(model: ProjectModel, config: FwLensConfig,
                           breaches: list[Breach] | None = None) -> dict[str, Any]:
     """Generate SARIF 2.1.0 JSON payload from project breaches (computed unless given)."""
     if breaches is None:
         breaches = compute_breaches(model, config)
-    cwe_by_rule = rule_cwes(model)
-    rules = build_rules(breaches, cwe_by_rule)
+    info = rule_info(model)
+    cwe_by_rule = {k: v["cwe"] for k, v in info.items() if v["cwe"]}
+    rules = build_rules(breaches, info)
     rule_index = {r["id"]: i for i, r in enumerate(rules)}
 
     metrics, artifacts = build_metrics(model, config)
@@ -215,6 +276,8 @@ def generate_sarif_report(model: ProjectModel, config: FwLensConfig,
         "results": [breach_to_result(b, rule_index) for b in breaches],
         "properties": {"fwlens": metrics},
     }
+    metrics["thirdPartyFiles"] = outside_first_party(
+        model, config, {r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] for r in run["results"]})
     if cwe_by_rule:
         taxonomy, cwe_summary = build_cwe(breaches, cwe_by_rule)
         run["taxonomies"] = taxonomy

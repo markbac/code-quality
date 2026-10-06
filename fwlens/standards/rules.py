@@ -52,6 +52,7 @@ class Rule:
     match: dict = field(default_factory=dict)
     cwe: list[str] = field(default_factory=list)
     notes: str = ""
+    help: str = ""                            # how to fix it, shown as rule help in SARIF and the report
     severity: str = "warning"
     undeviable: bool = False
     coverage: str = "full"                    # "partial": a native check that finds only some violations
@@ -76,6 +77,7 @@ class Standard:
     rules: dict[str, Rule] = field(default_factory=dict)
     tool_map: dict[str, dict[str, str]] = field(default_factory=dict)
     source: Path | None = None
+    guideline_uri: str = ""                  # where the standard is published, when the file says so
 
 
 def _fail(path, where: str, message: str):
@@ -139,7 +141,8 @@ def parse_standard(raw: dict, path: Path) -> Standard:
     undeviable = set(head.get("undeviable_categories", []))
     severity_map = head.get("severity_map", {})
     std = Standard(sid, _require(path, "standard", head, "name", str), str(head.get("revision", "")),
-                   list(categories), source=path)
+                   list(categories), source=path,
+                   guideline_uri=str(head.get("guideline_text", "")) if str(head.get("guideline_text", "")).startswith("http") else "")
 
     for i, r in enumerate(_require(path, "file", raw, "rules", list)):
         rid = str(r.get("id", f"#{i}")) if isinstance(r, dict) else f"#{i}"
@@ -177,7 +180,7 @@ def parse_standard(raw: dict, path: Path) -> Standard:
             standard=sid, id=rid, kind=kind, title=_require(path, where, r, "title", str),
             category=category, decidable=bool(_require(path, where, r, "decidable", bool)), scope=scope,
             check_type=ctype, engine=first.engine, match=dict(first.match),
-            cwe=list(r.get("cwe", [])), notes=str(r.get("notes", "")),
+            cwe=list(r.get("cwe", [])), notes=str(r.get("notes", "")), help=str(r.get("help", "")),
             severity=severity_map.get(category, "warning"), undeviable=category in undeviable,
             coverage=coverage, checks=checks,
         )

@@ -114,6 +114,54 @@ def cbom_view(doc: dict) -> dict[str, Any]:
     }
 
 
+def sarif_explorer(doc: dict) -> dict[str, Any]:
+    """
+    Every result and every rule of the SARIF document in a compact form for the report's filter
+    view: results are [rule index, file index, line, level index, message], rules carry their help
+    and CWE ids. Nothing is dropped, so the view can show all results and filter them in the page.
+    """
+    run = doc["runs"][0]
+    rules: list[dict] = []
+    rule_index: dict[str, int] = {}
+    for r in run["tool"]["driver"]["rules"]:
+        props = r.get("properties", {})
+        rid = r["id"]
+        standard = props.get("standard") or (rid.split(":")[0] if ":" in rid else "fwlens-metrics")
+        rule_index[rid] = len(rules)
+        rules.append({
+            "id": rid, "title": r.get("shortDescription", {}).get("text", ""),
+            "level": r.get("defaultConfiguration", {}).get("level", "warning"), "standard": standard,
+            "standardName": props.get("standardName", standard), "guideline": props.get("guideline", rid),
+            "category": props.get("category", ""), "checkedBy": props.get("checkedBy", ""),
+            "coverage": props.get("coverage", ""), "cwe": props.get("cwe", []),
+            "help": r.get("help", {}).get("text", ""), "helpUri": r.get("helpUri", ""),
+        })
+    files: list[str] = []
+    file_index: dict[str, int] = {}
+    levels: list[str] = []
+    level_index: dict[str, int] = {}
+    rows = []
+    for res in run.get("results", []):
+        loc = (res.get("locations") or [{}])[0].get("physicalLocation", {})
+        uri = loc.get("artifactLocation", {}).get("uri", "")
+        if uri not in file_index:
+            file_index[uri] = len(files)
+            files.append(uri)
+        level = res.get("level", "warning")
+        if level not in level_index:
+            level_index[level] = len(levels)
+            levels.append(level)
+        message = res.get("message", {}).get("text", "") if res.get("properties", {}).get("metric") else ""
+        rows.append([rule_index.get(res["ruleId"], 0), file_index[uri], loc.get("region", {}).get("startLine", 1),
+                     level_index[level], message])
+    standards: dict[str, dict] = {}
+    for r in rules:
+        standards.setdefault(r["standard"], {"id": r["standard"], "name": r["standardName"]})
+    third = set(run.get("properties", {}).get("fwlens", {}).get("thirdPartyFiles", []))
+    return {"rules": rules, "files": files, "levels": levels, "results": rows, "standards": list(standards.values()),
+            "thirdParty": [i for i, f in enumerate(files) if f in third]}
+
+
 def sarif_view(doc: dict, top_rules: int = 15, top_files: int = 15, top_functions: int = 15) -> dict[str, Any]:
     run = doc["runs"][0]
     rules = {r["id"]: r for r in run["tool"]["driver"]["rules"]}
@@ -135,6 +183,7 @@ def sarif_view(doc: dict, top_rules: int = 15, top_files: int = 15, top_function
     cwe = metrics.get("cwe") or {}
     cwe_rows = [{"cwe": c, "count": n} for c, n in list(cwe.get("findingsByCwe", {}).items())[:top_rules]]
     return {
+        "explorer": sarif_explorer(doc),
         "cwe": ({"edition": cwe.get("top25Edition", ""), "rows": cwe_rows, "total": len(cwe.get("findingsByCwe", {})),
                  "top25_checked": cwe.get("top25CheckedByRules", []), "top25_found": cwe.get("top25WithFindings", []),
                  "top25_size": len(cwe.get("top25", []))} if cwe else None),

@@ -105,12 +105,22 @@ class SourceFile:
 
 # --- engines ------------------------------------------------------------------------------------
 
+def analysed_modules(model, config) -> list:
+    """The parsed modules whose boundary class is in scope.analyse: first-party code, plus SDK and
+    third-party code when the config asks for it."""
+    wanted = set(config.scope.analyse) or {"first_party"}
+    return [m for m in model.modules if m.boundary_class.value in wanted]
+
+
 def first_party_files(model, config) -> list[Path]:
-    """First-party translation units plus the first-party headers they include."""
+    """Translation units in the analysed scope plus the headers they include from analysed folders."""
     root = project_root(config)
     scope = config.scope
-    fp = {s.lower() for s in scope.first_party}
-    other = {s.lower() for s in [*scope.sdk, *scope.third_party_lib]}
+    analyse = set(scope.analyse) or {"first_party"}
+    wanted = {s.lower() for s in scope.first_party}
+    other: set[str] = set()
+    for cls, names in (("sdk", scope.sdk), ("third_party_lib", scope.third_party_lib)):
+        (wanted if cls in analyse else other).update(s.lower() for s in names)
 
     def header_ok(path: Path) -> bool:
         try:
@@ -119,10 +129,11 @@ def first_party_files(model, config) -> list[Path]:
             return False
         if any(p in other for p in parts):
             return False
-        return "." in fp or any(p in fp for p in parts)
+        return "." in wanted or any(p in wanted for p in parts)
 
-    files = {Path(m.path) for m in model.first_party_modules()}
-    for m in model.first_party_modules():
+    modules = analysed_modules(model, config)
+    files = {Path(m.path) for m in modules}
+    for m in modules:
         for edge in m.all_include_edges:
             for p in edge:
                 p = Path(p)

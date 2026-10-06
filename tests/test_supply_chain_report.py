@@ -82,3 +82,67 @@ def test_views_read_the_same_documents_the_exports_write():
         {"id": "R1", "shortDescription": {"text": "t"}, "defaultConfiguration": {"level": "warning"}}]}},
         "results": [{"ruleId": "R1", "level": "warning", "locations": [{"physicalLocation": {"artifactLocation": {"uri": "a.c"}}}]}]}]})
     assert sarif["total"] == 1 and sarif["rule_rows"][0]["count"] == 1 and sarif["file_rows"] == [{"file": "a.c", "count": 1}]
+
+
+# --- SARIF explorer (all results, filters, rule help, third-party toggle) and the Inputs tab -------
+
+def _explorer(html):
+    import json
+    import re
+    m = re.search(r"const D = (\{.*?\});\n\s*const \$ =", html, re.DOTALL)
+    assert m, "explorer data not found"
+    return json.loads(m.group(1))
+
+
+BRANCHY = "int v(int a) {\n" + "".join(f"  if (a == {i}) {{ return {i}; }}\n" for i in range(20)) + "  return 0;\n}\n"
+STD = "standards:\n  enabled:\n    - standard: fwlens\n      include_ids: [SEC-3, DEAD-2, SEC-1]\n"
+
+
+def test_sarif_tab_embeds_every_result_with_rule_help_and_cwe(report, tmp_path):
+    secrets = "".join(f'const char *k{i} = "AKIAIOSFODNN7EXAMPLE";\n' for i in range(40))
+    (tmp_path / "src" / "secrets.c").write_text(secrets)
+    html = report("[html, sarif]", STD)
+    data = _explorer(html)
+    assert sum(1 for r in data["results"] if data["rules"][r[0]]["id"] == "fwlens:SEC-3") == 40   # none dropped
+    rule = next(r for r in data["rules"] if r["id"] == "fwlens:SEC-3")
+    assert rule["standard"] == "fwlens" and rule["cwe"] == ["CWE-798"] and "Revoke it" in rule["help"]
+    for control in ('id="sx-std"', 'id="sx-rule"', 'id="sx-cwe"', 'id="sx-third"', 'data-view="cwe"', 'id="sx-help"'):
+        assert control in html
+
+
+def test_third_party_files_are_flagged_so_the_page_can_hide_them(tmp_path, monkeypatch):
+    for name, text in {**SOURCES, "src/secrets.c": 'const char *k = "AKIAIOSFODNN7EXAMPLE";\n',
+                       "Lib/mbedtls/vendor.c": 'const char *k = "AKIAIOSFODNN7EXAMPLE";\n'}.items():
+        f = tmp_path / name
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(text)
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("project:\n  source_dir: .\nscope:\n  first_party: [src, Inc]\n  third_party_lib: [Lib]\n"
+                   "  analyse: [first_party, third_party_lib]\ntool:\n  target: native\noutput:\n  formats: [html, sarif]\n" + STD)
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(fwlens_main.cli, ["report", "--config", str(cfg)])
+    assert result.exit_code == 0, result.output
+    data = _explorer((tmp_path / "output" / "reports" / "fwlens_report.html").read_text(encoding="utf-8"))
+    all_files = set(data["files"])
+    third = {data["files"][i] for i in data["thirdParty"]}
+    assert "src/secrets.c" in all_files and "Lib/mbedtls/vendor.c" in all_files
+    assert third == {"Lib/mbedtls/vendor.c"}
+
+
+def test_inputs_tab_shows_config_project_and_build_files(report, tmp_path):
+    (tmp_path / "CMakeLists.txt").write_text("project(demo C)\nadd_executable(demo src/main.c)\n")
+    (tmp_path / "Makefile").write_text("all: demo\ndemo:\n\tcc -o demo src/main.c\n")
+    html = report("[html]")
+    assert 'id="tab-inputs"' in html and 'id="pane-inputs"' in html
+    assert "project demo; targets: demo" in html and "targets: all, demo" in html
+    assert "first_party: [src, Inc]" in html                    # the YAML as read
+    assert "translation units" in html and "Lib" in html
+
+
+def test_a_project_that_cannot_be_read_again_does_not_lose_the_report(tmp_path):
+    from fwlens.config import load_config
+    from fwlens.output.inputs import inputs_view
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("project:\n  source_dir: missing\ntool:\n  target: native\n")
+    view = inputs_view(load_config(cfg))
+    assert view["config_text"].startswith("project:") and view["project_files"]

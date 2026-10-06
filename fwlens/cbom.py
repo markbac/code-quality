@@ -96,6 +96,67 @@ def _scan_files(config: FwLensConfig, result, root: Path) -> list[Path]:
     return sorted(files)
 
 
+# Words that make a project path look like a cryptographic library even when the catalogue has no
+# entry for it. Whole words only, so "shared" and "details" do not match "sha" and "tls".
+_CRYPTO_WORDS = {"crypto", "crypt", "cryptlib", "openssl", "ssl", "tls", "dtls", "aes", "rsa", "ecc", "ecdsa",
+                 "cipher", "mbedtls", "wolfssl", "wolfcrypt", "hsm", "cmac", "sha", "sha1", "sha2", "sha256", "md5"}
+_CRYPTO_PARTS = ("crypt", "cycur", "openssl", "cipher", "mbedtls", "wolfssl")
+_LIB_FILES = {".a", ".lib", ".o", ".obj", ".so", ".dll", ".h", ".hpp", ".c"}
+
+
+def _crypto_named(part: str) -> bool:
+    low = part.lower()
+    words = [w for w in re.split(r"[^a-z0-9]+", low) if w]
+    return any(s in low for s in _CRYPTO_PARTS) or any(w in _CRYPTO_WORDS for w in words)
+
+
+def _project_evidence(config: FwLensConfig, result, root: Path) -> list[tuple[str, str, Path]]:
+    """
+    Paths the project file mentions, as (what, description, path): every translation unit, include
+    directory and group, and for an IAR project every file of any type (a library delivered as an
+    archive is listed there but is no translation unit) and each additional linker library.
+    """
+    out: list[tuple[str, str, Path]] = []
+    for tu in result.source_files:
+        out.append(("source file", relative_posix(tu.path, root), tu.path))
+        out.extend(("include path", relative_posix(p, root), p) for p in tu.include_paths)
+    out.extend(("include path", relative_posix(p, root), p) for p in getattr(result, "global_includes", []))
+    out.extend(("group", name, Path(name)) for name in getattr(result, "iar_groups", {}))
+    if config.project.mode == "ewp":
+        out.extend(_ewp_paths(config, root))
+    return out
+
+
+def _ewp_paths(config: FwLensConfig, root: Path) -> list[tuple[str, str, Path]]:
+    import xml.etree.ElementTree as ET
+
+    from fwlens.parser.ewp import _expand_path
+    if config.project.ewp is None:
+        return []
+    try:
+        tree = ET.parse(config.project.ewp)
+    except (OSError, ET.ParseError):
+        return []
+    found: list[tuple[str, str, Path]] = []
+    for file_el in tree.getroot().iter("file"):
+        name = file_el.find("name")
+        if name is not None and name.text:
+            path = _expand_path(name.text.strip(), config.project.proj_dir, config.project.toolkit_dir)
+            if path is not None:
+                found.append(("project file", relative_posix(path, root), path))
+    for opt in tree.getroot().iter("option"):
+        name = opt.find("name")
+        if name is not None and name.text in ("IlinkAdditionalLibs", "IlinkOutputFile"):
+            if name.text != "IlinkAdditionalLibs":
+                continue
+            for state in opt.findall("state"):
+                if state.text:
+                    path = _expand_path(state.text.strip(), config.project.proj_dir, config.project.toolkit_dir)
+                    if path is not None:
+                        found.append(("linker library", relative_posix(path, root), path))
+    return found
+
+
 def build_cbom(config: FwLensConfig, now: datetime | None = None) -> dict:
     from fwlens.parser.pipeline import read_project
     result = read_project(config)
@@ -157,18 +218,45 @@ def build_cbom(config: FwLensConfig, now: datetime | None = None) -> dict:
                 present.setdefault(lib.id, f"#define {token} in {where}")
                 record(lib, entry, token, where, line_of(m.start()), "configured", file_curves)
 
-    # A library directory anywhere in the project counts as present, even when its own sources
-    # are outside the scanned scopes.
+    # A library named anywhere in the project file counts as present, even when its own sources are
+    # outside the scanned scopes or it is only a precompiled archive.
     dir_lookup = {n.lower(): lib for lib in libraries.values() for n in lib.dir_names}
-    for tu in result.source_files:
+    unknown_libraries: dict[str, str] = {}
+    library_dirs = {s.lower() for s in [*config.scope.sdk, *config.scope.third_party_lib]}
+    for what, description, path in _project_evidence(config, result, root):
         try:
-            parts = tu.path.relative_to(root).parts[:-1]
+            parts = list(path.relative_to(root).parts)
         except ValueError:
-            parts = tu.path.parts[:-1]
-        for part in parts:
+            parts = list(path.parts)
+        if what not in ("include path", "group"):
+            stem = path.stem.lower()
+            suffix = path.suffix.lower()
+            names = parts[:-1] + ([path.stem] if suffix in _LIB_FILES else [])
+            file_part = path.stem if suffix in _LIB_FILES else None
+        else:
+            stem, names, file_part = "", parts, None
+        owners = []
+        for part in names:
             owner = dir_lookup.get(part.lower())
+            if owner is None and stem:
+                owner = next((lib for key, lib in dir_lookup.items() if key in stem), None)
             if owner:
-                present.setdefault(owner.id, f"directory {part}/ in the project")
+                owners.append(owner)
+                present.setdefault(owner.id, f"{what} {description} in the project")
+        if owners:
+            continue                      # the catalogue already accounts for this path
+        for part in names:
+            if file_part is not None and part == file_part and path.suffix.lower() not in (".a", ".lib") \
+                    and part not in parts[:-1]:
+                continue                  # a source or header file is not a library by its name
+            if _crypto_named(part) and part.lower() not in {"include", "inc", "src"} and (
+                    what == "linker library" or path.suffix.lower() in (".a", ".lib")
+                    or any(p.lower() in library_dirs for p in parts[:-1])):
+                unknown_libraries.setdefault(part, f"{what} {description} in the project")
+    # a crypto-looking name that no catalogue library accounts for
+    known_names = {n.lower() for lib in libraries.values() for n in lib.dir_names}
+    unknown_libraries = {k: v for k, v in unknown_libraries.items()
+                         if k.lower() not in known_names and not any(k.lower() in n or n in k.lower() for n in known_names)}
 
     now = now or datetime.now(timezone.utc)
     components: list[dict] = []
@@ -249,6 +337,16 @@ def build_cbom(config: FwLensConfig, now: datetime | None = None) -> dict:
         mine = sorted(refs[k] for k in assets if k[0] == lib_id)
         if mine:
             provides.append({"ref": ref, "provides": mine})
+
+    for name, evidence in sorted(unknown_libraries.items()):
+        lib_components.append({
+            "type": "library", "bom-ref": "library-unlisted-" + re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-"),
+            "name": name,
+            "properties": [{"name": "fwlens:evidence-kind", "value": "library-name-match"},
+                           {"name": "fwlens:evidence", "value": evidence},
+                           {"name": "fwlens:note", "value": "the name suggests cryptography but the library is not in "
+                                                            "the crypto catalogue, so no algorithms are listed: add "
+                                                            "an entry under cbom.extra_catalog_dirs"}]})
 
     app_version, app_source = _app_version(config, root)
     app: dict = {"type": "firmware", "bom-ref": "application", "name": _application_name(config, root),

@@ -172,3 +172,58 @@ def test_cli_writes_the_file_and_the_report_format_does_too(project, monkeypatch
     validate_bom(json.loads((project / "out" / "cbom.json").read_text()))
     out = " ".join(res.output.split())
     assert "flagged weak" in out and "detected usage only" in out
+
+
+# --- libraries named by the project file (a precompiled archive is no translation unit) ---------
+
+EWP = """<?xml version="1.0" encoding="UTF-8"?>
+<project>
+  <configuration><name>Debug</name><settings><name>General</name></settings>
+    <settings><name>ILINK</name><data><option><name>IlinkAdditionalLibs</name>
+      <state>$PROJ_DIR$\\..\\lib\\vendorcrypt\\vendorcrypt.a</state></option></data></settings>
+  </configuration>
+  <group><name>App</name><file><name>$PROJ_DIR$\\..\\src\\main.c</name></file></group>
+  <group><name>Lib</name>
+    <file><name>$PROJ_DIR$\\..\\lib\\cycurlib\\cycurlib.a</name></file>
+    <file><name>$PROJ_DIR$\\..\\lib\\cycurlib\\inc\\cycurlib.h</name></file>
+  </group>
+</project>
+"""
+
+
+def ewp_project(tmp_path):
+    (tmp_path / "EWARM").mkdir()
+    (tmp_path / "EWARM" / "app.ewp").write_text(EWP)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.c").write_text("int main(void) { return 0; }\n")
+    (tmp_path / "lib" / "cycurlib").mkdir(parents=True)
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("project:\n  ewp: EWARM/app.ewp\n  configuration: Debug\n"
+                   "scope:\n  first_party: [src]\n  third_party_lib: [lib]\ntool:\n  target: native\n")
+    return load_config(cfg)
+
+
+def libraries(doc):
+    return {c["name"]: c for c in doc["components"] if c["type"] == "library"}
+
+
+def test_a_library_that_is_only_an_archive_in_the_ewp_is_listed(tmp_path):
+    doc = build_cbom(ewp_project(tmp_path))
+    validate_bom(doc)
+    libs = libraries(doc)
+    assert "ESCRYPT CycurLIB" in libs
+    assert "cycurlib" in prop(libs["ESCRYPT CycurLIB"], "fwlens:evidence")
+
+
+def test_a_crypto_named_archive_outside_the_catalogue_is_listed_with_a_note(tmp_path):
+    libs = libraries(build_cbom(ewp_project(tmp_path)))
+    unlisted = libs["vendorcrypt"]
+    assert prop(unlisted, "fwlens:evidence-kind") == "library-name-match"
+    assert "extra_catalog_dirs" in prop(unlisted, "fwlens:note")
+
+
+def test_a_first_party_folder_named_crypto_is_not_a_library(project):
+    (project / "src" / "crypto").mkdir(exist_ok=True)
+    (project / "src" / "crypto" / "own.c").write_text("int own(void) { return 1; }\n")
+    names = libraries(build_cbom(make_config(project)))
+    assert "crypto" not in names

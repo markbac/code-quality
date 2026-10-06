@@ -706,6 +706,10 @@ validated on load with errors that name the file, rule and field, and
 shows every rule, how it is checked and which are enabled; `--rule-dir DIR` adds a rule directory
 for that call.
 
+A rule may carry a `help` line (how to fix it). It is shown as the rule's help in SARIF
+(`help.text`) and in the report's SARIF tab. The FWLens rules have one, and you can add one to
+your own rules.
+
 A `tool_map` section maps another tool's check ids onto rule ids. Common cppcheck MISRA and
 CERT ids and clang-tidy `cert-*` ids are recognised without it.
 
@@ -942,7 +946,8 @@ peripherals. Each asset has an evidence kind in `fwlens:evidence-kind`:
 |---|---|
 | `used` | an identifier from the catalogue appears in code |
 | `configured` | a catalogue macro such as `MBEDTLS_SHA256_C` is `#define`d |
-| `library-present` | a matching `#include` or library directory, with no algorithm seen (library components) |
+| `library-present` | a matching `#include`, library directory, or file named in the project (an IAR `.ewp` file entry or additional linker library, so a precompiled `.a` counts), with no algorithm seen (library components) |
+| `library-name-match` | a library path in `scope.sdk` or `scope.third_party_lib`, or a linker library, whose name suggests cryptography (`crypt`, `cipher`, `ssl`, `tls`, `aes`, `rsa` ...) but that is not in the catalogue. It is listed with a note, and no algorithms are reported for it until you add catalogue entries |
 
 Key size and mode are read from names such as `EVP_aes_128_gcm`; a curve is taken from curve names
 in the same file. TLS cipher suite names (`..._TLS_..._WITH_...`) are collected on one protocol
@@ -955,6 +960,8 @@ cbom:
                                    # include library sources (they will then report themselves)
   extra_catalog_dirs: [./crypto]   # more catalogue files, read after the bundled ones
 ```
+
+ESCRYPT CycurLIB is in the catalogue as a library only: FWLens knows it is present but not its function names, so add entries for the functions your code calls to get its algorithms. A library with `entries: []` is allowed.
 
 A catalogue file names a `library` (`id`, `name`, `include_fragments`, `dir_names`) and a list of
 `entries`. An entry needs `id`, `name` and `identifiers` (a trailing `*` is a prefix) or
@@ -2039,8 +2046,23 @@ output:
 
 Listing `sbom`, `cbom` or `sarif` in `formats` also adds a readable **SBOM**, **CBOM** or **SARIF**
 tab to the HTML report: components with licences, versions and gaps; algorithms, protocols and weak
-items with where they appear; and results by level, rule and file with the key metrics. The tabs
-read the same documents the files contain.
+items with where they appear; and the SARIF results with the key metrics. The tabs read the same
+documents the files contain.
+
+The **SARIF** tab lists every result, not a top-N, and filters them in the page: by ruleset
+(`misra-c-2012`, `barr-c-2018`, `fwlens` ...), by rule, by CWE, by level and by text in the file
+name or message. Choosing a rule shows its help: what it checks, how it is checked (native, imported
+or manual, and whether coverage is partial), how to fix it for the FWLens rules, the related CWEs
+and where the standard is published. **By rule** and **By CWE** group the results that match the
+filters, and a click on a rule or CWE filters to it. The **Show SDK and third-party code** box hides
+results in those files. They appear only when `scope.analyse` includes `sdk` or `third_party_lib`:
+the coding-standard checks then run on that code too.
+
+An **Inputs** tab is always present. It shows the config as read (with its hash), the project
+description and whether each file exists, the CMake, Make, IDE project, linker script and map files
+found within three folders of the project (CMake targets and Make targets are listed), the
+translation units by boundary class, group, extension, include path and define, and the settings
+that shaped the run.
 
 `reports_dir` holds the HTML report, `exports_dir` the CSV, JSON, SARIF, SBOM and CBOM files,
 `cache_dir` the parse cache and `db_path` the [run history](#run-history-trends-and-the-ratchet).

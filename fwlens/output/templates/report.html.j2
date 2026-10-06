@@ -121,6 +121,14 @@
   .bar-track { flex: 1; background: var(--border); border-radius: 3px; height: 8px; }
   .bar-fill { height: 8px; border-radius: 3px; }
   .filter-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .sx-bar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 10px; font-size: 12px; }
+  .sx-bar select, .sx-bar button, #sx-more { background: var(--surface); border: 1px solid var(--border); color: var(--text);
+                    padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+  .sx-bar select { max-width: 280px; }
+  .sx-views button.on { color: var(--accent); border-color: var(--accent); }
+  .sx-help { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; max-width: 900px; font-size: 12px; }
+  .sx-help pre { white-space: pre-wrap; margin: 8px 0 0; font-family: inherit; color: var(--text); }
+  .sx-meta { color: var(--dim); margin-top: 4px; }
   input[type=text] { background: var(--surface); border: 1px solid var(--border);
                      color: var(--text); padding: 5px 10px; border-radius: 4px;
                      font-size: 12px; width: 260px; }
@@ -252,6 +260,7 @@
 </header>
 <div class="tabs" role="tablist" aria-label="Report sections">
   <button type="button" class="tab active" role="tab" id="tab-overview" aria-controls="pane-overview" aria-selected="true" tabindex="0" onclick="show('overview', this)">Overview</button>
+  {% if meta.inputs %}<button type="button" class="tab" role="tab" id="tab-inputs" aria-controls="pane-inputs" aria-selected="false" tabindex="-1" onclick="show('inputs', this)">Inputs</button>{% endif %}
   <button type="button" class="tab" role="tab" id="tab-architecture" aria-controls="pane-architecture" aria-selected="false" tabindex="-1" onclick="show('architecture', this)">Architecture</button>
   <button type="button" class="tab" role="tab" id="tab-modules" aria-controls="pane-modules" aria-selected="false" tabindex="-1" onclick="show('modules', this)">Modules</button>
   <button type="button" class="tab" role="tab" id="tab-functions" aria-controls="pane-functions" aria-selected="false" tabindex="-1" onclick="show('functions', this)">Functions</button>
@@ -2827,28 +2836,232 @@
   {% endif %}
   {% endif %}
   {% if v.cwe %}
-  <div class="section-title">Weaknesses (CWE)</div>
-  <p style="color:var(--dim);font-size:12px;margin-bottom:8px;max-width:900px">CWE Top 25 ({{ v.cwe.edition }}): {{ v.cwe.top25_checked | length }} of {{ v.cwe.top25_size }} have a rule that checks for them, {{ v.cwe.top25_found | length }} have findings{% if v.cwe.top25_found %} ({{ v.cwe.top25_found | join(', ') }}){% endif %}.</p>
-  {% if v.cwe.rows %}
-  <table>
-    <thead><tr><th>CWE</th><th>Results</th></tr></thead>
-    <tbody>{% for r in v.cwe.rows %}<tr><td><a href="https://cwe.mitre.org/data/definitions/{{ r.cwe.replace('CWE-', '') }}.html" target="_blank" rel="noopener">{{ r.cwe }}</a></td><td>{{ r.count }}</td></tr>{% endfor %}</tbody>
-  </table>
+  <p style="color:var(--dim);font-size:12px;margin:12px 0 4px;max-width:900px">CWE Top 25 ({{ v.cwe.edition }}): {{ v.cwe.top25_checked | length }} of {{ v.cwe.top25_size }} have a rule that checks for them, {{ v.cwe.top25_found | length }} have findings{% if v.cwe.top25_found %} ({{ v.cwe.top25_found | join(', ') }}){% endif %}.</p>
   {% endif %}
-  {% endif %}
-  {% if v.rule_rows %}
-  <div class="section-title">Results by rule ({{ v.rule_rows | length }} of {{ v.rule_count }})</div>
-  <table>
-    <thead><tr><th>Rule</th><th>Meaning</th><th>Level</th><th>Results</th></tr></thead>
-    <tbody>{% for r in v.rule_rows %}<tr><td>{{ r.id }}</td><td>{{ r.title }}</td><td>{{ r.level }}</td><td>{{ r.count }}</td></tr>{% endfor %}</tbody>
-  </table>
-  <div class="section-title">Results by file ({{ v.file_rows | length }} of {{ v.file_count }})</div>
-  <table>
-    <thead><tr><th>File</th><th>Results</th></tr></thead>
-    <tbody>{% for f in v.file_rows %}<tr><td class="dim">{{ f.file }}</td><td>{{ f.count }}</td></tr>{% endfor %}</tbody>
-  </table>
+  <div class="section-title">All results</div>
+  {% if v.explorer.results %}
+  <div class="sx-bar">
+    <label>Ruleset <select id="sx-std"></select></label>
+    <label>Rule <select id="sx-rule"></select></label>
+    <label>CWE <select id="sx-cwe"></select></label>
+    <label>Level <select id="sx-level"></select></label>
+    <label><input type="checkbox" id="sx-third" checked> Show SDK and third-party code{% if v.explorer.thirdParty %} ({{ v.explorer.thirdParty | length }} files){% endif %}</label>
+    <input type="text" id="sx-text" placeholder="Filter by file or message">
+    <button type="button" id="sx-clear">Clear</button>
+  </div>
+  <div class="sx-bar">
+    <span class="sx-views" role="group" aria-label="View">
+      <button type="button" data-view="results" class="on">Results</button>
+      <button type="button" data-view="rules">By rule</button>
+      <button type="button" data-view="cwe">By CWE</button>
+    </span>
+    <span id="sx-count" style="color:var(--dim);font-size:12px"></span>
+  </div>
+  <div id="sx-help" class="sx-help" hidden></div>
+  <table id="sx-table"><thead id="sx-head"></thead><tbody id="sx-body"></tbody></table>
+  <p><button type="button" id="sx-more" hidden>Show more</button></p>
+  <script>
+  (function () {
+    const D = {{ v.explorer | tojson }};
+    const $ = id => document.getElementById(id);
+    const PAGE = 200;
+    const st = {std: '', rule: '', cwe: '', level: '', text: '', third: true, view: 'results', shown: PAGE};
+    const third = new Set(D.thirdParty || []);
+    const rules = D.rules;
+    const el = (tag, text, cls) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; };
+    const link = (text, href) => { const a = el('a', text); a.href = href; a.target = '_blank'; a.rel = 'noopener'; return a; };
+    const cweLink = c => link(c, 'https://cwe.mitre.org/data/definitions/' + c.replace('CWE-', '') + '.html');
+    function matching(skip) {
+      const q = st.text.toLowerCase();
+      return D.results.filter(r => {
+        const rule = rules[r[0]];
+        if (skip !== 'std' && st.std && rule.standard !== st.std) return false;
+        if (skip !== 'rule' && st.rule && rule.id !== st.rule) return false;
+        if (skip !== 'cwe' && st.cwe && rule.cwe.indexOf(st.cwe) < 0) return false;
+        if (st.level && D.levels[r[3]] !== st.level) return false;
+        if (!st.third && third.has(r[1])) return false;
+        if (q && (D.files[r[1]] + ' ' + (r[4] || rule.title) + ' ' + rule.id).toLowerCase().indexOf(q) < 0) return false;
+        return true;
+      });
+    }
+    function fill(sel, items, current, all) {
+      sel.textContent = '';
+      sel.appendChild(new Option(all, ''));
+      items.forEach(i => sel.appendChild(new Option(i[1], i[0])));
+      sel.value = items.some(i => i[0] === current) ? current : '';
+      return sel.value;
+    }
+    function count(list, keyFn) {
+      const m = new Map();
+      list.forEach(r => keyFn(r).forEach(k => m.set(k, (m.get(k) || 0) + 1)));
+      return m;
+    }
+    function controls() {
+      const stds = count(matching('std'), r => [rules[r[0]].standard]);
+      st.std = fill($('sx-std'), D.standards.filter(s => stds.has(s.id)).map(s => [s.id, s.name + ' (' + stds.get(s.id) + ')']), st.std, 'All rulesets');
+      const rs = count(matching('rule'), r => [rules[r[0]].id]);
+      const ruleItems = [...rs.entries()].sort((a, b) => b[1] - a[1]).map(e => [e[0], e[0] + ' (' + e[1] + ')']);
+      st.rule = fill($('sx-rule'), ruleItems, st.rule, 'All rules');
+      const cs = count(matching('cwe'), r => rules[r[0]].cwe);
+      const cweItems = [...cs.entries()].sort((a, b) => b[1] - a[1]).map(e => [e[0], e[0] + ' (' + e[1] + ')']);
+      st.cwe = fill($('sx-cwe'), cweItems, st.cwe, 'All CWEs');
+      st.level = fill($('sx-level'), D.levels.map(l => [l, l]), st.level, 'All levels');
+    }
+    function help() {
+      const box = $('sx-help');
+      const rule = st.rule ? rules.find(r => r.id === st.rule) : null;
+      box.hidden = !rule;
+      if (!rule) return;
+      box.textContent = '';
+      box.appendChild(el('strong', rule.id));
+      box.appendChild(document.createTextNode(' ' + rule.title));
+      const meta = el('div', [rule.standardName, rule.category, rule.level].filter(Boolean).join(' / '), 'sx-meta');
+      box.appendChild(meta);
+      if (rule.cwe.length) {
+        const line = el('div', 'Related weaknesses: ', 'sx-meta');
+        rule.cwe.forEach((c, i) => { if (i) line.appendChild(document.createTextNode(', ')); line.appendChild(cweLink(c)); });
+        box.appendChild(line);
+      }
+      if (rule.help) box.appendChild(el('pre', rule.help));
+      if (rule.helpUri) { const p = el('div'); p.appendChild(link('Where the standard is published', rule.helpUri)); box.appendChild(p); }
+    }
+    function head(cols) {
+      const tr = el('tr');
+      cols.forEach(c => tr.appendChild(el('th', c)));
+      const h = $('sx-head'); h.textContent = ''; h.appendChild(tr);
+    }
+    function pick(key, value) { st[key] = value; st.view = 'results'; st.shown = PAGE; render(); }
+    function render() {
+      controls();
+      help();
+      const list = matching();
+      const body = $('sx-body');
+      body.textContent = '';
+      document.querySelectorAll('.sx-views button').forEach(b => b.classList.toggle('on', b.dataset.view === st.view));
+      $('sx-count').textContent = 'Showing ' + list.length + ' of ' + D.results.length + ' results';
+      $('sx-more').hidden = true;
+      if (st.view === 'results') {
+        head(['Rule', 'Level', 'File', 'Line', 'Meaning']);
+        list.slice(0, st.shown).forEach(r => {
+          const rule = rules[r[0]];
+          const tr = el('tr');
+          const id = el('td'); const a = el('a', rule.id); a.href = '#'; a.onclick = ev => { ev.preventDefault(); pick('rule', rule.id); };
+          id.appendChild(a); tr.appendChild(id);
+          tr.appendChild(el('td', D.levels[r[3]]));
+          tr.appendChild(el('td', D.files[r[1]], 'dim'));
+          tr.appendChild(el('td', String(r[2])));
+          tr.appendChild(el('td', r[4] || rule.title));
+          body.appendChild(tr);
+        });
+        $('sx-more').hidden = list.length <= st.shown;
+        $('sx-more').textContent = 'Show more (' + (list.length - st.shown) + ' left)';
+      } else if (st.view === 'rules') {
+        head(['Rule', 'Meaning', 'Ruleset', 'Level', 'Results']);
+        [...count(list, r => [r[0]]).entries()].sort((a, b) => b[1] - a[1]).forEach(e => {
+          const rule = rules[e[0]];
+          const tr = el('tr');
+          const id = el('td'); const a = el('a', rule.id); a.href = '#'; a.onclick = ev => { ev.preventDefault(); pick('rule', rule.id); };
+          id.appendChild(a); tr.appendChild(id);
+          tr.appendChild(el('td', rule.title)); tr.appendChild(el('td', rule.standardName));
+          tr.appendChild(el('td', rule.level)); tr.appendChild(el('td', String(e[1])));
+          body.appendChild(tr);
+        });
+      } else {
+        head(['CWE', 'Rules', 'Results']);
+        const per = new Map();
+        list.forEach(r => rules[r[0]].cwe.forEach(c => {
+          const e = per.get(c) || {rules: new Set(), n: 0}; e.rules.add(r[0]); e.n++; per.set(c, e);
+        }));
+        [...per.entries()].sort((a, b) => b[1].n - a[1].n).forEach(e => {
+          const tr = el('tr');
+          const td = el('td'); const a = el('a', e[0]); a.href = '#'; a.onclick = ev => { ev.preventDefault(); pick('cwe', e[0]); };
+          td.appendChild(a); td.appendChild(document.createTextNode(' '));
+          td.appendChild(cweLink('mitre')); tr.appendChild(td);
+          tr.appendChild(el('td', String(e[1].rules.size))); tr.appendChild(el('td', String(e[1].n)));
+          body.appendChild(tr);
+        });
+        if (!per.size) { const tr = el('tr'); const td = el('td', 'No result in the current filter has a CWE id.'); td.colSpan = 3; tr.appendChild(td); body.appendChild(tr); }
+      }
+    }
+    [['sx-std', 'std'], ['sx-rule', 'rule'], ['sx-cwe', 'cwe'], ['sx-level', 'level']].forEach(p => {
+      $(p[0]).onchange = ev => { st[p[1]] = ev.target.value; if (p[1] === 'std') st.rule = ''; st.shown = PAGE; render(); };
+    });
+    $('sx-third').onchange = ev => { st.third = ev.target.checked; st.shown = PAGE; render(); };
+    $('sx-text').oninput = ev => { st.text = ev.target.value; st.shown = PAGE; render(); };
+    $('sx-clear').onclick = () => { Object.assign(st, {std: '', rule: '', cwe: '', level: '', text: '', third: true, shown: PAGE}); $('sx-text').value = ''; $('sx-third').checked = true; render(); };
+    $('sx-more').onclick = () => { st.shown += PAGE; render(); };
+    document.querySelectorAll('.sx-views button').forEach(b => { b.onclick = () => { st.view = b.dataset.view; render(); }; });
+    render();
+  })();
+  </script>
   {% else %}<p>No results.</p>{% endif %}
   {% endif %}
+</div>
+{% endif %}
+
+{% if meta.inputs %}
+{% set v = meta.inputs %}
+<!-- INPUTS -->
+<div class="pane" id="pane-inputs" role="tabpanel" aria-labelledby="tab-inputs">
+  <div class="section-title">What FWLens was given</div>
+  <p style="color:var(--dim);font-size:12px;margin-bottom:12px;max-width:900px">FWLens {{ v.version }}, {{ v.generated }}. Config <code>{{ v.config_path }}</code>{% if v.config_sha %} (SHA-256 {{ v.config_sha }}){% endif %}.</p>
+  {% if v.error %}<p class="red">The project description could not be read again: {{ v.error }}</p>{% endif %}
+  {% for w in v.warnings %}<p class="yellow">Config warning: {{ w }}</p>{% endfor %}
+
+  <div class="section-title">Project description</div>
+  <table>
+    <thead><tr><th>Input</th><th>Path</th><th>Found</th><th>Size</th><th>SHA-256</th></tr></thead>
+    <tbody>{% for f in v.project_files %}<tr><td>{{ f.label }}</td><td class="dim">{{ f.path }}</td><td>{% if f.exists %}<span class="badge badge-green">yes</span>{% else %}<span class="badge badge-red">missing</span>{% endif %}</td><td>{{ f.size if f.size is not none else '' }}</td><td class="dim">{{ f.sha }}</td></tr>{% endfor %}</tbody>
+  </table>
+
+  <div class="section-title">Build files found near the project ({{ v.build_files | length }})</div>
+  {% if v.build_files %}
+  <table>
+    <thead><tr><th>Kind</th><th>File</th><th>What it says</th><th>Size</th></tr></thead>
+    <tbody>{% for b in v.build_files %}<tr><td>{{ b.kind }}</td><td class="dim">{{ b.path }}</td><td>{{ b.detail }}</td><td>{{ b.size }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% else %}<p>No CMake, Make, IDE project, linker script or map file found within three folders of the project.</p>{% endif %}
+
+  {% if v.files %}
+  <div class="section-title">Files</div>
+  <p style="margin-bottom:12px">
+    <span class="badge badge-blue">{{ v.files.total }} translation units</span>
+    <span class="badge badge-blue">{{ v.files.in_scope }} in scope</span>
+    {% for cls, n in v.files.by_class.items() %}<span class="badge badge-blue">{{ n }} {{ cls }}</span> {% endfor %}
+    {% for ext, n in v.files.by_extension.items() %}<span class="badge badge-blue">{{ n }} {{ ext }}</span> {% endfor %}
+  </p>
+  {% if v.files.groups %}
+  <table>
+    <thead><tr><th>Group ({{ v.files.groups | length }} of {{ v.files.group_total }})</th><th>Files</th></tr></thead>
+    <tbody>{% for g in v.files.groups %}<tr><td>{{ g.name }}</td><td>{{ g.files }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% endif %}
+  {% if v.files.include_dirs %}
+  <div class="section-title">Include paths ({{ v.files.include_dirs | length }} of {{ v.files.include_total }})</div>
+  <table>
+    <thead><tr><th>Path</th><th>Files using it</th></tr></thead>
+    <tbody>{% for d in v.files.include_dirs %}<tr><td class="dim">{{ d.path }}</td><td>{{ d.used_by }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% endif %}
+  {% if v.files.defines %}
+  <div class="section-title">Defines ({{ v.files.defines | length }} of {{ v.files.define_total }})</div>
+  <table>
+    <thead><tr><th>Define</th><th>Files</th></tr></thead>
+    <tbody>{% for d in v.files.defines %}<tr><td>{{ d.define }}</td><td>{{ d.files }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% endif %}
+  {% endif %}
+
+  <div class="section-title">Settings that shaped the run</div>
+  <table>
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>{% for s in v.settings %}<tr><td>{{ s.label }}</td><td>{{ s.value }}</td></tr>{% endfor %}</tbody>
+  </table>
+
+  <div class="section-title">Config file</div>
+  <details><summary>Show the YAML as read{% if v.config_truncated %} (first 200 KB){% endif %}</summary>
+    <pre style="white-space:pre-wrap;font-size:11px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px 14px;overflow:auto">{{ v.config_text }}</pre>
+  </details>
 </div>
 {% endif %}
 
