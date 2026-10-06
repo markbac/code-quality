@@ -66,6 +66,8 @@ jobs:
           # one annotation holding every failure (GitHub shows only ten annotations per step)
           msgs=$(grep -E '^(FAILED|ERROR) ' pytest.log | cut -c1-230 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
           echo "::error title=pytest failures::${msgs:0:3800}"
+          detail=$(grep -E '^E  ' pytest.log | cut -c1-260 | head -40 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          echo "::error title=pytest detail::${detail:0:3800}"
 
       - name: Upload coverage
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'

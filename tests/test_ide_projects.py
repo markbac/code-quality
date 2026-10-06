@@ -125,7 +125,8 @@ def test_west_build_database_with_zephyr_flags(tmp_path):
     tu = result.source_files[0]
     assert tu.path == src / "main.c"
     assert {"KERNEL", "__ZEPHYR__=1", "NRF52840_XXAA"} <= set(tu.defines)
-    assert src in tu.include_paths and Path("/opt/zephyr/include") in tu.include_paths
+    assert src in tu.include_paths
+    assert any(p.as_posix().endswith("/opt/zephyr/include") for p in tu.include_paths)    # gains a drive on Windows
 
 
 def test_platformio_compiledb_with_relative_files(tmp_path):

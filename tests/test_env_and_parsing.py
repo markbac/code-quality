@@ -99,8 +99,9 @@ def test_tool_config_keys_are_loaded(tmp_path):
         "project:\n  source_dir: src\n"
     )
     tool = load_config(cfg).tool
-    assert tool.target == "native" and tool.sysroot == Path("/opt/sys").resolve()      # a drive letter on Windows
-    assert tool.system_include_dirs == [Path("/a").resolve(), Path("/b").resolve()]
+    anchored = lambda p: (tmp_path / Path(p)).resolve()     # noqa: E731 -- a rooted path gets the config's drive on Windows
+    assert tool.target == "native" and tool.sysroot == anchored("/opt/sys")
+    assert tool.system_include_dirs == [anchored("/a"), anchored("/b")]
     assert tool.clang_args == ["-std=c11"] and tool.auto_detect_includes is False
     assert tool.parse_error_threshold == 0.1
 
