@@ -54,7 +54,18 @@ jobs:
           pip install -e packages/py-doclint
 
       - name: Run Pytest Test Suite
-        run: pytest -rs --cov --cov-report=term --cov-report=xml
+        shell: bash
+        run: |
+          set -o pipefail
+          pytest -rs -rfE --tb=short --cov --cov-report=term --cov-report=xml 2>&1 | tee pytest.log
+
+      - name: Show failures as annotations
+        if: failure()
+        shell: bash
+        run: |
+          grep -E '^(FAILED|ERROR) ' pytest.log | head -25 | while IFS= read -r line; do
+            echo "::error title=pytest::${line:0:900}"
+          done
 
       - name: Upload coverage
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'

@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 import subprocess
-import tomllib
+import sys
 from pathlib import Path
 
 import pytest
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:                                  # Python 3.10 has no tomllib; tomli is the same parser
+    import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parent.parent
 

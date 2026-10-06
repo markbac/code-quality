@@ -46,6 +46,7 @@ dev = [
     "mypy>=1.0.0",
     "build>=1.0.0",
     "jsonschema>=4.0",
+    "tomli>=2.0; python_version < '3.11'",   # tests read pyproject.toml; 3.11+ has tomllib
     "lxml>=4.9",             # validates the JUnit report against its XSD in tests
     # Only needed to run the tests of packages/py-doc2slides and packages/py-doclint,
     # which the root pytest configuration collects.
