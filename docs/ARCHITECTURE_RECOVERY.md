@@ -1,6 +1,6 @@
 # Architecture recovery: design
 
-> **Status:** proposed. Nothing in this document is implemented yet. Each step has a tracking issue,
+> **Status:** implemented (#117 to #132). Each step has a tracking issue,
 > listed under [Build order](#build-order). The tracking issue for the whole programme is #133.
 
 ## Purpose
@@ -31,8 +31,8 @@ module graph, and a configuration file where the user can state what they know.
 - **The user can always override.** Anything inferred can be pinned or renamed in the configuration.
 - **Reuse before adding.** New code uses the existing graph, RTOS, state machine and git data. New
   parsing is added only where the existing facts cannot answer the question.
-- **No new dependencies.** Community detection (Louvain) is implemented in the package, in the same
-  way the DER parser was for certificates.
+- **No new dependencies.** Community detection (Louvain) uses `networkx`, which FWLens already depends on, with a
+  fixed seed so runs are repeatable.
 
 ## What already exists
 
