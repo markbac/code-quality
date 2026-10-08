@@ -632,6 +632,8 @@ class ProjectModel:
     # Codebase-level stats (populated by stats engine)
     codebase_fingerprint: dict = field(default_factory=dict)
     exceedance_probabilities: dict = field(default_factory=dict)
+    # Recovered architecture: typed dependencies, components, layers, patterns (fwlens.arch)
+    architecture: object = None
     # Header include hygiene (fwlens.header_checks)
     include_cycles: list[IncludeCycle] = field(default_factory=list)
     self_includes: list[SelfInclude] = field(default_factory=list)

@@ -697,6 +697,7 @@ def export_json(model: ProjectModel, config: FwLensConfig) -> None:
         "reliability_growth": _serialise(model.reliability_growth) if model.reliability_growth else None,
         "defect_correlations": [_serialise(c) for c in model.defect_correlations],
         "cost_benefit": _serialise(model.cost_benefit) if model.cost_benefit else None,
+        "architecture": model.architecture.as_dict() if model.architecture else None,
         "rtos": {
             "kind": model.rtos_kind,
             "tasks": [_serialise(t) for t in model.rtos_tasks],

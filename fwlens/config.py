@@ -317,6 +317,15 @@ class CbomConfig:
 
 
 @dataclass
+class ArchitectureConfig:
+    enabled: bool = True                     # recover the architecture model (docs/ARCHITECTURE_RECOVERY.md)
+    weights: dict = field(default_factory=dict)   # weight per dependency kind: callback, state, type, call, include
+
+
+_EDGE_KINDS = ("callback", "state", "type", "call", "include")
+
+
+@dataclass
 class FwLensConfig:
     config_path: Path
     tool: ToolConfig
@@ -336,6 +345,7 @@ class FwLensConfig:
     match: MatchConfig = field(default_factory=MatchConfig)
     sbom: SbomConfig = field(default_factory=SbomConfig)
     cbom: CbomConfig = field(default_factory=CbomConfig)
+    architecture: ArchitectureConfig = field(default_factory=ArchitectureConfig)
     # Function names treated as assertion calls for assert-coverage metrics. Extend
     # this with any project-specific assert macro or error-report function rather
     # than needing a code change. Note: a macro that expands to a conditional call
@@ -661,6 +671,14 @@ def load_config(config_path: Path) -> FwLensConfig:
                       else str(sbom_raw["application_version"]),
                       components_file=resolve(str(sbom_raw["components_file"])) if sbom_raw.get("components_file") else None)
 
+    arch_raw = raw.get("architecture") or {}
+    weights = arch_raw.get("weights") or {}
+    if not isinstance(weights, dict) or any(k not in _EDGE_KINDS for k in weights) or any(
+            isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0 for v in weights.values()):
+        raise ConfigError(f"architecture.weights must map {list(_EDGE_KINDS)} to numbers of zero or more")
+    architecture = ArchitectureConfig(enabled=bool(arch_raw.get("enabled", True)),
+                                      weights={k: float(v) for k, v in weights.items()})
+
     cbom_raw = raw.get("cbom") or {}
     scan_scopes = [str(x) for x in cbom_raw.get("scan_scopes", ["first_party"])]
     bad_scopes = [x for x in scan_scopes if x not in _BOUNDARY_CLASSES]
@@ -711,6 +729,7 @@ def load_config(config_path: Path) -> FwLensConfig:
         match=match,
         sbom=sbom,
         cbom=cbom,
+        architecture=architecture,
         assert_names=assert_names,
         warnings=load_warnings,
     )

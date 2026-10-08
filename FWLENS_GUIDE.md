@@ -40,7 +40,7 @@
 - [RTOS task/synchronisation analysis](#rtos-tasksynchronisation-analysis)
 - [State machine detection](#state-machine-detection)
 - [Architecture & call-graph diagrams](#architecture--call-graph-diagrams)
-- [Architecture recovery (planned)](#architecture-recovery-planned)
+- [Architecture recovery](#architecture-recovery)
 - [Configuration reference](#configuration-reference)
 - [Metrics Etiquette](#metrics-etiquette)
 - [References](#references)
@@ -1958,29 +1958,36 @@ function highlighted in blue, high-structural-debt functions in red.
 
 ---
 
-## Architecture recovery (planned)
+## Architecture recovery
 
-Not implemented yet. The design is in [`docs/ARCHITECTURE_RECOVERY.md`](docs/ARCHITECTURE_RECOVERY.md) and the work is
-tracked in issue #133. It adds a model of the architecture as implemented, named patterns at two
-levels, and checks against the intended architecture:
+FWLens builds a model of the architecture as implemented, from the parse it already does, and writes it to
+the JSON export under `architecture`. The design is in
+[`docs/ARCHITECTURE_RECOVERY.md`](docs/ARCHITECTURE_RECOVERY.md) and the programme is tracked in issue #133.
+Every finding carries its evidence and a high, medium or low confidence, as the CBOM does. Inferred results are
+shown next to what you configured (`layers:`), never instead of it.
 
-- **As-implemented model:** typed, weighted dependencies (call, type, state, callback, include),
-  public and internal interfaces with encapsulation leaks, components inferred from build targets
-  and community detection with directory drift, and layers inferred from the cycle-free ordering.
-  Inferred components and layers are shown next to the configured `layers:`, never instead of them.
-- **Patterns, system level:** layered, HAL and ports and adapters, super-loop, RTOS task-based,
-  event-driven, table-driven state machine, pipeline, and the big-ball-of-mud and god-component
-  anti-patterns.
-- **Patterns, subsystem level:** each component is given a domain (UI, comms, storage, power,
-  metering) and tested only for the patterns that fit it, for example a screen state machine or
-  menu table for a UI, and a layered protocol stack or command dispatcher for comms.
-- **Conformance:** `architecture.intended_layers` and `architecture.rules`, drift against a saved
-  baseline, and a variant diff between build configurations.
-- **Output:** an Architecture view in the report, and PlantUML and Structurizr DSL exports.
+```yaml
+architecture:
+  enabled: true        # false skips the stage
+  weights: {callback: 4, state: 3, type: 2, call: 1, include: 0.5}
+```
 
-Every finding carries its evidence and a high, medium or low confidence, as the CBOM does. The new
-configuration lives under an `architecture:` section, which will be added to the schema and the
-example configuration as each step is built.
+### Typed, weighted dependencies
+
+Each dependency between two units (translation units) has a kind, a count and a weight (count times the weight
+of its kind). The existing call and include graphs are unchanged; these edges are built beside them.
+
+| Kind | Meaning |
+| :--- | :--- |
+| `callback` | a unit stores or passes the address of another unit's function (dispatch table, `&handler`) |
+| `state` | a unit uses another unit's global, or a struct in its header embeds another unit's struct |
+| `type` | a unit uses a type that another unit declares |
+| `call` | a function calls a function defined in another unit |
+| `include` | a header of one unit includes a header of another |
+
+Embedding another unit's struct binds layout and lifetime, so it weighs more than passing a `uint32_t`.
+Each edge keeps up to three file and line pairs as evidence. Type, struct and address-of facts come from a
+lexical read of the source, so a type hidden behind a macro is not seen.
 
 ---
 

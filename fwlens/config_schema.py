@@ -33,6 +33,7 @@ _SECTIONS: dict[str, type] = {
     "match": _cfg.MatchConfig,
     "sbom": _cfg.SbomConfig,
     "cbom": _cfg.CbomConfig,
+    "architecture": _cfg.ArchitectureConfig,
 }
 
 # Top-level keys that are not a section: FwLensConfig fields with a direct YAML key, and

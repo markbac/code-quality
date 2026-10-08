@@ -592,11 +592,11 @@
         "autodetect": {
           "type": "boolean"
         },
-        "certificates": {
-          "type": "boolean"
-        },
-        "certificate_expiry_days": {
-          "type": "integer"
+        "keywords": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
         },
         "ignore_identifiers": {
           "type": "array",
@@ -604,17 +604,32 @@
             "type": "string"
           }
         },
-        "keywords": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
-        },
         "apis": {
           "type": "array",
           "items": {
             "type": "object"
           }
+        },
+        "certificates": {
+          "type": "boolean"
+        },
+        "certificate_expiry_days": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "architecture": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "weights": {
+          "type": "object"
         }
       },
       "additionalProperties": false

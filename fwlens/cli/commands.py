@@ -61,6 +61,7 @@ def _load_config_safe(config_path: Path):
 
 
 def _run_pipeline(config_path: Path, auto_stub: bool = False, jobs=None, timeout=None, no_cache: bool = False):
+    from fwlens.arch import run_architecture
     from fwlens.clones import detect_clones
     from fwlens.complexity_trend import compute_complexity_trends
     from fwlens.cost_benefit import compute_cost_benefit
@@ -119,7 +120,7 @@ def _run_pipeline(config_path: Path, auto_stub: bool = False, jobs=None, timeout
     from fwlens.footprint import apply_map_file
     steps = [
         ("Linker map", apply_map_file), ("Diagnostic clusters", clusters), ("Aggregate metrics", run_aggregation),
-        ("Call graph", run_graph_engine), ("Statistics", run_stats_engine), ("Hotspots", compute_hotspots),
+        ("Call graph", run_graph_engine), ("Architecture", run_architecture), ("Statistics", run_stats_engine), ("Hotspots", compute_hotspots),
         ("Change coupling", compute_change_coupling), ("Churn heatmap", compute_churn_heatmap),
         ("Commit activity", compute_commit_activity), ("Architecture coupling", compute_architecture_coupling),
         ("Ownership", compute_ownership), ("Hotspot names", lambda m, c: flag_hotspot_names(m)),

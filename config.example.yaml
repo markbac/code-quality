@@ -333,3 +333,14 @@ output:
 #     - {library: cycurlib, name: AES-CBC, identifiers: [CyL_Blk_Enc], mode: cbc}
 #   certificates: true                  # list certificate files, PEM/DER in source and certificate calls
 #   certificate_expiry_days: 90         # warn when a certificate expires within this many days
+
+# Architecture recovery (docs/ARCHITECTURE_RECOVERY.md): typed dependencies, components, layers and patterns,
+# written to the JSON export under `architecture`.
+# architecture:
+#   enabled: true                       # false skips the whole stage
+#   weights:                            # how strongly each kind of dependency couples two units
+#     callback: 4                       #   a function address stored or passed
+#     state: 3                          #   a global used, or a struct embedded in a struct
+#     type: 2                           #   a type from another unit
+#     call: 1                           #   a function called
+#     include: 0.5                      #   a header included

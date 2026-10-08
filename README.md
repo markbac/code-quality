@@ -12,7 +12,7 @@
 - **Auto-Stubbing & Header Checks**: Automatic stub generation for missing include headers and missing compiler definitions.
 - **Standards and Quality Gates**: MISRA C:2012 and C:2023, CERT C, BARR-C, AUTOSAR (C subset), ISO/IEC TS 17961 and NASA/JPL Power of 10 checks, plus secrets, dead code and interrupt safety checks (over 600 guidelines checked natively, mapped to CWE) with a deviation register and compliance matrix; baselines, a pull-request check, Flash and RAM growth limits from the linker map, and run history.
 - **SBOM and CBOM**: `fwlens sbom` writes a CycloneDX 1.6 software bill of materials from the source tree, and `fwlens cbom` a cryptography bill of materials of the algorithms, protocols, libraries, certificates and keys the code names, with keyword autodetection and your own API names from the config (detected usage only, not a complete inventory).
-- **Planned: architecture recovery**: a model of the architecture as implemented, system and subsystem patterns (layered, HAL, super-loop, RTOS, event-driven; UI and comms patterns), conformance rules and PlantUML and Structurizr export. Design in [`docs/ARCHITECTURE_RECOVERY.md`](docs/ARCHITECTURE_RECOVERY.md), tracked in #133.
+- **Architecture recovery** (being built, see #133): a model of the architecture as implemented, system and subsystem patterns (layered, HAL, super-loop, RTOS, event-driven; UI and comms patterns), conformance rules and PlantUML and Structurizr export. Design in [`docs/ARCHITECTURE_RECOVERY.md`](docs/ARCHITECTURE_RECOVERY.md), tracked in #133.
 - **Rich Reporting**: Outputs summary console tables, CSV data exports, JSON metrics, Mermaid dependency diagrams, and self-contained interactive HTML dashboards.
 
 ## Quick Start
