@@ -35,6 +35,9 @@ def report_view(arch: ArchModel | None) -> dict | None:
         "leaks": [{"source": short(lk.source), "target": short(lk.target), "symbol": lk.symbol, "kind": lk.kind,
                    "where": f"{short(lk.file)}:{lk.line}"} for lk in arch.leaks[:ROWS]],
         "differences": arch.differences,
+        "events": [{"event": e.event, "publishers": ", ".join(sorted({p["function"] for p in e.publishers})),
+                    "subscribers": ", ".join(sorted({s["callback"] for s in e.subscribers})),
+                    "broker": ", ".join(sorted({s["broker"] for s in e.subscribers}))} for e in arch.events[:ROWS]],
         "since": since,
         "since_error": arch.since_baseline.get("error", ""),
     }

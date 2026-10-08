@@ -1083,6 +1083,18 @@
     {% for d in architecture_view.differences %}{{ d.kind }}: {{ d.component }} ({{ d.detail | join(", ") }}){{ "; " if not loop.last }}{% endfor %}</p>
   {% endif %}
 
+  {% if architecture_view.events %}
+  <h4 style="margin-top:20px">Events</h4>
+  <table id="arch-events-table">
+    <thead><tr><th>Event</th><th>Published by</th><th>Broker</th><th>Handled by</th></tr></thead>
+    <tbody>
+    {% for e in architecture_view.events %}
+    <tr><td><code>{{ e.event }}</code></td><td>{{ e.publishers or "-" }}</td><td class="dim">{{ e.broker or "-" }}</td><td>{{ e.subscribers or "-" }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
   {% if architecture_view.drift %}
   <h4 style="margin-top:20px">Directory drift</h4>
   <table id="arch-drift-table">

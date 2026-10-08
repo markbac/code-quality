@@ -51,6 +51,8 @@ _ITEM_KEYS: dict[tuple[str, ...], type | tuple[str, ...]] = {
     ("architecture", "domains"): ("id", "name", "words", "includes"),
     ("architecture", "patterns"): ("id", "name", "scope", "domain", "signals", "thresholds"),
     ("architecture", "rules"): ("id", "from", "to", "allow", "kinds"),
+    ("architecture", "register_calls"): ("function", "id_arg", "callback_arg"),
+    ("architecture", "publish_calls"): ("function", "id_arg"),
 }
 
 SUPPORTED_FORMATS = ("html", "csv", "json", "plots", "diagrams", "sarif", "sbom", "cbom", "architecture")
@@ -198,6 +200,15 @@ def json_schema() -> dict:
             "id": {"type": "string"}, "from": {"type": "object"}, "to": {"type": "object"},
             "allow": {"type": "boolean"}, "kinds": {"type": "array", "items": {"type": "string"}}},
             "required": ["id", "from", "to"], "additionalProperties": False}}
+
+    properties["architecture"]["properties"]["register_calls"] = {
+        "type": "array", "items": {"type": "object", "properties": {
+            "function": {"type": "string"}, "id_arg": {"type": "integer", "minimum": 0}, "callback_arg": {"type": "integer", "minimum": 0}},
+            "required": ["function", "id_arg", "callback_arg"], "additionalProperties": False}}
+    properties["architecture"]["properties"]["publish_calls"] = {
+        "type": "array", "items": {"type": "object", "properties": {
+            "function": {"type": "string"}, "id_arg": {"type": "integer", "minimum": 0}},
+            "required": ["function", "id_arg"], "additionalProperties": False}}
 
     component = _section_schema(_cfg.SbomComponent)
     component["required"] = ["name", "path"]

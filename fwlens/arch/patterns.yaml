@@ -27,8 +27,8 @@ patterns:
   - id: event_driven
     name: Event-driven (publish and subscribe)
     scope: system
-    signals: {registration_calls: 2, publish_calls: 2, event_ids: 2, dispatch_tables: 1}
-    thresholds: {low: 3, medium: 4, high: 6}
+    signals: {registration_calls: 2, publish_calls: 2, event_ids: 2, dispatch_tables: 1, events_mapped: 3}
+    thresholds: {low: 3, medium: 5, high: 7}
   - id: state_machine_table
     name: State machine, table-driven
     scope: system

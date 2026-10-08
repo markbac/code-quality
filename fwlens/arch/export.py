@@ -6,6 +6,7 @@ import re
 
 from fwlens.arch.layers import component_graph
 from fwlens.arch.model import ArchModel
+from fwlens.arch.pubsub import event_flows
 
 
 def _id(name: str) -> str:
@@ -18,6 +19,12 @@ def _q(text: str) -> str:
 
 def _label(kinds) -> str:
     return ", ".join(sorted(kinds))
+
+
+def _flows(arch: ArchModel) -> list:
+    """Event flows between components, by component name."""
+    owner = {u: c.name for c in arch.components for u in c.units}
+    return event_flows(arch.events, owner)
 
 
 def plantuml(arch: ArchModel) -> str:
@@ -48,6 +55,8 @@ def plantuml(arch: ArchModel) -> str:
             lines.append(f"{_id(a)} .[#red,thickness=2].> {_id(b)} : <<violation: cycle>>")
         else:
             lines.append(f"{_id(a)} ..> {_id(b)} : {_label(data['kinds'])}")
+    for a, b, ev, _broker in _flows(arch):
+        lines.append(f"{_id(a)} .[#blue].> {_id(b)} : <<event {ev}>>")
     for d in layering.disagreements:
         lines.append(f"{_id(d['source'])} .[#orange,thickness=2].> {_id(d['target'])} : <<configured layers disagree>>")
     lines.append("@enduml")
@@ -71,6 +80,8 @@ def structurizr(arch: ArchModel, title: str = "Firmware") -> str:
     lines.append("        }")
     for a, b, data in sorted(graph.edges(data=True)):
         lines.append(f"        {_id(a)} -> {_id(b)} {_q(_label(data['kinds']))}")
+    for a, b, ev, broker in _flows(arch):
+        lines.append(f"        {_id(a)} -> {_id(b)} {_q('publishes ' + ev)} {_q('via ' + broker)}")
     lines += ["    }", "    views {", "        container system \"Containers\" {", "            include *",
               "            autoLayout lr", "        }"]
     for (domain, domain_name), _subs in sorted(by_domain.items()):

@@ -2206,6 +2206,31 @@ lists what only one variant has, in the same terms as `architecture diff`: compo
 components, cycles, files in a different component, and differences in domain and patterns. It is printed and written
 to `<output.exports_dir>/architecture_variants.json` (`--output FILE` changes it).
 
+### Publish and subscribe
+
+FWLens maps events from publisher to broker to subscriber (`architecture.events` in the JSON, and the **Events** table
+in the report):
+
+- A call is a **registration** when its name has a word like `subscribe`, `register`, `attach`, `listen` or `install`
+  and one argument is a function defined in the project (the callback, `&handler` or `handler`). The event is the
+  first other argument.
+- A call is a **publication** when its name has a word like `publish`, `post`, `emit`, `notify` or `raise`. The event
+  is its first argument.
+- For a broker whose names say nothing, list it exactly. Argument positions start at 0:
+
+```yaml
+architecture:
+  register_calls: [{function: EventBus_Hook, id_arg: 0, callback_arg: 1}]
+  publish_calls:  [{function: EventBus_Kick, id_arg: 0}]
+```
+
+Each event lists its publishers (function, file, line), the registration function that connects it (the broker) and
+the subscribers (the callback, the function that registered it, and the callback's component). An event that has both
+sides across two components is drawn in the PlantUML diagram as a blue dependency labelled `<<event NAME>>`, and in the
+Structurizr model as "publishes NAME via BROKER". These flows are runtime coupling, so they are **not** added to the
+dependency edges that the layers, cycles and rules use. They do feed the `event_driven` pattern. The mapping is
+lexical: a registration through a macro, or an event identifier built at run time, is not seen.
+
 ---
 
 ## Configuration reference

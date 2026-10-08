@@ -167,6 +167,12 @@ def publish_calls(ctx):
 
 
 @signal
+def events_mapped(ctx):
+    both = [e.event for e in ctx.arch.events if e.publishers and e.subscribers]
+    return _fired(both, f"{len(both)} event(s) with a publisher and a subscriber: {', '.join(both[:3])}")
+
+
+@signal
 def event_ids(ctx):
     seen: set = set()
     for m in ctx.modules:

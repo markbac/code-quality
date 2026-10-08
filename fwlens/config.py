@@ -331,6 +331,8 @@ class ArchitectureConfig:
     rules: list = field(default_factory=list)        # dependency rules: [{id, from, to, allow, kinds}]
     strict_layers: bool = False              # also report a dependency that skips an intended layer
     forbid_cycles: bool = False              # report every upward dependency inside a cycle of components
+    register_calls: list = field(default_factory=list)   # registration functions: [{function, id_arg, callback_arg}] (0-based)
+    publish_calls: list = field(default_factory=list)    # publish functions: [{function, id_arg}]
     baseline: Path | None = None             # a saved architecture snapshot (architecture save) to compare each run with
     drift_threshold: float = 0.6             # report a unit when this share of its coupling is outside its directory's component
 
@@ -700,6 +702,8 @@ def load_config(config_path: Path) -> FwLensConfig:
         raise ConfigError("architecture.domains must be a list of mappings, each with an 'id' and 'words' or 'includes'")
     from fwlens.arch.rules import validate as validate_rules
     validate_rules(arch_raw.get("rules"), arch_raw.get("intended_layers"))
+    from fwlens.arch.pubsub import validate as validate_events
+    validate_events(arch_raw.get("register_calls"), arch_raw.get("publish_calls"))
     patterns = arch_raw.get("patterns") or []
     if not isinstance(patterns, list) or not all(isinstance(p, dict) and p.get("id") for p in patterns):
         raise ConfigError("architecture.patterns must be a list of mappings, each with an 'id' and 'signals'")
@@ -722,6 +726,8 @@ def load_config(config_path: Path) -> FwLensConfig:
                                       domains=domains, subsystems=pins, patterns=patterns,
                                       intended_layers=list(arch_raw.get("intended_layers") or []),
                                       rules=list(arch_raw.get("rules") or []),
+                                      register_calls=list(arch_raw.get("register_calls") or []),
+                                      publish_calls=list(arch_raw.get("publish_calls") or []),
                                       baseline=resolve(str(arch_raw["baseline"])) if arch_raw.get("baseline") else None,
                                       strict_layers=bool(arch_raw.get("strict_layers", False)),
                                       forbid_cycles=bool(arch_raw.get("forbid_cycles", False)))

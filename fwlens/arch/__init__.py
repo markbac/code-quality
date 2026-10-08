@@ -7,6 +7,7 @@ from fwlens.arch.domains import label, load_domains
 from fwlens.arch.edges import Units, build_edges
 from fwlens.arch.rules import evaluate as check_rules
 from fwlens.arch.layers import infer_layers
+from fwlens.arch.pubsub import map_events
 from fwlens.arch.patterns import detect, load_patterns
 from fwlens.arch.interfaces import analyse as analyse_interfaces
 from fwlens.arch.model import ArchModel
@@ -23,6 +24,7 @@ def build_architecture(model, config) -> ArchModel:
         model, arch.units, arch.edges, cfg.components, cfg.resolution, cfg.max_component_units, cfg.drift_threshold)
     arch.subsystems = label(model, arch.components, load_domains(cfg.domains), cfg.subsystems)
     arch.layering = infer_layers(arch.components, arch.edges, [r.name for r in config.layers])
+    arch.events = map_events(model, units, cfg.register_calls, cfg.publish_calls)
     arch.patterns = detect(model, arch, config, load_patterns(cfg.patterns))
     arch.violations = check_rules(arch, cfg)
     _compare_with_baseline(arch, config)

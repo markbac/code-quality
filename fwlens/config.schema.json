@@ -829,6 +829,51 @@
         "forbid_cycles": {
           "type": "boolean"
         },
+        "register_calls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "function": {
+                "type": "string"
+              },
+              "id_arg": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "callback_arg": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "function",
+              "id_arg",
+              "callback_arg"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "publish_calls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "function": {
+                "type": "string"
+              },
+              "id_arg": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "function",
+              "id_arg"
+            ],
+            "additionalProperties": false
+          }
+        },
         "baseline": {
           "type": [
             "string",

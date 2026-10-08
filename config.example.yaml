@@ -367,3 +367,7 @@ output:
 #     - {id: hal-only-registers, from: {not: {layer: HAL}}, to: {symbol: "*_REG_*"}}         # an identifier pattern
 #     - {id: app-only-services, from: {component: App}, to: {layer: Services}, allow: true}  # nothing else may be used
 #   baseline: architecture.snapshot.json   # a snapshot from `fwlens architecture save`; each run reports what changed since
+#   register_calls:                     # broker functions whose names do not say subscribe or register (argument positions start at 0)
+#     - {function: EventBus_Hook, id_arg: 0, callback_arg: 1}
+#   publish_calls:
+#     - {function: EventBus_Kick, id_arg: 0}

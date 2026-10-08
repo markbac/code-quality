@@ -106,6 +106,13 @@ class Violation:
 
 
 @dataclass
+class Event:
+    event: str                  # the event identifier as written at the call
+    publishers: list = field(default_factory=list)      # [{function, component, file, line, broker}]
+    subscribers: list = field(default_factory=list)     # [{function, component, file, line, broker, callback, callback_component}]
+
+
+@dataclass
 class ArchModel:
     weights: dict = field(default_factory=dict)
     units: list = field(default_factory=list)
@@ -120,6 +127,7 @@ class ArchModel:
     layering: LayerModel = field(default_factory=LayerModel)
     patterns: list = field(default_factory=list)
     violations: list = field(default_factory=list)
+    events: list = field(default_factory=list)
     since_baseline: dict = field(default_factory=dict)      # changes against architecture.baseline, if one is set
 
     def as_dict(self) -> dict:
