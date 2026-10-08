@@ -120,6 +120,7 @@ class ArchModel:
     layering: LayerModel = field(default_factory=LayerModel)
     patterns: list = field(default_factory=list)
     violations: list = field(default_factory=list)
+    since_baseline: dict = field(default_factory=dict)      # changes against architecture.baseline, if one is set
 
     def as_dict(self) -> dict:
         from dataclasses import asdict

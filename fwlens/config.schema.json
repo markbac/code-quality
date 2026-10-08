@@ -829,6 +829,12 @@
         "forbid_cycles": {
           "type": "boolean"
         },
+        "baseline": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "drift_threshold": {
           "type": "number"
         }

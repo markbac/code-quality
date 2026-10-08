@@ -1021,6 +1021,13 @@
     <span style="font-size:11px;font-weight:400;color:var(--dim)">inferred from the dependencies, next to the configured layers -- every finding shows its evidence</span>
   </div>
 
+  {% if architecture_view.since_error %}
+  <p class="red">Architecture baseline: {{ architecture_view.since_error }}</p>
+  {% elif architecture_view.since %}
+  <h4>Changes since the architecture baseline</h4>
+  <pre id="arch-since" style="font-size:12px;white-space:pre-wrap">{{ architecture_view.since | join("\n") }}</pre>
+  {% endif %}
+
   <h4>Patterns</h4>
   {% if architecture_view.system_patterns or architecture_view.subsystem_patterns %}
   <table id="arch-patterns-table">

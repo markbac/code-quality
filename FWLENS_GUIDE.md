@@ -99,6 +99,7 @@ Pass `-NoClean` to skip the automatic `.pyc` cache purge (faster re-runs when no
 | `config-schema` | Print the JSON Schema for `config.yaml` (`-o FILE` writes it) |
 | `sbom` | Write a CycloneDX 1.6 software bill of materials -- see [SBOM](#software-bill-of-materials-sbom) |
 | `cbom` | Write a CycloneDX 1.6 cryptography bill of materials -- see [CBOM](#cryptography-bill-of-materials-cbom) |
+| `architecture save`, `architecture diff` | Save the recovered architecture, and compare a run with a snapshot or a git revision -- see [Architecture recovery](#architecture-recovery) |
 | `architecture adopt` | Write the recovered components, domains and layers as a starting point for the intended architecture -- see [Architecture recovery](#architecture-recovery) |
 | `architecture export` | Write the recovered architecture as PlantUML and Structurizr DSL -- see [Architecture recovery](#architecture-recovery) |
 | `compare`, `pr-comment` | Compare with the target branch; post the result -- see [PR / MR quality check](#pr--mr-quality-check) |
@@ -2162,6 +2163,30 @@ so a new layer breach, forbidden dependency or cycle fails CI while the existing
 `fwlens architecture adopt` writes the recovered components (pinned by file), domains and inferred layers, top
 first, to `architecture.adopted.yaml` (`--output` changes it). Merge it under `architecture:` in `config.yaml`: the first run then
 reports nothing the code does not already do, and you tighten the layers and add rules from there.
+
+### Drift against a baseline or an earlier revision
+
+```powershell
+fwlens architecture save --config config.yaml --output architecture.snapshot.json
+fwlens architecture diff --config config.yaml --baseline architecture.snapshot.json
+fwlens architecture diff --config config.yaml --revision origin/main --fail-on-new
+```
+
+`architecture save` writes the model with repo-relative paths, so snapshots from different checkouts compare.
+`architecture diff` compares this run with a snapshot (`--baseline`, or `architecture.baseline` from the config) or
+with the code at a git revision (`--revision`, analysed in a temporary worktree with the installed FWLens). It lists,
+worst first: new cycles, new rule and layer violations, new encapsulation leaks, dependencies added and removed
+between components, components added, removed or renamed, files that moved to another component, level changes, the
+coupling trend per component, and patterns that appeared, disappeared or changed confidence, then what was resolved.
+`--output FILE` also writes the differences as JSON, and `--fail-on-new` exits 1 when there is a new cycle,
+violation or leak.
+
+Components are matched by the files they hold (an overlap of at least half), not by name, because an inferred name
+can change between runs; a renamed component is reported as renamed, not as one removed and one added.
+
+With `architecture.baseline` set, every `analyze`, `report` and `export` run also compares with the snapshot: the
+differences are in the JSON export (`architecture.since_baseline`) and in the **Recovered architecture** section of the
+report. A baseline file that is missing or not a snapshot is shown as an error there and does not stop the run.
 
 ---
 

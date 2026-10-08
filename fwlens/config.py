@@ -331,6 +331,7 @@ class ArchitectureConfig:
     rules: list = field(default_factory=list)        # dependency rules: [{id, from, to, allow, kinds}]
     strict_layers: bool = False              # also report a dependency that skips an intended layer
     forbid_cycles: bool = False              # report every upward dependency inside a cycle of components
+    baseline: Path | None = None             # a saved architecture snapshot (architecture save) to compare each run with
     drift_threshold: float = 0.6             # report a unit when this share of its coupling is outside its directory's component
 
 
@@ -721,6 +722,7 @@ def load_config(config_path: Path) -> FwLensConfig:
                                       domains=domains, subsystems=pins, patterns=patterns,
                                       intended_layers=list(arch_raw.get("intended_layers") or []),
                                       rules=list(arch_raw.get("rules") or []),
+                                      baseline=resolve(str(arch_raw["baseline"])) if arch_raw.get("baseline") else None,
                                       strict_layers=bool(arch_raw.get("strict_layers", False)),
                                       forbid_cycles=bool(arch_raw.get("forbid_cycles", False)))
 

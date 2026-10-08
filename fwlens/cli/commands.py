@@ -834,6 +834,64 @@ def architecture_export(config_path):
     _write_architecture_exports(model, config)
 
 
+@architecture_group.command(name="save")
+@click.option("--config", "config_path", default="config.yaml", type=_CONFIG_FILE, help="Path to config.yaml")
+@click.option("--output", "output_path", default=None, type=click.Path(),
+              help="Where to write the snapshot (default: architecture.baseline from the config, else architecture.snapshot.json).")
+def architecture_save(config_path, output_path):
+    """Save the recovered architecture as a snapshot to compare later runs with (architecture diff, architecture.baseline)."""
+    from fwlens.arch import drift
+    from fwlens.identity import project_root
+    model, config = _run_pipeline(Path(config_path))
+    if model.architecture is None:
+        console.print("[yellow][fwlens] Architecture model is off (architecture.enabled: false) -- nothing to save.[/yellow]")
+        return
+    target = Path(output_path) if output_path else (config.architecture.baseline or Path("architecture.snapshot.json"))
+    drift.save(model.architecture, project_root(config), target)
+    console.print(f"[cyan][fwlens][/cyan] Architecture snapshot: [bold]{target}[/bold] "
+                  f"({len(model.architecture.components)} component(s))")
+
+
+@architecture_group.command(name="diff")
+@click.option("--config", "config_path", default="config.yaml", type=_CONFIG_FILE, help="Path to config.yaml")
+@click.option("--baseline", "baseline_path", default=None, type=click.Path(exists=True, dir_okay=False),
+              help="A snapshot from `architecture save` (default: architecture.baseline from the config).")
+@click.option("--revision", default=None, help="Compare with the code at this git revision (analysed in a temporary worktree).")
+@click.option("--output", "output_path", default=None, type=click.Path(),
+              help="Also write the differences as JSON.")
+@click.option("--fail-on-new", is_flag=True, help="Exit 1 when there are new cycles, violations or leaks.")
+def architecture_diff(config_path, baseline_path, revision, output_path, fail_on_new):
+    """Compare the recovered architecture with a saved snapshot or an earlier revision: components, dependencies,
+    cycles, violations, leaks, levels, coupling and patterns that changed."""
+    from fwlens.arch import drift
+    from fwlens.identity import project_root
+    model, config = _run_pipeline(Path(config_path))
+    if model.architecture is None:
+        console.print("[yellow][fwlens] Architecture model is off (architecture.enabled: false) -- nothing to compare.[/yellow]")
+        return
+    root = project_root(config)
+    try:
+        if revision:
+            old = drift.snapshot_at_ref(Path(config_path), revision, root)
+            label = f"revision {revision}"
+        else:
+            source = Path(baseline_path) if baseline_path else config.architecture.baseline
+            if source is None:
+                raise ValueError("give --baseline or --revision, or set architecture.baseline in the config")
+            old, label = drift.load(source), str(source)
+        report = drift.diff(old, drift.snapshot(model.architecture, root))
+    except (ValueError, RuntimeError) as exc:
+        console.print(f"[red][fwlens] {exc}[/red]")
+        sys.exit(1)
+    console.print(f"[cyan][fwlens][/cyan] Architecture compared with {label}")
+    for line in drift.lines(report):
+        console.print(line, markup=False)
+    if output_path:
+        Path(output_path).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    if fail_on_new and report["worse"]:
+        sys.exit(1)
+
+
 @architecture_group.command(name="adopt")
 @click.option("--config", "config_path", default="config.yaml", type=_CONFIG_FILE, help="Path to config.yaml")
 @click.option("--output", "output_path", default="architecture.adopted.yaml", type=click.Path(),

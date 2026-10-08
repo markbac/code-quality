@@ -366,3 +366,4 @@ output:
 #     - {id: ui-no-metering, from: {domain: ui}, to: {domain: metering}}                     # forbidden (allow: false is the default)
 #     - {id: hal-only-registers, from: {not: {layer: HAL}}, to: {symbol: "*_REG_*"}}         # an identifier pattern
 #     - {id: app-only-services, from: {component: App}, to: {layer: Services}, allow: true}  # nothing else may be used
+#   baseline: architecture.snapshot.json   # a snapshot from `fwlens architecture save`; each run reports what changed since

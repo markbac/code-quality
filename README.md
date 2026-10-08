@@ -87,6 +87,7 @@ Other commands: `init` writes a starter config, `config-schema` prints the JSON 
 fwlens sbom --config config.yaml   # CycloneDX 1.6 JSON: components, versions, licences, hashes
 fwlens cbom --config config.yaml   # CycloneDX 1.6 JSON: cryptographic algorithms, protocols, libraries
 fwlens architecture export --config config.yaml   # recovered architecture as PlantUML and Structurizr DSL
+fwlens architecture diff --config config.yaml --revision origin/main   # what changed in the architecture
 fwlens architecture adopt --config config.yaml    # recovered architecture as a start for architecture.intended_layers and rules
 ```
 

@@ -25,6 +25,7 @@ def build_architecture(model, config) -> ArchModel:
     arch.layering = infer_layers(arch.components, arch.edges, [r.name for r in config.layers])
     arch.patterns = detect(model, arch, config, load_patterns(cfg.patterns))
     arch.violations = check_rules(arch, cfg)
+    _compare_with_baseline(arch, config)
     model.architecture = arch
     return arch
 
@@ -32,3 +33,16 @@ def build_architecture(model, config) -> ArchModel:
 def run_architecture(model, config) -> None:
     if config.architecture.enabled:
         build_architecture(model, config)
+
+
+def _compare_with_baseline(arch: ArchModel, config) -> None:
+    """Fill `arch.since_baseline` when architecture.baseline names a saved snapshot."""
+    path = config.architecture.baseline
+    if path is None:
+        return
+    from fwlens.arch import drift
+    from fwlens.identity import project_root
+    try:
+        arch.since_baseline = drift.diff(drift.load(path), drift.snapshot(arch, project_root(config)))
+    except ValueError as exc:
+        arch.since_baseline = {"error": str(exc)}

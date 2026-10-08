@@ -14,7 +14,9 @@ def short(unit: str) -> str:
 def report_view(arch: ArchModel | None) -> dict | None:
     if arch is None or not arch.components:
         return None
+    from fwlens.arch.drift import lines
     sub = {s.component: s for s in arch.subsystems}
+    since = lines(arch.since_baseline) if arch.since_baseline and "error" not in arch.since_baseline else []
     return {
         "system_patterns": [p for p in arch.patterns if p.scope == "system"],
         "subsystem_patterns": [p for p in arch.patterns if p.scope == "subsystem"],
@@ -33,5 +35,6 @@ def report_view(arch: ArchModel | None) -> dict | None:
         "leaks": [{"source": short(lk.source), "target": short(lk.target), "symbol": lk.symbol, "kind": lk.kind,
                    "where": f"{short(lk.file)}:{lk.line}"} for lk in arch.leaks[:ROWS]],
         "differences": arch.differences,
-        "extra": [],
+        "since": since,
+        "since_error": arch.since_baseline.get("error", ""),
     }
