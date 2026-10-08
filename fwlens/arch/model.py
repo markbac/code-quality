@@ -128,6 +128,7 @@ class ArchModel:
     patterns: list = field(default_factory=list)
     violations: list = field(default_factory=list)
     events: list = field(default_factory=list)
+    activity: dict = field(default_factory=dict)           # git history, ownership and shared state by component
     since_baseline: dict = field(default_factory=dict)      # changes against architecture.baseline, if one is set
 
     def as_dict(self) -> dict:

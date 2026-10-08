@@ -874,6 +874,9 @@
             "additionalProperties": false
           }
         },
+        "teams": {
+          "type": "object"
+        },
         "baseline": {
           "type": [
             "string",

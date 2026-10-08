@@ -1095,6 +1095,36 @@
   </table>
   {% endif %}
 
+  {% if architecture_view.activity.hotspots or architecture_view.activity.hidden_coupling or architecture_view.activity.shared_state %}
+  <h4 style="margin-top:20px">Activity by component</h4>
+  {% if architecture_view.activity.hotspots %}
+  <table id="arch-activity-table">
+    <thead><tr><th>Component</th><th>Commits</th><th>Fixes</th><th>Worst hotspot</th><th>Main authors</th><th>Teams</th></tr></thead>
+    <tbody>
+    {% for h in architecture_view.activity.hotspots %}
+    <tr><td>{{ h.component }}</td><td>{{ h.commits }}</td><td>{{ h.fix_commits }}</td><td>{{ h.worst_function }} ({{ h.worst_hotspot }})</td>
+      <td class="dim">{% for o in architecture_view.activity.ownership if o.component == h.component %}{{ o.main_authors | join(", ") }}{% endfor %}</td>
+      <td class="dim">{% for o in architecture_view.activity.ownership if o.component == h.component %}{{ o.teams | join(", ") }}{% endfor %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% if architecture_view.activity.hidden_coupling %}
+  <p class="dim" style="font-size:12px;margin-top:8px">Change together with no dependency:
+    {% for c in architecture_view.activity.hidden_coupling %}{{ c.a }} and {{ c.b }} ({{ c.co_changes }} commits){{ "; " if not loop.last }}{% endfor %}</p>
+  {% endif %}
+  {% if architecture_view.activity.shared_state %}
+  <table id="arch-shared-state-table">
+    <thead><tr><th>Shared global</th><th>Owner</th><th>Used by</th><th>Interrupt</th><th>Not volatile</th></tr></thead>
+    <tbody>
+    {% for g in architecture_view.activity.shared_state %}
+    <tr><td><code>{{ g.name }}</code></td><td>{{ g.owner or "-" }}</td><td>{{ g.components | join(", ") }}</td><td>{{ "yes" if g.isr else "" }}</td><td>{{ "yes" if g.volatile_risk else "" }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% endif %}
+
   {% if architecture_view.drift %}
   <h4 style="margin-top:20px">Directory drift</h4>
   <table id="arch-drift-table">

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from fwlens.arch.activity import compute as compute_activity
 from fwlens.arch.components import infer
 from fwlens.arch.domains import label, load_domains
 from fwlens.arch.edges import Units, build_edges
@@ -27,6 +28,7 @@ def build_architecture(model, config) -> ArchModel:
     arch.events = map_events(model, units, cfg.register_calls, cfg.publish_calls)
     arch.patterns = detect(model, arch, config, load_patterns(cfg.patterns))
     arch.violations = check_rules(arch, cfg)
+    arch.activity = compute_activity(model, arch, units, cfg.teams)
     _compare_with_baseline(arch, config)
     model.architecture = arch
     return arch

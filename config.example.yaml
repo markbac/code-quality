@@ -371,3 +371,6 @@ output:
 #     - {function: EventBus_Hook, id_arg: 0, callback_arg: 1}
 #   publish_calls:
 #     - {function: EventBus_Kick, id_arg: 0}
+#   teams:                              # author name patterns per team, to see components edited by several teams
+#     web: ["ann*", "cy *"]
+#     backend: ["bob *"]

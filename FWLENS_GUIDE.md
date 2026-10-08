@@ -2231,6 +2231,29 @@ Structurizr model as "publishes NAME via BROKER". These flows are runtime coupli
 dependency edges that the layers, cycles and rules use. They do feed the `event_driven` pattern. The mapping is
 lexical: a registration through a macro, or an event identifier built at run time, is not seen.
 
+### Activity by component
+
+With git history, FWLens groups what it already knows per file by component (`architecture.activity` in the JSON,
+and the **Activity** tables in the report):
+
+- **Hotspots**: commits, fix commits and the worst function hotspot score in each component.
+- **Ownership**: the main authors of the component's files and how fragmented the rest is. List teams to see which
+  components are edited by several of them; patterns match author names, case-insensitively:
+
+```yaml
+architecture:
+  teams: {web: ["ann*", "cy *"], backend: ["bob *"]}
+```
+
+- **Hidden coupling**: components whose files change together with no dependency between them.
+- **Structural only**: components with a strong dependency (weight 5 or more, both with 5 or more commits) whose
+  files never change together.
+- **Shared state**: globals used from more than one component, ranked by interrupt access, missing `volatile`, and
+  whether the components belong to different domains.
+
+Every row is a place to look, not a verdict. Ownership uses each file's main author. Without git history only the
+shared state table is filled.
+
 ---
 
 ## Configuration reference
