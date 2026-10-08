@@ -751,6 +751,84 @@
             "additionalProperties": false
           }
         },
+        "intended_layers": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "domains": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "units": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "from": {
+                "type": "object"
+              },
+              "to": {
+                "type": "object"
+              },
+              "allow": {
+                "type": "boolean"
+              },
+              "kinds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "from",
+              "to"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "strict_layers": {
+          "type": "boolean"
+        },
+        "forbid_cycles": {
+          "type": "boolean"
+        },
         "drift_threshold": {
           "type": "number"
         }

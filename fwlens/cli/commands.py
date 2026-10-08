@@ -834,6 +834,25 @@ def architecture_export(config_path):
     _write_architecture_exports(model, config)
 
 
+@architecture_group.command(name="adopt")
+@click.option("--config", "config_path", default="config.yaml", type=_CONFIG_FILE, help="Path to config.yaml")
+@click.option("--output", "output_path", default="architecture.adopted.yaml", type=click.Path(),
+              help="Where to write the YAML to merge into config.yaml (default: architecture.adopted.yaml).")
+def architecture_adopt(config_path, output_path):
+    """Write the recovered architecture (components, domains, inferred layers) as a starting point for
+    architecture.intended_layers and architecture.rules."""
+    from fwlens.arch.adopt import adopted
+    from fwlens.identity import project_root
+    model, config = _run_pipeline(Path(config_path))
+    if model.architecture is None:
+        console.print("[yellow][fwlens] Architecture model is off (architecture.enabled: false) -- nothing to adopt.[/yellow]")
+        return
+    target = Path(output_path)
+    target.write_text(adopted(model.architecture, project_root(config)), encoding="utf-8")
+    console.print(f"[cyan][fwlens][/cyan] Adopted architecture: [bold]{target}[/bold] "
+                  f"({len(model.architecture.components)} component(s)); merge it into config.yaml")
+
+
 @cli.command(name="cbom")
 @click.option("--config", "config_path", default="config.yaml", type=_CONFIG_FILE, help="Path to config.yaml")
 @click.option("--output", "output_path", default=None, type=click.Path(),

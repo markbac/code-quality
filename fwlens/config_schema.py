@@ -50,6 +50,7 @@ _ITEM_KEYS: dict[tuple[str, ...], type | tuple[str, ...]] = {
     ("architecture", "subsystems"): ("domain", "units"),
     ("architecture", "domains"): ("id", "name", "words", "includes"),
     ("architecture", "patterns"): ("id", "name", "scope", "domain", "signals", "thresholds"),
+    ("architecture", "rules"): ("id", "from", "to", "allow", "kinds"),
 }
 
 SUPPORTED_FORMATS = ("html", "csv", "json", "plots", "diagrams", "sarif", "sbom", "cbom", "architecture")
@@ -186,6 +187,17 @@ def json_schema() -> dict:
             "id": {"type": "string"}, "name": {"type": "string"}, "scope": {"enum": ["system", "subsystem"]},
             "domain": {"type": "string"}, "signals": {"type": "object"}, "thresholds": {"type": "object"}},
             "required": ["id"], "additionalProperties": False}}
+
+    properties["architecture"]["properties"]["intended_layers"] = {
+        "type": "array", "items": {"anyOf": [{"type": "string"}, {"type": "object", "properties": {
+            "name": {"type": "string"}, "components": {"type": "array", "items": {"type": "string"}},
+            "domains": {"type": "array", "items": {"type": "string"}}, "units": {"type": "array", "items": {"type": "string"}}},
+            "required": ["name"], "additionalProperties": False}]}}
+    properties["architecture"]["properties"]["rules"] = {
+        "type": "array", "items": {"type": "object", "properties": {
+            "id": {"type": "string"}, "from": {"type": "object"}, "to": {"type": "object"},
+            "allow": {"type": "boolean"}, "kinds": {"type": "array", "items": {"type": "string"}}},
+            "required": ["id", "from", "to"], "additionalProperties": False}}
 
     component = _section_schema(_cfg.SbomComponent)
     component["required"] = ["name", "path"]

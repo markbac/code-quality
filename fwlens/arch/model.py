@@ -92,6 +92,20 @@ class PatternFinding:
 
 
 @dataclass
+class Violation:
+    rule: str                   # rule id, "intended-layers" or "no-cycles"
+    kind: str                   # rule | layer | cycle
+    source: str                 # unit (or component for layers and cycles)
+    target: str
+    source_component: str
+    target_component: str
+    file: str
+    line: int
+    message: str
+    kinds: list = field(default_factory=list)       # dependency kinds involved
+
+
+@dataclass
 class ArchModel:
     weights: dict = field(default_factory=dict)
     units: list = field(default_factory=list)
@@ -105,6 +119,7 @@ class ArchModel:
     subsystems: list = field(default_factory=list)
     layering: LayerModel = field(default_factory=LayerModel)
     patterns: list = field(default_factory=list)
+    violations: list = field(default_factory=list)
 
     def as_dict(self) -> dict:
         from dataclasses import asdict

@@ -99,6 +99,7 @@ Pass `-NoClean` to skip the automatic `.pyc` cache purge (faster re-runs when no
 | `config-schema` | Print the JSON Schema for `config.yaml` (`-o FILE` writes it) |
 | `sbom` | Write a CycloneDX 1.6 software bill of materials -- see [SBOM](#software-bill-of-materials-sbom) |
 | `cbom` | Write a CycloneDX 1.6 cryptography bill of materials -- see [CBOM](#cryptography-bill-of-materials-cbom) |
+| `architecture adopt` | Write the recovered components, domains and layers as a starting point for the intended architecture -- see [Architecture recovery](#architecture-recovery) |
 | `architecture export` | Write the recovered architecture as PlantUML and Structurizr DSL -- see [Architecture recovery](#architecture-recovery) |
 | `compare`, `pr-comment` | Compare with the target branch; post the result -- see [PR / MR quality check](#pr--mr-quality-check) |
 | `standards list\|validate\|report` | MISRA C, CERT C, BARR-C and Power of 10 rules, deviations, compliance matrix |
@@ -2127,6 +2128,40 @@ The HTML report has a **Recovered architecture** section in the Architecture tab
 the inferred layers, the components and subsystems with their confidence, directory drift and encapsulation leaks.
 The whole model is in the JSON export under `architecture`. With `architecture.enabled: false` there is nothing to
 export, and the command says so.
+
+### Intended architecture and rules
+
+State the architecture you intend and FWLens checks the recovered one against it.
+
+```yaml
+architecture:
+  intended_layers: [App, Services, HAL]      # top to bottom
+  strict_layers: false                       # true also reports a dependency that skips a layer
+  forbid_cycles: false                       # true reports every upward dependency inside a cycle
+  rules:
+    - {id: ui-no-metering, from: {domain: ui}, to: {domain: metering}}
+    - {id: hal-only-registers, from: {not: {layer: HAL}}, to: {symbol: "*_REG_*"}}
+    - {id: app-only-services, from: {component: App}, to: {layer: Services}, allow: true}
+```
+
+- **`intended_layers`** lists layers top to bottom. A component may depend on its own layer and on lower ones; a
+  dependency on a higher layer is reported. A name is matched to a component by its configured layer, its name or
+  its domain. An item can also be a mapping, `{name, components: [globs], domains: [ids], units: [path globs]}`.
+- **`rules`** have an `id`, a `from` and a `to` side, and optionally `allow` and `kinds`. A side matches by
+  `component` (glob), `domain`, `layer` (an intended layer) or `unit` (a path glob), several together, and `not`
+  inverts them. `allow: false` (the default) forbids the dependency. `allow: true` says the `from` units may depend
+  on nothing outside `to`. `kinds` limits the rule to some dependency kinds (`call`, `callback`, `state`, `type`,
+  `include`). `to: {symbol: "*_REG_*"}` matches identifiers used in the `from` units (not with `allow: true`).
+- A bad rule (unknown key, missing side, duplicate id) stops the run with a message naming it.
+
+Each violation (`architecture.violations` in the JSON) has the rule, the two components, the dependency kinds and a
+file and line. They also become **findings**: metric `arch-<rule id>`, category `architecture`, one per violating
+pair, with stable ids. They go through the baseline, the ratchet, SARIF and `--fail-on-breach` like any other breach,
+so a new layer breach, forbidden dependency or cycle fails CI while the existing ones stay recorded.
+
+`fwlens architecture adopt` writes the recovered components (pinned by file), domains and inferred layers, top
+first, to `architecture.adopted.yaml` (`--output` changes it). Merge it under `architecture:` in `config.yaml`: the first run then
+reports nothing the code does not already do, and you tighten the layers and add rules from there.
 
 ---
 

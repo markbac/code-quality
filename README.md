@@ -87,6 +87,7 @@ Other commands: `init` writes a starter config, `config-schema` prints the JSON 
 fwlens sbom --config config.yaml   # CycloneDX 1.6 JSON: components, versions, licences, hashes
 fwlens cbom --config config.yaml   # CycloneDX 1.6 JSON: cryptographic algorithms, protocols, libraries
 fwlens architecture export --config config.yaml   # recovered architecture as PlantUML and Structurizr DSL
+fwlens architecture adopt --config config.yaml    # recovered architecture as a start for architecture.intended_layers and rules
 ```
 
 Both write to `output.exports_dir`, or `output.formats: [sbom, cbom]` makes `report` write them. Versions and licences come only from the source tree and are marked unknown when absent. The CBOM is a static scan: it reports what the code names and cannot see runtime configuration, negotiated protocols or keys. See the guide for details.

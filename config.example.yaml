@@ -359,3 +359,10 @@ output:
 #       name: Strict layering
 #       signals: {layers_3plus: 2, acyclic: 2, next_layer_share_high: 3}
 #       thresholds: {low: 4, medium: 6, high: 7}
+#   intended_layers: [App, Services, HAL]   # the intended layers, top to bottom; a component may depend on its own layer and lower ones
+#   strict_layers: false                # also report a dependency that skips a layer
+#   forbid_cycles: false                # report every upward dependency inside a cycle of components
+#   rules:                              # dependency rules: from and to match by component, domain, layer, unit; `not` negates
+#     - {id: ui-no-metering, from: {domain: ui}, to: {domain: metering}}                     # forbidden (allow: false is the default)
+#     - {id: hal-only-registers, from: {not: {layer: HAL}}, to: {symbol: "*_REG_*"}}         # an identifier pattern
+#     - {id: app-only-services, from: {component: App}, to: {layer: Services}, allow: true}  # nothing else may be used

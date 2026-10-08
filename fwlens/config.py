@@ -327,6 +327,10 @@ class ArchitectureConfig:
     domains: list = field(default_factory=list)      # more subsystem domains: [{id, name, words, includes}]
     subsystems: list = field(default_factory=list)   # pin a domain to units: [{domain, units: [path patterns]}]
     patterns: list = field(default_factory=list)     # more pattern rules, or replacements: [{id, name, scope, signals, thresholds}]
+    intended_layers: list = field(default_factory=list)   # the intended layers, top to bottom: names or {name, components, domains, units}
+    rules: list = field(default_factory=list)        # dependency rules: [{id, from, to, allow, kinds}]
+    strict_layers: bool = False              # also report a dependency that skips an intended layer
+    forbid_cycles: bool = False              # report every upward dependency inside a cycle of components
     drift_threshold: float = 0.6             # report a unit when this share of its coupling is outside its directory's component
 
 
@@ -693,6 +697,8 @@ def load_config(config_path: Path) -> FwLensConfig:
     domains = arch_raw.get("domains") or []
     if not isinstance(domains, list) or not all(isinstance(d, dict) and d.get("id") for d in domains):
         raise ConfigError("architecture.domains must be a list of mappings, each with an 'id' and 'words' or 'includes'")
+    from fwlens.arch.rules import validate as validate_rules
+    validate_rules(arch_raw.get("rules"), arch_raw.get("intended_layers"))
     patterns = arch_raw.get("patterns") or []
     if not isinstance(patterns, list) or not all(isinstance(p, dict) and p.get("id") for p in patterns):
         raise ConfigError("architecture.patterns must be a list of mappings, each with an 'id' and 'signals'")
@@ -712,7 +718,11 @@ def load_config(config_path: Path) -> FwLensConfig:
                                       components=pinned, resolution=resolution,
                                       max_component_units=int(arch_raw.get("max_component_units", 40)),
                                       drift_threshold=float(arch_raw.get("drift_threshold", 0.6)),
-                                      domains=domains, subsystems=pins, patterns=patterns)
+                                      domains=domains, subsystems=pins, patterns=patterns,
+                                      intended_layers=list(arch_raw.get("intended_layers") or []),
+                                      rules=list(arch_raw.get("rules") or []),
+                                      strict_layers=bool(arch_raw.get("strict_layers", False)),
+                                      forbid_cycles=bool(arch_raw.get("forbid_cycles", False)))
 
     cbom_raw = raw.get("cbom") or {}
     scan_scopes = [str(x) for x in cbom_raw.get("scan_scopes", ["first_party"])]

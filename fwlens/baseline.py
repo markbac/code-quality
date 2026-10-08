@@ -147,8 +147,18 @@ def compute_breaches(model: ProjectModel, config: FwLensConfig) -> list[Breach]:
                                        metric_key, value, threshold))
 
     _standards_findings(model, config, breaches)
+    _architecture_findings(model, root, breaches)
     _assign_ordinals(breaches)
     return breaches
+
+
+def _architecture_findings(model: ProjectModel, root, breaches: list[Breach]) -> None:
+    """Intended-architecture violations (architecture.intended_layers, rules, forbid_cycles) as findings,
+    so the baseline and the ratchet treat them like any other breach."""
+    for v in getattr(model.architecture, "violations", None) or []:
+        file_str = relative_posix(v.file, root)
+        breaches.append(Breach("", "rule", file_str, f"arch-{v.rule}", 1.0, 0.0, line=v.line or None,
+                               function=v.target_component or v.target, category="architecture", description=v.message))
 
 
 def _standards_findings(model: ProjectModel, config: FwLensConfig, breaches: list[Breach]) -> None:
