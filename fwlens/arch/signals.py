@@ -42,6 +42,12 @@ class Context:
     component: Any = None
     _text: dict = field(default_factory=dict)
 
+    def raw(self, path) -> str:
+        key = "raw:" + norm(path)
+        if key not in self._text:
+            self._text[key] = read_text(path, keep_strings=True)
+        return self._text[key]
+
     def text(self, path) -> str:
         key = norm(path)
         if key not in self._text:
@@ -298,6 +304,172 @@ def hub_component(ctx):
     hub = max(g.nodes, key=lambda n: (len(set(g.pred[n]) | set(g.succ[n])), n))
     reach = len(set(g.pred[hub]) | set(g.succ[hub]))
     return _fired(reach / (len(comps) - 1) >= 0.6, f"{hub} is linked to {reach} of {len(comps) - 1} other components")
+
+
+# --- subsystem signals: user interface -------------------------------------------------------
+
+_WIDGET_PREFIX = ("lv_", "WM_", "GUI_", "BUTTON_", "TEXT_", "LISTBOX_", "FRAMEWIN_", "u8g2_", "ssd1306_")
+_SCREEN_WORDS = {"screen", "screens", "page", "pages", "view", "views", "menu", "menus", "state", "states"}
+_UI_WORDS = {"ui", "screen", "menu", "display", "lcd", "gui", "page", "view"}
+_INPUT_WORDS = {"key", "keys", "button", "buttons", "touch", "keypad", "joystick", "encoder"}
+_QUEUE_WORDS = {"event", "events", "queue", "pop", "get", "wait", "poll", "pend", "read", "scan"}
+_DISPLAY_WORDS = {"flush", "framebuffer", "fb", "blit", "pixel", "pixels", "frame", "refresh"}
+
+
+def _names(ctx):
+    return [f.name for f in ctx.functions]
+
+
+@signal
+def widget_api(ctx):
+    calls = sorted({c for f in ctx.functions for c in f.callees if c.startswith(_WIDGET_PREFIX)})
+    return _fired(len(calls) >= 3, f"widget library calls: {', '.join(calls[:4])}")
+
+
+@signal
+def screen_table(ctx):
+    names = sorted(t for i in ctx.arch.interfaces if i.unit in ctx.units for t in i.tables if _SCREEN_WORDS & set(words_of(t)))
+    return _fired(names, "tables of screens or menus: " + ", ".join(names[:3]))
+
+
+@signal
+def menu_table(ctx):
+    pattern = re.compile(r'\{\s*"[^"\n]*"\s*,\s*&?[A-Za-z_]\w*\s*[,}]')
+    count = sum(len(pattern.findall(ctx.raw(m.path))) for m in ctx.modules)
+    return _fired(count >= 3, f"{count} entries pairing a label with a handler")
+
+
+@signal
+def ui_state_machine(ctx):
+    machines = [sm for sm in ctx.model.state_machines if norm(sm.file) in ctx.units]
+    return _fired(machines, "state machine(s): " + ", ".join(sm.function_name for sm in machines[:3]))
+
+
+@signal
+def input_events(ctx):
+    names = sorted(n for n in _names(ctx) if _INPUT_WORDS & set(words_of(n)) and _QUEUE_WORDS & set(words_of(n)))
+    return _fired(names, "input event functions: " + ", ".join(names[:3]))
+
+
+@signal
+def queue_in_subsystem(ctx):
+    queues = [o.var_name for o in ctx.model.rtos_sync_objects if o.kind in ("queue", "mailbox") and norm(o.file) in ctx.units]
+    return _fired(queues, "queues or mailboxes: " + ", ".join(queues[:3]))
+
+
+@signal
+def model_view_split(ctx):
+    owned = {f.name for f in ctx.functions}
+    read, written = [], []
+    for g in ctx.model.globals:
+        if norm(g.file) in ctx.units:
+            continue
+        if owned & set(g.readers):
+            read.append(g.name)
+        if owned & set(g.writers):
+            written.append(g.name)
+    return _fired(len(read) >= 2 and not written, f"reads {len(read)} globals owned elsewhere ({', '.join(sorted(read)[:3])}), writes none")
+
+
+@signal
+def display_driver(ctx):
+    names = sorted(n for n in _names(ctx) if _DISPLAY_WORDS & set(words_of(n)))
+    return _fired(names, "framebuffer and flush functions: " + ", ".join(names[:3]))
+
+
+@signal
+def hal_below(ctx):
+    if not ctx.component:
+        return (False, "")
+    by_name = {s.name: s.domain for s in ctx.arch.subsystems}
+    comp_graph = component_graph(ctx.arch.components, ctx.arch.edges)
+    below = sorted(n for n in comp_graph.successors(ctx.component.name) if by_name.get(n) == "hal")
+    return _fired(below, "depends on the hardware abstraction: " + ", ".join(below[:3]))
+
+
+# --- subsystem signals: communications --------------------------------------------------------
+
+_PARSER_WORDS = {"parse", "parser", "decode", "deframe", "unpack", "frame", "packet", "decapsulate"}
+_COMMAND_WORDS = {"cmd", "command", "commands", "opcode", "request", "handler", "handlers", "dispatch", "service"}
+_INTERFACES = {"uart", "usart", "spi", "i2c", "can", "usb", "tcp", "udp", "modbus", "eth", "ethernet", "ble", "lora", "modem", "serial", "rs485", "dlms", "wmbus"}
+_RECEIVE = {"rx", "receive", "recv", "received", "read", "incoming"}
+_TRANSMIT = {"tx", "send", "write", "transmit", "forward", "relay"}
+_BUFFER = {"ring", "fifo", "buf", "buffer", "rx", "tx", "queue"}
+_DMA_SWAP = {"half", "cplt", "complete", "ping", "pong", "double", "swap", "toggle"}
+
+
+@signal
+def stack_layers(ctx):
+    if len(ctx.units) < 3:
+        return (False, "")
+    g = nx.DiGraph()
+    g.add_nodes_from(ctx.units)
+    g.add_edges_from((e.source, e.target) for e in ctx.arch.edges if e.source in ctx.units and e.target in ctx.units
+                     and e.kind in ("call", "callback"))
+    if not nx.is_directed_acyclic_graph(g):
+        return (False, "")
+    depth = len(nx.dag_longest_path(g))
+    return _fired(depth >= 3, f"{depth} layers of units, calls only go down")
+
+
+@signal
+def parser_functions(ctx):
+    names = sorted(n for n in _names(ctx) if _PARSER_WORDS & set(words_of(n)))
+    return _fired(names, "parser functions: " + ", ".join(names[:3]))
+
+
+@signal
+def unit_state_machine(ctx):
+    machines = [sm for sm in ctx.model.state_machines if norm(sm.file) in ctx.units]
+    return _fired(machines, "state machine(s): " + ", ".join(sm.function_name for sm in machines[:3]))
+
+
+@signal
+def command_table(ctx):
+    names = sorted(t for i in ctx.arch.interfaces if i.unit in ctx.units for t in i.tables if _COMMAND_WORDS & set(words_of(t)))
+    return _fired(names, "command tables: " + ", ".join(names[:3]))
+
+
+@signal
+def isr_ring_buffer(ctx):
+    isr_names = {f.name for f in ctx.functions if f.is_isr}
+    found = sorted(g.name for g in ctx.model.globals   # an indexed store counts as a read in the parse, so use both
+                   if _BUFFER & set(words_of(g.name)) and isr_names & (set(g.writers) | set(g.readers))
+                   and (set(g.readers) | set(g.writers)) - isr_names)
+    return _fired(found, "buffer filled by an interrupt and read elsewhere: " + ", ".join(found[:3]))
+
+
+@signal
+def dma_double_buffer(ctx):
+    names = set()
+    for m in ctx.modules:
+        for token in set(re.findall(r"[A-Za-z_]\w*", ctx.text(m.path))):
+            w = set(words_of(token))
+            if "dma" in w and _DMA_SWAP & w:
+                names.add(token)
+    return _fired(names, "DMA half or complete handling: " + ", ".join(sorted(names)[:3]))
+
+
+@signal
+def tasks_in_subsystem(ctx):
+    owned = {f.name for f in ctx.functions}
+    tasks = [t.name for t in ctx.model.rtos_tasks if t.entry_function in owned]
+    return _fired(len(tasks) >= 2, f"{len(tasks)} tasks: {', '.join(tasks[:3])}")
+
+
+@signal
+def gateway_bridge(ctx):
+    for f in ctx.functions:
+        w = set(words_of(f.name)) | set(words_of(PurePosixPath(norm(f.file)).stem))
+        if not _RECEIVE & w:
+            continue
+        here = _INTERFACES & w
+        for callee in f.callees:
+            cw = set(words_of(callee))
+            there = _INTERFACES & cw
+            if _TRANSMIT & cw and there and here and not (there & here):
+                return (True, f"{f.name} forwards from {sorted(here)[0]} to {sorted(there)[0]} via {callee}")
+    return (False, "")
 
 
 def stem(unit: str) -> str:

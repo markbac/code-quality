@@ -2085,6 +2085,31 @@ what each found, so the verdict can be checked.
 and optional `thresholds` (`low`, `medium`, `high` scores; the default is 40, 60 and 80 per cent of the total weight).
 Pattern verdicts are heuristics for review, not a statement of conformance.
 
+### Subsystem patterns
+
+A pattern rule with `scope: subsystem` and a `domain` is tested only on components of that domain, so the
+evidence can be specific. A finding names the component. The starter set covers the UI and comms domains; the
+others (storage, power, metering, cross-cutting) can be added with `architecture.patterns` using the same signals.
+
+| Domain | Pattern | Main signals |
+| :--- | :--- | :--- |
+| ui | `ui_widget_tree` | calls into a widget library (`lv_`, emWin `WM_` and `GUI_`), input events |
+| ui | `ui_screen_state_machine` | a state machine in the component, a table of screens or menus |
+| ui | `ui_menu_table` | an array of label and handler pairs |
+| ui | `ui_model_view_split` | reads two or more globals owned elsewhere and writes none |
+| ui | `ui_event_loop` | key, button or touch event functions, a queue or mailbox, a state machine |
+| ui | `ui_display_driver_layering` | framebuffer, flush or blit functions, a dependency on the hardware abstraction |
+| comms | `comms_protocol_stack` | three or more layers of units inside the component, calls only going down |
+| comms | `comms_isr_ring_buffer` | a buffer touched by an interrupt handler and by other code, short interrupt handlers |
+| comms | `comms_dma_double_buffer` | DMA half and complete handling |
+| comms | `comms_frame_parser` | a state machine and parse, decode or frame functions |
+| comms | `comms_command_dispatcher` | a table of command handlers, parser functions |
+| comms | `comms_task_per_interface` | two or more RTOS tasks in the component, a queue |
+| comms | `comms_gateway` | a receive function of one interface calling the send function of another |
+
+An indexed store such as `buf[i] = x` is counted by the parse as a read, so the buffer signals look at reads and
+writes together.
+
 ---
 
 ## Configuration reference

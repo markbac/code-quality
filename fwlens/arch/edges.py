@@ -45,11 +45,15 @@ def blank(text: str) -> str:
     return _STRING.sub(keep_newlines, _COMMENT.sub(keep_newlines, text))
 
 
-def read_text(path) -> str:
+def read_text(path, keep_strings: bool = False) -> str:
+    """The file with comments (and, unless `keep_strings`, string literals) blanked."""
     try:
-        return blank(Path(path).read_text(encoding="utf-8", errors="replace"))
+        text = Path(path).read_text(encoding="utf-8", errors="replace")
     except OSError:
         return ""
+    if not keep_strings:
+        return blank(text)
+    return _COMMENT.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
 
 
 def line_of(text: str, pos: int) -> int:

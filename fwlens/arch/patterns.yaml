@@ -54,3 +54,83 @@ patterns:
     scope: system
     signals: {dominant_component: 3, hub_component: 3}
     thresholds: {low: 3, medium: 4, high: 6}
+
+  # Subsystem patterns: tested only on a component labelled with the given domain.
+  - id: ui_widget_tree
+    name: Retained widget tree
+    scope: subsystem
+    domain: ui
+    signals: {widget_api: 4, input_events: 2}
+    thresholds: {low: 4, medium: 4, high: 6}
+  - id: ui_screen_state_machine
+    name: Screen state machine
+    scope: subsystem
+    domain: ui
+    signals: {ui_state_machine: 3, screen_table: 3}
+    thresholds: {low: 3, medium: 3, high: 6}
+  - id: ui_menu_table
+    name: Menu table
+    scope: subsystem
+    domain: ui
+    signals: {menu_table: 4, screen_table: 2}
+    thresholds: {low: 4, medium: 4, high: 6}
+  - id: ui_model_view_split
+    name: Model and view split
+    scope: subsystem
+    domain: ui
+    signals: {model_view_split: 4, input_events: 1}
+    thresholds: {low: 4, medium: 4, high: 5}
+  - id: ui_event_loop
+    name: Event loop
+    scope: subsystem
+    domain: ui
+    signals: {input_events: 3, queue_in_subsystem: 2, ui_state_machine: 1}
+    thresholds: {low: 3, medium: 5, high: 6}
+  - id: ui_display_driver_layering
+    name: Display driver layering
+    scope: subsystem
+    domain: ui
+    signals: {display_driver: 4, hal_below: 2}
+    thresholds: {low: 4, medium: 4, high: 6}
+  - id: comms_protocol_stack
+    name: Layered protocol stack
+    scope: subsystem
+    domain: comms
+    signals: {stack_layers: 4, parser_functions: 2}
+    thresholds: {low: 4, medium: 4, high: 6}
+  - id: comms_isr_ring_buffer
+    name: Interrupt, ring buffer and task
+    scope: subsystem
+    domain: comms
+    signals: {isr_ring_buffer: 4, isrs_light: 2}
+    thresholds: {low: 4, medium: 4, high: 6}
+  - id: comms_dma_double_buffer
+    name: DMA double buffer
+    scope: subsystem
+    domain: comms
+    signals: {dma_double_buffer: 4, isrs_light: 1}
+    thresholds: {low: 4, medium: 4, high: 5}
+  - id: comms_frame_parser
+    name: Frame parser state machine
+    scope: subsystem
+    domain: comms
+    signals: {unit_state_machine: 3, parser_functions: 3}
+    thresholds: {low: 3, medium: 3, high: 6}
+  - id: comms_command_dispatcher
+    name: Command dispatcher
+    scope: subsystem
+    domain: comms
+    signals: {command_table: 4, parser_functions: 2}
+    thresholds: {low: 4, medium: 4, high: 6}
+  - id: comms_task_per_interface
+    name: One task per interface
+    scope: subsystem
+    domain: comms
+    signals: {tasks_in_subsystem: 4, queue_in_subsystem: 2}
+    thresholds: {low: 4, medium: 4, high: 6}
+  - id: comms_gateway
+    name: Gateway or bridge
+    scope: subsystem
+    domain: comms
+    signals: {gateway_bridge: 5}
+    thresholds: {low: 5, medium: 5, high: 6}
