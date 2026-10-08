@@ -38,6 +38,9 @@ def report_view(arch: ArchModel | None) -> dict | None:
         "events": [{"event": e.event, "publishers": ", ".join(sorted({p["function"] for p in e.publishers})),
                     "subscribers": ", ".join(sorted({s["callback"] for s in e.subscribers})),
                     "broker": ", ".join(sorted({s["broker"] for s in e.subscribers}))} for e in arch.events[:ROWS]],
+        "footprint": [{"component": f["component"], "flash": f["flash_bytes"], "ram": f["ram_bytes"],
+                       "flash_share": f["flash_share"], "ram_share": f["ram_share"], "mapped": f"{f['mapped']} of {f['units']}"}
+                      for f in arch.footprint[:ROWS]],
         "trust": [{"entry": t["entry"], "kind": t["kind"], "sink": t["sink"], "path": " > ".join(h["function"] for h in t["path"]),
                    "crossings": ", ".join(t["crossings"]), "apis": ", ".join(a["api"] for a in t["crypto_apis"])}
                   for t in arch.trust_paths[:ROWS]],

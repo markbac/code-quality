@@ -1095,6 +1095,22 @@
   </table>
   {% endif %}
 
+  {% if architecture_view.footprint %}
+  <h4 style="margin-top:20px">Footprint by component</h4>
+  <table id="arch-footprint-table">
+    <thead><tr><th>Component</th><th>Flash (B)</th><th>Flash share</th><th>RAM (B)</th><th>RAM share</th><th>Files in map</th></tr></thead>
+    <tbody>
+    {% for f in architecture_view.footprint %}
+    {% if f.flash is none %}
+    <tr><td>{{ f.component }}</td><td colspan="4" class="dim">no map data</td><td class="dim">{{ f.mapped }}</td></tr>
+    {% else %}
+    <tr><td>{{ f.component }}</td><td>{{ f.flash }}</td><td>{{ "%.0f"|format((f.flash_share or 0) * 100) }}%</td><td>{{ f.ram }}</td><td>{{ "%.0f"|format((f.ram_share or 0) * 100) }}%</td><td class="dim">{{ f.mapped }}</td></tr>
+    {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
   {% if architecture_view.trust %}
   <h4 style="margin-top:20px">Trust boundaries</h4>
   <table id="arch-trust-table">

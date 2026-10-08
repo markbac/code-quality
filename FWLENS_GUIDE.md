@@ -2280,6 +2280,14 @@ architecture:
 
 Only direct calls are followed, up to ten calls deep. A path through a function pointer or a dispatch table is not seen.
 
+### Footprint by component
+
+With `project.map_file` set, `architecture.footprint` (and the **Footprint by component** table in the report) adds up
+each component's flash and RAM from the linker map, using the sizes the map support already attaches to each file,
+with its share of the whole map. A component none of whose files appear in the map is shown as having no map data,
+not as zero bytes; `mapped` of `units` says how many of its files were found. Sizes are per object, so a file that
+the linker did not name by its stem, or a library object, is not counted. Without a map file there is no table.
+
 ---
 
 ## Configuration reference
