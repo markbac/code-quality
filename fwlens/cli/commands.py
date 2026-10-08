@@ -219,9 +219,23 @@ thresholds:
 }
 
 
+def _keep_output_alive() -> None:
+    """
+    Under Measure-Command, a pipe or a redirect, Windows gives Python a legacy code page such as cp1252,
+    and the first icon rich prints (the warning sign in the preflight list) raised UnicodeEncodeError and
+    stopped the run. A character the stream cannot encode is now written as '?'.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")           # type: ignore[union-attr]
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 @click.group()
 def cli():
     """fwlens -- Embedded C Architecture & Static Analysis Platform."""
+    _keep_output_alive()
 
 
 @cli.command()
