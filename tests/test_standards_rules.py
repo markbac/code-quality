@@ -153,6 +153,18 @@ CASES: list[tuple[str, str, str]] = [
 ]
 
 
+# Lexical checks added in #89 for guidelines that were manual. They are in both MISRA rule sets.
+_LEXICAL = [
+    ("7.5", "#include <stdint.h>\nint a = INT8_C(1);\nint b = INT8_C(1u); /* BAD */\nint c = INT16_C(-1); /* BAD */\nint d = INT32_C(0x10);\n"),
+    ("8.16", "_Alignas(0) int a; /* BAD */\n_Alignas(8) int b;\n"),
+    ("8.17", "_Alignas(8) _Alignas(16) int a; /* BAD */\n_Alignas(8) int b;\n"),
+    ("11.10", "_Atomic(void) *p; /* BAD */\n_Atomic(void *) q;\n"),
+    ("17.10", "#include <stdlib.h>\n_Noreturn int f(void) { abort(); } /* BAD */\n_Noreturn void g(void) { abort(); }\n"),
+    ("23.3", "int f(int x) { return _Generic((x), default: 0); } /* BAD */\nint g(int x) { return _Generic((x), int: 1, default: 0); }\n"),
+]
+CASES += [(standard, rule, source) for standard in (M, M23) for rule, source in _LEXICAL]
+
+
 def _id(case) -> str:
     return f"{case[0]}:{case[1]}"
 

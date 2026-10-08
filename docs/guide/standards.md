@@ -183,8 +183,8 @@ guideline text. Point your own tooling at your licensed copy for the official wo
 
 | Standard | Guidelines | Native | Of which partial | Import only | Manual |
 |---|---|---|---|---|---|
-| MISRA C:2012 (`misra-c-2012`) | 219 | 160 | 61 | 4 | 55 |
-| MISRA C:2023 (`misra-c-2023`) | 222 | 161 | 62 | 4 | 57 |
+| MISRA C:2012 (`misra-c-2012`) | 219 | 166 | 67 | 4 | 49 |
+| MISRA C:2023 (`misra-c-2023`) | 222 | 167 | 68 | 4 | 51 |
 | BARR-C:2018 (`barr-c-2018`) | 155 | 89 | 38 | 0 | 66 |
 | SEI CERT C (`cert-c`) | 276 | 96 | 67 | 8 | 172 |
 | NASA/JPL Power of 10 (`power-of-10`) | 10 | 9 | 6 | 0 | 1 |
@@ -192,7 +192,7 @@ guideline text. Point your own tooling at your licensed copy for the official wo
 | ISO/IEC TS 17961 (`iso-ts-17961`) | 43 | 24 | 21 | 6 | 13 |
 | FWLens checks (`fwlens`) | 24 | 21 | 13 | 3 | 0 |
 
-`misra-c-2012` already includes Amendments 1 to 4. `misra-c-2023` is the same set plus the
+The MISRA rule sets are in the `misra` plugin (see Plugins below). Six decidable single-file guidelines that were manual are now partial lexical checks (7.5, 8.16, 8.17, 11.10, 17.10 and 23.3). Most of what is still manual is undecidable, needs the whole program, or concerns C11 threads and atomics. `misra-c-2012` already includes Amendments 1 to 4. `misra-c-2023` is the same set plus the
 concurrency directives 5.1 to 5.3, with the same checks behind the shared guidelines, so choose
 the one your project claims. BARR-C ids follow the standard's own numbering (`6.1.e`, `7.1.j`);
 layout rules (white space, indentation, brace placement) read the text of the file and are

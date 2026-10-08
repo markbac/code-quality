@@ -541,7 +541,9 @@ rules:
     category: required
     decidable: true
     scope: single-tu
-    check: { type: "manual" }
+    coverage: partial
+    check: { type: "native", engine: "source", match: { pattern: '\b(U?INT(?:8|16|32|64|MAX)_C)\s*\(\s*(?!(?:0[xX][0-9a-fA-F]+|0[0-7]*|[1-9][0-9]*)\s*\))[^)]*\)', target: "code" } }
+    notes: "Reports an integer constant macro whose argument is not a plain integer literal without a suffix."
 
   - id: "7.6"
     kind: rule
@@ -687,7 +689,9 @@ rules:
     category: advisory
     decidable: true
     scope: single-tu
-    check: { type: "manual" }
+    coverage: partial
+    check: { type: "native", engine: "source", match: { pattern: '\b(?:_Alignas|alignas)\s*\(\s*0\s*\)', target: "code" } }
+    notes: "Reports an alignment specifier of zero written as a literal 0."
 
   - id: "8.17"
     kind: rule
@@ -695,7 +699,9 @@ rules:
     category: advisory
     decidable: true
     scope: single-tu
-    check: { type: "manual" }
+    coverage: partial
+    check: { type: "native", engine: "source", match: { pattern: '\b_Alignas\s*\([^)]*\)[^;{}=]*\b_Alignas\s*\(', target: "code" } }
+    notes: "Reports a second _Alignas in the same declaration, found by text, so a split declaration is missed."
 
   - id: "9.1"
     kind: rule
@@ -928,7 +934,9 @@ rules:
     category: required
     decidable: true
     scope: single-tu
-    check: { type: "manual" }
+    coverage: partial
+    check: { type: "native", engine: "source", match: { pattern: '\b_Atomic\s*(?:\(\s*)?void\b(?!\s*\*)', target: "code" } }
+    notes: "Reports _Atomic applied to void, found by text."
 
   - id: "12.1"
     kind: rule
@@ -1283,7 +1291,9 @@ rules:
     category: required
     decidable: true
     scope: single-tu
-    check: { type: "manual" }
+    coverage: partial
+    check: { type: "native", engine: "source", match: { pattern: '\b(?:_Noreturn|noreturn)\s+(?:(?:static|extern|inline)\s+)*(?!void\b)\w', target: "code" } }
+    notes: "Reports _Noreturn on a function whose return type is not written as void, found by text."
 
   - id: "17.11"
     kind: rule
@@ -1950,7 +1960,9 @@ rules:
     category: advisory
     decidable: true
     scope: single-tu
-    check: { type: "manual" }
+    coverage: partial
+    check: { type: "native", engine: "source", match: { pattern: '\b_Generic\s*\([^,()]*(?:\([^()]*\)[^,()]*)*,\s*default\s*:[^,()]*\)', target: "code" } }
+    notes: "Reports a generic selection whose only association is default, found by text."
 
   - id: "23.4"
     kind: rule
