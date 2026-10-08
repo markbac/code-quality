@@ -630,6 +630,12 @@
         },
         "weights": {
           "type": "object"
+        },
+        "private_headers": {
+          "type": [
+            "array",
+            "null"
+          ]
         }
       },
       "additionalProperties": false

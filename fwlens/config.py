@@ -320,6 +320,7 @@ class CbomConfig:
 class ArchitectureConfig:
     enabled: bool = True                     # recover the architecture model (docs/ARCHITECTURE_RECOVERY.md)
     weights: dict = field(default_factory=dict)   # weight per dependency kind: callback, state, type, call, include
+    private_headers: list | None = None      # header patterns whose declarations are internal (default *_priv.h, */internal/* ...)
 
 
 _EDGE_KINDS = ("callback", "state", "type", "call", "include")
@@ -677,7 +678,9 @@ def load_config(config_path: Path) -> FwLensConfig:
             isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0 for v in weights.values()):
         raise ConfigError(f"architecture.weights must map {list(_EDGE_KINDS)} to numbers of zero or more")
     architecture = ArchitectureConfig(enabled=bool(arch_raw.get("enabled", True)),
-                                      weights={k: float(v) for k, v in weights.items()})
+                                      weights={k: float(v) for k, v in weights.items()},
+                                      private_headers=None if arch_raw.get("private_headers") is None
+                                      else [str(x) for x in arch_raw["private_headers"]])
 
     cbom_raw = raw.get("cbom") or {}
     scan_scopes = [str(x) for x in cbom_raw.get("scan_scopes", ["first_party"])]

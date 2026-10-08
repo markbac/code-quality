@@ -344,3 +344,4 @@ output:
 #     type: 2                           #   a type from another unit
 #     call: 1                           #   a function called
 #     include: 0.5                      #   a header included
+#   private_headers: ["*_priv.h", "*/internal/*"]   # headers whose declarations are internal (default list shown in the guide)

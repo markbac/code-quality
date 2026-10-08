@@ -132,10 +132,10 @@ class _Collector:
             self.evidence[key].append([where, line])
 
 
-def build_edges(model: ProjectModel, weights: dict | None = None) -> tuple[list[str], list[Edge]]:
+def build_edges(model: ProjectModel, weights: dict | None = None, units: Units | None = None) -> tuple[list[str], list[Edge]]:
     """Returns (units, edges). `weights` overrides the default weight of any kind."""
     w = {**DEFAULT_WEIGHTS, **{k: float(v) for k, v in (weights or {}).items() if k in EDGE_KINDS}}
-    units = Units(model)
+    units = units or Units(model)
     out = _Collector()
 
     func_units: dict[str, set[str]] = defaultdict(set)

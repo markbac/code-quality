@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from fwlens.arch.edges import build_edges
+from fwlens.arch.edges import Units, build_edges
+from fwlens.arch.interfaces import analyse as analyse_interfaces
 from fwlens.arch.model import ArchModel
 
 
@@ -10,7 +11,9 @@ def build_architecture(model, config) -> ArchModel:
     """Build the architecture model from the parsed project. Stores it as `model.architecture`."""
     cfg = config.architecture
     arch = ArchModel(weights=dict(cfg.weights))
-    arch.units, arch.edges = build_edges(model, cfg.weights)
+    units = Units(model)
+    arch.units, arch.edges = build_edges(model, cfg.weights, units)
+    arch.interfaces, arch.leaks = analyse_interfaces(model, units, cfg.private_headers)
     model.architecture = arch
     return arch
 

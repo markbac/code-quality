@@ -1989,6 +1989,17 @@ Embedding another unit's struct binds layout and lifetime, so it weighs more tha
 Each edge keeps up to three file and line pairs as evidence. Type, struct and address-of facts come from a
 lexical read of the source, so a type hidden behind a macro is not seen.
 
+### Interfaces and encapsulation leaks
+
+A function is **public** when a header declares it, and **internal** when it is `static`, declared in no header,
+or declared only in a private header. `architecture.private_headers` lists the private header patterns (default
+`*_priv.h`, `*_private.h`, `*_internal.h`, `*/internal/*`, `*/private/*`; `[]` means none). A dispatch table is an
+interface, and so is a header with a struct of function pointers (an ops struct).
+
+An edge from one unit to an internal symbol of another is a **leak** (`architecture.leaks` in the JSON): usually an
+`extern` written in the caller to dodge the header (`undeclared`), or an include of a private header
+(`private-header`). Each leak gives the source and target units, the symbol, and the file and line.
+
 ---
 
 ## Configuration reference
