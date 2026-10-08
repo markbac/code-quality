@@ -128,6 +128,8 @@ class ArchModel:
     patterns: list = field(default_factory=list)
     violations: list = field(default_factory=list)
     events: list = field(default_factory=list)
+    cycle_suggestions: list = field(default_factory=list)  # dependencies to remove to break each cycle (advice only)
+    interface_catalogue: list = field(default_factory=list)  # public functions per component with fan-in, and unused exports
     footprint: list = field(default_factory=list)          # flash and RAM per component, from the linker map
     trust_paths: list = field(default_factory=list)        # call chains from entry points to sensitive code
     activity: dict = field(default_factory=dict)           # git history, ownership and shared state by component

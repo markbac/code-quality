@@ -2288,6 +2288,19 @@ with its share of the whole map. A component none of whose files appear in the m
 not as zero bytes; `mapped` of `units` says how many of its files were found. Sizes are per object, so a file that
 the linker did not name by its stem, or a library object, is not counted. Without a map file there is no table.
 
+### Advice: breaking cycles and the interface catalogue
+
+Two tables are advice only. They change nothing and add no findings.
+
+- **Cycle suggestions** (`architecture.cycle_suggestions`): for each cycle of components, the dependencies whose removal
+  makes it acyclic at the fewest call sites, with a few examples of where they are. A cycle of up to 12 components is
+  solved exactly (fewest call sites, then fewest dependencies); a larger one uses a greedy cut that is not guaranteed
+  to be the smallest, and says so (`exact: false`).
+- **Interface catalogue** (`architecture.interface_catalogue`): each component's public functions (declared in a
+  non-private header) with the components that call them (fan-in), and the exports no other component uses. An
+  interrupt handler, entry point, `main`, event callback or function stored in a dispatch table is never listed as
+  unused, because the call graph does not show how it is reached.
+
 ---
 
 ## Configuration reference

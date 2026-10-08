@@ -1095,6 +1095,30 @@
   </table>
   {% endif %}
 
+  {% if architecture_view.cycle_advice %}
+  <h4 style="margin-top:20px">Breaking the cycles</h4>
+  <table id="arch-cycle-advice-table">
+    <thead><tr><th>Cycle</th><th>Remove these dependencies</th><th>Call sites</th></tr></thead>
+    <tbody>
+    {% for c in architecture_view.cycle_advice %}
+    <tr><td>{{ c.cycle }}</td><td>{{ c.remove }}{% if not c.exact %} <span class="dim">(greedy, not guaranteed smallest)</span>{% endif %}</td><td>{{ c.call_sites }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if architecture_view.unused_exports %}
+  <h4 style="margin-top:20px">Exports nobody outside uses</h4>
+  <table id="arch-unused-exports-table">
+    <thead><tr><th>Component</th><th>Public functions</th><th>Not used by another component</th></tr></thead>
+    <tbody>
+    {% for r in architecture_view.unused_exports %}
+    <tr><td>{{ r.component }}</td><td>{{ r.public }}</td><td class="dim">{{ r.unused }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
   {% if architecture_view.footprint %}
   <h4 style="margin-top:20px">Footprint by component</h4>
   <table id="arch-footprint-table">

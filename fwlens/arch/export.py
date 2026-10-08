@@ -38,7 +38,8 @@ def plantuml(arch: ArchModel) -> str:
     lines = ["@startuml", "skinparam componentStyle rectangle", "skinparam roundCorner 8", ""]
     for layer in layering.layers:
         cyc = " (cycle)" if layer["cycle"] else ""
-        lines.append(f"package {_q(f'Level {layer['level']}{cyc}')} {{")
+        title = f"Level {layer['level']}{cyc}"
+        lines.append(f"package {_q(title)} {{")
         for name in layer["components"]:
             sub = domains.get(name)
             note = f"\\n<<{sub.domain}>>" if sub and sub.domain != "unclassified" else ""

@@ -38,6 +38,11 @@ def report_view(arch: ArchModel | None) -> dict | None:
         "events": [{"event": e.event, "publishers": ", ".join(sorted({p["function"] for p in e.publishers})),
                     "subscribers": ", ".join(sorted({s["callback"] for s in e.subscribers})),
                     "broker": ", ".join(sorted({s["broker"] for s in e.subscribers}))} for e in arch.events[:ROWS]],
+        "cycle_advice": [{"cycle": ", ".join(c["cycle"]), "exact": c["exact"], "call_sites": c["call_sites"],
+                          "remove": "; ".join(f"{r['from']} -> {r['to']} ({r['call_sites']} call sites)" for r in c["remove"])}
+                         for c in arch.cycle_suggestions[:ROWS]],
+        "unused_exports": [{"component": r["component"], "public": r["public"], "unused": ", ".join(r["unused"][:8])}
+                           for r in arch.interface_catalogue if r["unused"]][:ROWS],
         "footprint": [{"component": f["component"], "flash": f["flash_bytes"], "ram": f["ram_bytes"],
                        "flash_share": f["flash_share"], "ram_share": f["ram_share"], "mapped": f"{f['mapped']} of {f['units']}"}
                       for f in arch.footprint[:ROWS]],

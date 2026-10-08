@@ -1,7 +1,5 @@
 """Git history, ownership and shared state by component (#129)."""
 
-from pathlib import Path
-
 from arch_helpers import project
 
 from fwlens.arch import build_architecture

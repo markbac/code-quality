@@ -23,7 +23,6 @@ from fnmatch import fnmatchcase
 
 from fwlens.arch.components import matches
 from fwlens.arch.edges import line_of, norm, read_text
-from fwlens.arch.layers import component_graph
 from fwlens.arch.model import ArchModel, Component, Violation
 from fwlens.config import ConfigError
 
@@ -134,9 +133,9 @@ def check(arch: ArchModel, texts, intended: list | None, rules: list | None, str
                 continue
             ra, rb = place.rank[la.lower()], place.rank[lb.lower()]
             if rb < ra:
-                kind, text = "upward", f"{a} ({la}) depends on {b} ({lb}), a higher layer"
+                text = f"{a} ({la}) depends on {b} ({lb}), a higher layer"
             elif strict and rb - ra > 1:
-                kind, text = "skip", f"{a} ({la}) skips {rb - ra - 1} layer(s) to depend on {b} ({lb})"
+                text = f"{a} ({la}) skips {rb - ra - 1} layer(s) to depend on {b} ({lb})"
             else:
                 continue
             f, line = where((a, b))

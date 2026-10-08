@@ -8,6 +8,7 @@ from fwlens.arch.domains import label, load_domains
 from fwlens.arch.edges import Units, build_edges
 from fwlens.arch.trust import compute as trust_paths
 from fwlens.arch.footprint import by_component as footprint_by_component
+from fwlens.arch.advice import cycle_suggestions, interface_catalogue
 from fwlens.arch.rules import evaluate as check_rules
 from fwlens.arch.layers import infer_layers
 from fwlens.arch.pubsub import map_events
@@ -30,6 +31,8 @@ def build_architecture(model, config) -> ArchModel:
     arch.events = map_events(model, units, cfg.register_calls, cfg.publish_calls)
     arch.patterns = detect(model, arch, config, load_patterns(cfg.patterns))
     arch.violations = check_rules(arch, cfg)
+    arch.cycle_suggestions = cycle_suggestions(arch)
+    arch.interface_catalogue = interface_catalogue(model, arch)
     arch.footprint = footprint_by_component(model, arch)
     arch.trust_paths = trust_paths(model, arch, config)
     arch.activity = compute_activity(model, arch, units, cfg.teams)
