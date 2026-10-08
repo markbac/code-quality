@@ -99,6 +99,7 @@ Pass `-NoClean` to skip the automatic `.pyc` cache purge (faster re-runs when no
 | `config-schema` | Print the JSON Schema for `config.yaml` (`-o FILE` writes it) |
 | `sbom` | Write a CycloneDX 1.6 software bill of materials -- see [SBOM](#software-bill-of-materials-sbom) |
 | `cbom` | Write a CycloneDX 1.6 cryptography bill of materials -- see [CBOM](#cryptography-bill-of-materials-cbom) |
+| `architecture variants` | Compare the architecture of two build configurations or projects -- see [Architecture recovery](#architecture-recovery) |
 | `architecture save`, `architecture diff` | Save the recovered architecture, and compare a run with a snapshot or a git revision -- see [Architecture recovery](#architecture-recovery) |
 | `architecture adopt` | Write the recovered components, domains and layers as a starting point for the intended architecture -- see [Architecture recovery](#architecture-recovery) |
 | `architecture export` | Write the recovered architecture as PlantUML and Structurizr DSL -- see [Architecture recovery](#architecture-recovery) |
@@ -2187,6 +2188,23 @@ can change between runs; a renamed component is reported as renamed, not as one 
 With `architecture.baseline` set, every `analyze`, `report` and `export` run also compares with the snapshot: the
 differences are in the JSON export (`architecture.since_baseline`) and in the **Recovered architecture** section of the
 report. A baseline file that is missing or not a snapshot is shown as an error there and does not stop the run.
+
+### Variants
+
+Conditional compilation can change the structure, so one combined view of a product line is misleading. Build the
+model per variant and compare them:
+
+```powershell
+fwlens architecture variants --config config.yaml --configuration G460 --configuration G480
+fwlens architecture variants --config g460.yaml --config g480.yaml
+```
+
+With one `--config` and two `--configuration` names, each run sets `project.configuration` to the name (the build
+configuration or target in the IAR, Keil or Eclipse project file). With two `--config` files, each is analysed as it
+is (for example two `compile_commands.json`); a `--configuration` per file overrides its configuration. The result
+lists what only one variant has, in the same terms as `architecture diff`: components, files, dependencies between
+components, cycles, files in a different component, and differences in domain and patterns. It is printed and written
+to `<output.exports_dir>/architecture_variants.json` (`--output FILE` changes it).
 
 ---
 

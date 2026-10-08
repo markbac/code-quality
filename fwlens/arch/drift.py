@@ -150,6 +150,10 @@ def diff(old: dict, new: dict) -> dict:
         + [{"pattern": k[0], "component": k[1], "change": "gone", "confidence": p_old[k]} for k in sorted(set(p_old) - set(p_new))]
         + [{"pattern": k[0], "component": k[1], "change": f"{p_old[k]} to {p_new[k]}", "confidence": p_new[k]}
            for k in sorted(set(p_old) & set(p_new)) if p_old[k] != p_new[k]])
+    dom_old = {c["name"]: c["domain"] for c in old["components"]}
+    result["domain_changes"] = [{"component": n, "before": dom_old[o], "after": c["domain"]}
+                                for c in new["components"] for n, o in [(c["name"], to_old.get(c["name"]))]
+                                if o and dom_old[o] != c["domain"]]
     result["worse"] = bool(result["cycles_new"] or result["violations_new"] or result["leaks_new"])
     return result
 
@@ -175,10 +179,36 @@ def lines(report: dict) -> list:
     add("Files moved to another component", [f"{m['unit']}: {m['from']} -> {m['to']}" for m in report["units_moved"]])
     add("Level changes", [f"{c['component']}: {c['before']} -> {c['after']}" for c in report["level_changes"]])
     add("Coupling trend", [f"{t['component']}: {t['before']} -> {t['after']} ({t['change']:+})" for t in report["coupling_trend"]])
+    add("Domain changes", [f"{d['component']}: {d['before']} -> {d['after']}" for d in report["domain_changes"]])
     add("Patterns", [f"{p['pattern']}{' in ' + p['component'] if p['component'] else ''}: {p['change']}" for p in report["patterns_changed"]])
     add("Cycles resolved", [" <-> ".join(c) for c in report["cycles_resolved"]])
     add("Violations resolved", [f"{r}: {s} -> {t}" for r, s, t in report["violations_resolved"]])
     return out or ["No architectural change."]
+
+
+def variant_lines(report: dict, a: str, b: str) -> list:
+    """The differences between two variants of one code base, as text: what only one of them has."""
+    out = []
+
+    def add(title: str, items: list) -> None:
+        if items:
+            out.append(f"{title} ({len(items)})")
+            out.extend("  " + i for i in items[:20])
+            if len(items) > 20:
+                out.append(f"  ... and {len(items) - 20} more")
+    add(f"Components only in {b}", report["components_added"])
+    add(f"Components only in {a}", report["components_removed"])
+    add(f"Files only in {b}", report["units_added"])
+    add(f"Files only in {a}", report["units_removed"])
+    add(f"Dependencies only in {b}", [f"{e['source']} -> {e['target']} ({', '.join(e['kinds'])})" for e in report["edges_added"]])
+    add(f"Dependencies only in {a}", [f"{e['source']} -> {e['target']} ({', '.join(e['kinds'])})" for e in report["edges_removed"]])
+    add("Files in a different component", [f"{m['unit']}: {m['from']} ({a}) -> {m['to']} ({b})" for m in report["units_moved"]])
+    add("Domain differences", [f"{d['component']}: {d['before']} ({a}) -> {d['after']} ({b})" for d in report["domain_changes"]])
+    add("Pattern differences", [f"{p['pattern']}{' in ' + p['component'] if p['component'] else ''}: {p['change']} in {b}"
+                                for p in report["patterns_changed"]])
+    add(f"Cycles only in {b}", [" <-> ".join(c) for c in report["cycles_new"]])
+    add(f"Cycles only in {a}", [" <-> ".join(c) for c in report["cycles_resolved"]])
+    return out or [f"{a} and {b} have the same architecture."]
 
 
 def snapshot_at_ref(config_path: Path, ref: str, repo_root: Path) -> dict:

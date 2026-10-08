@@ -60,7 +60,8 @@ def _load_config_safe(config_path: Path):
         sys.exit(1)
 
 
-def _run_pipeline(config_path: Path, auto_stub: bool = False, jobs=None, timeout=None, no_cache: bool = False):
+def _run_pipeline(config_path: Path, auto_stub: bool = False, jobs=None, timeout=None, no_cache: bool = False,
+                  configuration: str | None = None):
     from fwlens.arch import run_architecture
     from fwlens.clones import detect_clones
     from fwlens.complexity_trend import compute_complexity_trends
@@ -88,6 +89,8 @@ def _run_pipeline(config_path: Path, auto_stub: bool = False, jobs=None, timeout
     from fwlens.tech_debt import run_tech_debt_scan
 
     config = _load_config_safe(config_path)
+    if configuration:
+        config.project.configuration = configuration          # a build configuration other than the one in the file
     from fwlens.git_history import history_warnings, reset_history_state
     reset_history_state()
 
@@ -890,6 +893,50 @@ def architecture_diff(config_path, baseline_path, revision, output_path, fail_on
         Path(output_path).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     if fail_on_new and report["worse"]:
         sys.exit(1)
+
+
+@architecture_group.command(name="variants")
+@click.option("--config", "config_paths", multiple=True, default=("config.yaml",), type=_CONFIG_FILE,
+              help="Path to config.yaml. Give it twice to compare two projects (for example two compile_commands.json).")
+@click.option("--configuration", "configurations", multiple=True,
+              help="A build configuration or target in the project file (project.configuration). Give it twice, "
+                   "or once per --config, to name the two variants.")
+@click.option("--output", "output_path", default=None, type=click.Path(),
+              help="Where to write the differences as JSON (default: <exports_dir>/architecture_variants.json).")
+def architecture_variants(config_paths, configurations, output_path):
+    """Compare the architecture of two variants of one code base (two build configurations, or two configs):
+    what only one of them has, and how components, dependencies, domains and patterns differ."""
+    from fwlens.arch import drift
+    from fwlens.identity import project_root
+    paths, names = list(config_paths), list(configurations)
+    if len(paths) == 2 and len(names) in (0, 1, 2):
+        pairs = [(paths[0], names[0] if names else None), (paths[1], names[1] if len(names) > 1 else None)]
+    elif len(paths) == 1 and len(names) == 2:
+        pairs = [(paths[0], names[0]), (paths[0], names[1])]
+    else:
+        console.print("[red][fwlens] Give two --config files, or one --config with two --configuration names.[/red]")
+        sys.exit(1)
+    snaps, labels, exports = [], [], None
+    for path, configuration in pairs:
+        model, config = _run_pipeline(Path(path), configuration=configuration)
+        if model.architecture is None:
+            console.print("[yellow][fwlens] Architecture model is off (architecture.enabled: false) -- nothing to compare.[/yellow]")
+            return
+        snaps.append(drift.snapshot(model.architecture, project_root(config)))
+        labels.append(configuration or Path(path).stem)
+        exports = exports or config.output.exports_dir
+    if labels[0] == labels[1]:       # same file name: tell the two apart by folder, then by order
+        labels = [Path(p).resolve().parent.name or l for (p, _c), l in zip(pairs, labels)]
+    if labels[0] == labels[1]:
+        labels = [f"{labels[0]} (1)", f"{labels[1]} (2)"]
+    report = drift.diff(snaps[0], snaps[1])
+    console.print(f"[cyan][fwlens][/cyan] Architecture of {labels[0]} compared with {labels[1]}")
+    for line in drift.variant_lines(report, labels[0], labels[1]):
+        console.print(line, markup=False)
+    target = Path(output_path) if output_path else exports / "architecture_variants.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps({"a": labels[0], "b": labels[1], "differences": report}, indent=2) + "\n", encoding="utf-8")
+    console.print(f"[cyan][fwlens][/cyan] Variant differences: [bold]{target}[/bold]")
 
 
 @architecture_group.command(name="adopt")
