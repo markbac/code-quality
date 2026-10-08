@@ -58,7 +58,7 @@ def test_ide_groups_anchor_components_and_the_difference_is_listed(tmp_path):
     model, config, _arch = project(tmp_path, SOURCES)
     for m in model.modules:
         m.iar_groups = ["Everything"]
-        m.layer = "Drivers" if "drivers" in str(m.path) else "App"
+        m.layer = "Drivers" if "drivers" in m.path.as_posix() else "App"
     arch = build_architecture(model, config)
     assert [c.name for c in arch.components] == ["Everything"]
     assert arch.components[0].source == "group"

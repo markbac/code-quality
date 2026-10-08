@@ -44,7 +44,7 @@ def test_units_that_depend_on_each_other_are_a_cycle_with_back_edges(tmp_path):
 def test_the_configured_layer_order_is_compared_not_applied(tmp_path):
     model, config, _arch = project(tmp_path, SOURCES, components=PINS)
     for m in model.modules:
-        m.layer = "Top" if "/hal/" in str(m.path) else "Bottom"        # deliberately the wrong way round
+        m.layer = "Top" if "/hal/" in m.path.as_posix() else "Bottom"        # deliberately the wrong way round
     config.layers = [LayerRule("Bottom"), LayerRule("Top")]
     arch = build_architecture(model, config)
     notes = {(d["source"], d["target"]): d["note"] for d in arch.layering.disagreements}

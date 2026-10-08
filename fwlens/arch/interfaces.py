@@ -9,6 +9,7 @@ internal symbol of another is a leak: usually an `extern` written in the caller 
 
 from __future__ import annotations
 
+import posixpath
 import re
 from collections import defaultdict
 from fnmatch import fnmatchcase
@@ -54,8 +55,13 @@ def analyse(model: ProjectModel, units: Units, private_headers: list[str] | None
         for name in _EXTERN_VAR.findall(text):
             declared[name].add(h)
 
+    # patterns are matched against the path below the common directory, so a project that lives under a
+    # directory called `private` (as macOS temporary directories do) is not all private
+    root = posixpath.commonpath([posixpath.dirname(h) for h in headers]) if headers else ""
+    private = {h: is_private("/" + h[len(root):].lstrip("/"), patterns) for h in headers}
+
     def visible(name: str) -> set[str]:
-        return {h for h in declared.get(name, ()) if not is_private(h, patterns)}
+        return {h for h in declared.get(name, ()) if not private[h]}
 
     interfaces: dict[str, Interface] = {u: Interface(u) for u in units.names}
     function_unit: dict[str, tuple[str, int]] = {}
