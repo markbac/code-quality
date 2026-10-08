@@ -17,7 +17,7 @@ from fwlens.model.project import ProjectModel
 from fwlens.standards.deviations import Deviation, apply_deviations, load_deviations, scan_markers
 from fwlens.standards.engines import Hit, Records, run_ast_engines, run_callgraph_engine, run_system_engines
 from fwlens.standards.importers import map_to_rule, read_import
-from fwlens.standards.rules import Rule, RuleFileError, Standard, load_standards
+from fwlens.standards.rules import PLUGIN_HINTS, Rule, RuleFileError, Standard, load_standards
 from fwlens.standards.triage import apply_recategorisations, load_recategorisations, load_triage
 from fwlens.standards.sourcechecks import (
     diagnostic_flags,
@@ -53,7 +53,8 @@ def select_rules(standards: dict[str, Standard], selections: list[StandardSelect
     for sel in selections:
         std = standards.get(sel.standard)
         if std is None:
-            raise RuleFileError(f"standards.enabled: unknown standard '{sel.standard}', "
+            hint = next((f" ({text})" for key, text in PLUGIN_HINTS.items() if sel.standard.startswith(key)), "")
+            raise RuleFileError(f"standards.enabled: unknown standard '{sel.standard}'{hint}, "
                                 f"known: {sorted(standards)}")
         for rid, rule in std.rules.items():
             if sel.include_categories and rule.category not in sel.include_categories:
@@ -124,7 +125,7 @@ def run_standards(model: ProjectModel, config: FwLensConfig, today=None) -> Stan
         return cached
 
     cfg = config.standards
-    standards = load_standards(cfg.extra_rule_dirs)
+    standards = load_standards(cfg.extra_rule_dirs, cfg.disable_plugins)
     recategorised = {}
     if cfg.recategorisation_file:
         recategorised = apply_recategorisations(standards, load_recategorisations(cfg.recategorisation_file, standards))

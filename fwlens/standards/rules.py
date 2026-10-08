@@ -19,6 +19,11 @@ import yaml
 
 SCHEMA_VERSION = 1
 BUILTIN_DIR = Path(__file__).parent / "builtin"
+# Optional rule sets, one subdirectory per plugin. MISRA lives here so that it can be left out where its use is not
+# licensed: delete plugins/misra (or list "misra" in standards.disable_plugins) and everything else still works.
+PLUGINS_DIR = Path(__file__).parent / "plugins"
+PLUGIN_HINTS = {"misra": "the MISRA plugin (fwlens/standards/plugins/misra) is not installed or is disabled "
+                         "(standards.disable_plugins)"}
 CHECK_TYPES = {"native", "import", "manual"}
 ENGINES = {"ast", "callgraph", "compound_body", "detector", "source", "diagnostic", "system"}
 COVERAGES = {"full", "partial"}
@@ -204,11 +209,19 @@ def load_standard_file(path: Path) -> Standard:
     return parse_standard(raw, Path(path))
 
 
-def load_standards(extra_dirs: Iterable[Path] = ()) -> dict[str, Standard]:
-    """Built-in files first, then any ``*.yaml`` in the extra directories. An extra file with the
-    same standard id replaces the built-in one, so a project can override a whole standard."""
+def plugin_dirs(disabled: Iterable[str] = ()) -> list[Path]:
+    """The installed plugin directories, in name order, without the disabled ones."""
+    skip = {str(d) for d in disabled}
+    if not PLUGINS_DIR.is_dir():
+        return []
+    return [d for d in sorted(PLUGINS_DIR.iterdir()) if d.is_dir() and d.name not in skip and not d.name.startswith("_")]
+
+
+def load_standards(extra_dirs: Iterable[Path] = (), disabled_plugins: Iterable[str] = ()) -> dict[str, Standard]:
+    """Built-in files first, then the installed plugins, then any ``*.yaml`` in the extra directories. An extra
+    file with the same standard id replaces an earlier one, so a project can override a whole standard."""
     standards: dict[str, Standard] = {}
-    for directory in [BUILTIN_DIR, *[Path(d) for d in extra_dirs]]:
+    for directory in [BUILTIN_DIR, *plugin_dirs(disabled_plugins), *[Path(d) for d in extra_dirs]]:
         if not directory.is_dir():
             if directory != BUILTIN_DIR:
                 raise RuleFileError(f"standards.extra_rule_dirs: {directory} is not a directory")

@@ -1206,12 +1206,14 @@ def standards_list(config_path, rule_dirs):
     from fwlens.standards import RuleFileError, load_standards, select_rules
     extra = [Path(d) for d in rule_dirs]
     selected = set()
+    disabled: list[str] = []
     if config_path:
         from fwlens.config import load_config
         cfg = load_config(Path(config_path))
         extra += cfg.standards.extra_rule_dirs
+        disabled = cfg.standards.disable_plugins
     try:
-        standards = load_standards(extra)
+        standards = load_standards(extra, disabled)
         if config_path:
             selected = {r.key for r in select_rules(standards, cfg.standards.enabled)}
     except RuleFileError as e:
@@ -1235,10 +1237,10 @@ def standards_validate(paths):
 
     from fwlens.standards import RuleFileError, load_standards
     from fwlens.standards.deviations import load_deviations
-    from fwlens.standards.rules import BUILTIN_DIR, load_standard_file
+    from fwlens.standards.rules import BUILTIN_DIR, load_standard_file, plugin_dirs
 
     files: list[Path] = []
-    for p in (paths or [str(BUILTIN_DIR)]):
+    for p in (paths or [str(BUILTIN_DIR), *map(str, plugin_dirs())]):
         pp = Path(p)
         files += sorted(pp.glob("*.yaml")) if pp.is_dir() else [pp]
     failed = 0

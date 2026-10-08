@@ -40,7 +40,7 @@ required a warning, advisory a note). GitLab severities follow the same categori
 
 ### Rules are YAML, not Python
 
-Each standard is one file in `fwlens/standards/builtin/` or in your `extra_rule_dirs`. A rule has
+Each standard is one file in `fwlens/standards/builtin/`, in a plugin directory under `fwlens/standards/plugins/`, or in your `extra_rule_dirs`. A rule has
 metadata (id, kind, category, decidable, scope, CWE) and a `check` block:
 
 | `check.type` | Meaning |
@@ -177,7 +177,7 @@ carry the same note: the table reports what FWLens checked, not compliance.
 
 ### What is bundled
 
-The built-in files carry guideline **ids**, the published category, decidability and scope, and
+The built-in and plugin files carry guideline **ids**, the published category, decidability and scope, and
 short FWLens-written descriptions of what each check detects. They contain no MISRA or CERT
 guideline text. Point your own tooling at your licensed copy for the official wording.
 
@@ -260,14 +260,30 @@ Findings can also be written as a GitLab SAST report, see [GitLab SAST report](g
 This is a record of the position, not legal advice, and the question is **not settled**.
 
 - **Bundled:** guideline ids, the published category, decidability and scope, CWE mappings
-  (`misra-c-2012.yaml`), and short descriptions written for FWLens. No MISRA or CERT guideline
+  (`data/cwe-map.yaml`), and short descriptions written for FWLens. No MISRA or CERT guideline
   text is included, and `guideline_text` is marked user-supplied.
 - **User-supplied:** the official guideline wording and any tables from the standards. Point your
   own tooling at your licensed copy.
 - **Open:** whether MISRA (HORIBA MIRA) permits bundling the ids, categories and decidability
   attributes, and what the CERT and CWE terms allow, has not been confirmed with the owners.
   Until it is, treat the bundled MISRA data (C:2012 and C:2023, which carry only ids, categories,
-  decidability and paraphrased titles) as unconfirmed. BARR-C is published by Barr Group, who
-  release the standard for free download. Because rules are plain YAML, a project can move them into its own
-  `standards.extra_rule_dirs` and drop the built-in file if that is the safer course.
+  decidability and paraphrased titles) as unconfirmed. For that reason the MISRA rule sets are a plugin, see below. BARR-C is published by Barr Group, who
+  release the standard for free download. Because rules are plain YAML, a project can also keep them in its own
+  `standards.extra_rule_dirs`.
+
+### Plugins
+
+Optional rule sets live in a directory of their own under `fwlens/standards/plugins/`, one subdirectory per plugin.
+The MISRA C:2012 and C:2023 rule sets are the `misra` plugin. Where their use is not licensed, leave them out in
+either of two ways, and FWLens runs the other standards as before:
+
+- delete the `fwlens/standards/plugins/misra` directory (or the whole `plugins` directory) from the installation;
+- list the plugin in the configuration: `standards.disable_plugins: [misra]`.
+
+Enabling a MISRA standard when the plugin is missing or disabled stops with a message that names the plugin. Your
+own copy of a MISRA rule file in `standards.extra_rule_dirs` still works while the plugin is disabled. Plugin files
+are checked by `fwlens standards validate` like the built-in ones.
+
+The plugin holds rule data only: ids, categories, decidability, scope and FWLens-written descriptions. It does not
+hold MISRA guideline text, and the engines that run the checks are shared with the other standards.
 

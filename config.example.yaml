@@ -281,6 +281,7 @@ output:
 #     - standard: iso-ts-17961       # ISO/IEC TS 17961 C secure coding
 #     - standard: fwlens             # secrets, dead code, interrupt safety
 #   extra_rule_dirs: [./standards]
+#   disable_plugins: [misra]                              # leave the MISRA rule sets out where they are not licensed
 #   deviations_file: ./standards/deviations.yaml
 #   triage_file: ./standards/triage.yaml                  # outcome of investigating each finding (true_positive, false_positive, accepted)
 #   recategorisation_file: ./standards/recategorisation.yaml   # guidelines moved to another category

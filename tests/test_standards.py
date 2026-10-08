@@ -21,7 +21,7 @@ from fwlens.standards import run_standards, select_rules
 from fwlens.standards.deviations import apply_deviations, load_deviations
 from fwlens.standards.importers import RawFinding, candidate_ids, map_to_rule, read_import
 from fwlens.standards.matrix import DISCLAIMER, build_matrix, render_json, render_markdown
-from fwlens.standards.rules import BUILTIN_DIR, RuleFileError, load_standards, parse_standard
+from fwlens.standards.rules import BUILTIN_DIR, RuleFileError, load_standards, parse_standard, plugin_dirs
 
 # --- rule files ---------------------------------------------------------------------
 
@@ -47,7 +47,7 @@ def test_builtin_rule_files_are_valid():
 
 
 def test_builtin_files_carry_no_guideline_text():
-    for f in BUILTIN_DIR.glob("*.yaml"):
+    for f in [*BUILTIN_DIR.glob("*.yaml"), *(f for d in plugin_dirs() for f in d.glob("*.yaml"))]:
         assert yaml.safe_load(f.read_text())["standard"]["guideline_text"] in ("user-supplied", "https://wiki.sei.cmu.edu/confluence/display/c", "https://spinroot.com/gerard/pdf/P10.pdf",
                                                                      "https://barrgroup.com/embedded-systems/books/embedded-c-coding-standard",
                                                                      "https://github.com/markbac/code-quality")

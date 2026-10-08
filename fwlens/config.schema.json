@@ -412,6 +412,12 @@
             "null"
           ]
         },
+        "disable_plugins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "triage_file": {
           "type": [
             "string",

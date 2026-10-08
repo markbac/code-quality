@@ -259,6 +259,7 @@ class StandardsConfig:
     enabled: list[StandardSelection] = field(default_factory=list)
     extra_rule_dirs: list[Path] = field(default_factory=list)
     deviations_file: Path | None = None
+    disable_plugins: list[str] = field(default_factory=list)   # rule-set plugins to leave out, e.g. [misra]
     triage_file: Path | None = None                   # outcome of investigating each finding, keyed by finding id
     recategorisation_file: Path | None = None         # guidelines moved to another category
     imports: list[tuple[str, Path]] = field(default_factory=list)    # (tool, results file)
@@ -666,6 +667,7 @@ def load_config(config_path: Path) -> FwLensConfig:
         ],
         extra_rule_dirs=[resolve(d) for d in std_raw.get("extra_rule_dirs", []) or []],
         deviations_file=resolve(std_raw["deviations_file"]) if std_raw.get("deviations_file") else None,
+        disable_plugins=[str(x) for x in std_raw.get("disable_plugins", []) or []],
         triage_file=resolve(std_raw["triage_file"]) if std_raw.get("triage_file") else None,
         recategorisation_file=resolve(std_raw["recategorisation_file"]) if std_raw.get("recategorisation_file") else None,
         imports=[(str(i["tool"]), resolve(i["path"])) for i in std_raw.get("imports", []) or []],
