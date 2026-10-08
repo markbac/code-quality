@@ -49,6 +49,7 @@ _ITEM_KEYS: dict[tuple[str, ...], type | tuple[str, ...]] = {
     ("architecture", "components"): ("name", "units"),
     ("architecture", "subsystems"): ("domain", "units"),
     ("architecture", "domains"): ("id", "name", "words", "includes"),
+    ("architecture", "patterns"): ("id", "name", "scope", "domain", "signals", "thresholds"),
 }
 
 SUPPORTED_FORMATS = ("html", "csv", "json", "plots", "diagrams", "sarif", "sbom", "cbom")
@@ -177,6 +178,13 @@ def json_schema() -> dict:
         "items": {"type": "object", "properties": {
             "id": {"type": "string"}, "name": {"type": "string"},
             "words": {"type": "array", "items": {"type": "string"}}, "includes": {"type": "array", "items": {"type": "string"}}},
+            "required": ["id"], "additionalProperties": False}}
+
+    properties["architecture"]["properties"]["patterns"] = {
+        "type": "array",
+        "items": {"type": "object", "properties": {
+            "id": {"type": "string"}, "name": {"type": "string"}, "scope": {"enum": ["system", "subsystem"]},
+            "domain": {"type": "string"}, "signals": {"type": "object"}, "thresholds": {"type": "object"}},
             "required": ["id"], "additionalProperties": False}}
 
     component = _section_schema(_cfg.SbomComponent)

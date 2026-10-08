@@ -1,0 +1,56 @@
+# Architecture patterns. Each pattern adds up the weights of the signals that fire (signals are named
+# checks in fwlens/arch/signals.py). The score maps to a confidence: low, medium or high at the
+# thresholds given. A pattern below `low` is not reported. `scope: system` patterns look at the whole
+# project, `scope: subsystem` patterns at one component of the given `domain`. Add or change patterns
+# with `architecture.patterns` in config.yaml (same fields; the same id replaces the bundled one).
+patterns:
+  - id: layered
+    name: Layered
+    scope: system
+    signals: {layers_3plus: 2, acyclic: 2, next_layer_share_high: 2, configured_layers: 1}
+    thresholds: {low: 3, medium: 5, high: 6}
+  - id: hal_ports
+    name: Hardware abstraction layer, ports and adapters
+    scope: system
+    signals: {ops_structs: 2, multiple_implementations: 3, hal_lowest: 2, dispatch_tables: 1}
+    thresholds: {low: 3, medium: 5, high: 7}
+  - id: super_loop
+    name: Super-loop (bare metal)
+    scope: system
+    signals: {main_loop: 3, loop_calls_several: 2, no_rtos: 2, isrs_light: 1}
+    thresholds: {low: 3, medium: 5, high: 7}
+  - id: rtos_tasks
+    name: RTOS task-based
+    scope: system
+    signals: {tasks_2plus: 3, sync_objects: 2, queue_between_tasks: 2}
+    thresholds: {low: 3, medium: 5, high: 6}
+  - id: event_driven
+    name: Event-driven (publish and subscribe)
+    scope: system
+    signals: {registration_calls: 2, publish_calls: 2, event_ids: 2, dispatch_tables: 1}
+    thresholds: {low: 3, medium: 4, high: 6}
+  - id: state_machine_table
+    name: State machine, table-driven
+    scope: system
+    signals: {state_machines_present: 2, several_state_machines: 2, state_tables: 3}
+    thresholds: {low: 2, medium: 4, high: 6}
+  - id: pipeline
+    name: Pipeline (filter chain)
+    scope: system
+    signals: {linear_chain: 4}
+    thresholds: {low: 4, medium: 4, high: 4}
+  - id: plugin_registry
+    name: Plugin or driver registry
+    scope: system
+    signals: {ops_structs: 2, multiple_implementations: 2, registration_calls: 2, dispatch_tables: 1}
+    thresholds: {low: 3, medium: 5, high: 6}
+  - id: big_ball_of_mud
+    name: Big ball of mud (anti-pattern)
+    scope: system
+    signals: {many_cycles: 3, no_layering: 2, dense_dependencies: 2}
+    thresholds: {low: 3, medium: 5, high: 7}
+  - id: god_component
+    name: God component (anti-pattern)
+    scope: system
+    signals: {dominant_component: 3, hub_component: 3}
+    thresholds: {low: 3, medium: 4, high: 6}

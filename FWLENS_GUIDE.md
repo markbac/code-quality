@@ -2059,6 +2059,32 @@ on. Level numbers rise upward, the same way as the order of `layers:` (the first
   configured order) or not (the configured order may be wrong). Nothing is applied: the configured layers and the
   existing layer violations are unchanged.
 
+### System patterns
+
+FWLens names the architectural patterns the project follows, from the rules in `fwlens/arch/patterns.yaml`. A
+rule adds up the weights of the **signals** that fire (small named checks on the parse, in
+`fwlens/arch/signals.py`) and maps the score to a confidence. Several patterns can hold at once, and one below its
+`low` threshold is not reported. Each finding (`architecture.patterns` in the JSON) lists the signals that fired and
+what each found, so the verdict can be checked.
+
+| Pattern | Main signals |
+| :--- | :--- |
+| `layered` | three or more inferred layers, no cycles, most downward weight to the next layer, configured `layers:` |
+| `hal_ports` | structs of function pointers, several objects of one such type, the hardware abstraction at the bottom |
+| `super_loop` | `main` (or an entry point) loops forever calling several functions, no RTOS, short interrupt handlers |
+| `rtos_tasks` | two or more RTOS tasks, semaphores or queues, a queue or mailbox shared by tasks |
+| `event_driven` | subscribe and register calls, publish and post calls, three or more `EVENT_` identifiers |
+| `state_machine_table` | detected state machines, tables named for states or events |
+| `pipeline` | a chain of components, each depending on the next, covering most of the project |
+| `plugin_registry` | function-pointer structs with several implementations, and registration calls |
+| `big_ball_of_mud` | many components in cycles, no layering, dense dependencies (anti-pattern) |
+| `god_component` | one component holding a large share of the units and linked to most others (anti-pattern) |
+
+`architecture.patterns` adds a rule or replaces a bundled one with the same `id`. A rule has `id`, `name`, `scope`
+(`system` or `subsystem`), `signals` (signal name to weight; an unknown name is an error that lists the known ones),
+and optional `thresholds` (`low`, `medium`, `high` scores; the default is 40, 60 and 80 per cent of the total weight).
+Pattern verdicts are heuristics for review, not a statement of conformance.
+
 ---
 
 ## Configuration reference

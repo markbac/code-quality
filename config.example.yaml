@@ -354,3 +354,8 @@ output:
 #     - {domain: comms, units: ["drivers/uart*"]}
 #   domains:                            # your own domains, or replace a bundled one with the same id
 #     - {id: ble, name: Bluetooth, words: [ble, gatt, gap], includes: ["nrf_ble*"]}
+#   patterns:                           # add a pattern rule, or replace a bundled one with the same id
+#     - id: my_layers
+#       name: Strict layering
+#       signals: {layers_3plus: 2, acyclic: 2, next_layer_share_high: 3}
+#       thresholds: {low: 4, medium: 6, high: 7}

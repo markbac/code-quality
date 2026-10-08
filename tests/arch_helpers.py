@@ -6,6 +6,8 @@ from cparse import make_config, parse_model
 
 from fwlens.arch import build_architecture
 from fwlens.graph.engines import run_graph_engine
+from fwlens.rtos_analysis import run_rtos_analysis
+from fwlens.state_machines import detect_state_machines
 
 PROJECT = {
     "cfg.h": "typedef struct { int x; } CfgData;\nextern int cfg_value;\nint cfg_get(void);\n",
@@ -26,6 +28,8 @@ def project(tmp_path, sources=None, **overrides):
     for key, value in overrides.items():
         setattr(config.architecture, key, value)
     run_graph_engine(model, config)
+    run_rtos_analysis(model, config)
+    detect_state_machines(model)
     return model, config, build_architecture(model, config)
 
 

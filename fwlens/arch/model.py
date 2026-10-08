@@ -81,17 +81,30 @@ class LayerModel:
 
 
 @dataclass
+class PatternFinding:
+    id: str
+    name: str
+    scope: str                  # system or subsystem
+    confidence: str             # high, medium or low
+    score: float
+    signals: list = field(default_factory=list)      # [{signal, weight, detail}] that fired
+    component: str = ""         # the component, for a subsystem pattern
+
+
+@dataclass
 class ArchModel:
     weights: dict = field(default_factory=dict)
     units: list = field(default_factory=list)
     edges: list = field(default_factory=list)
     interfaces: list = field(default_factory=list)
     leaks: list = field(default_factory=list)
+    ops_headers: list = field(default_factory=list)     # headers with a struct of function pointers, owned or not
     components: list = field(default_factory=list)
     drift: list = field(default_factory=list)
     differences: list = field(default_factory=list)
     subsystems: list = field(default_factory=list)
     layering: LayerModel = field(default_factory=LayerModel)
+    patterns: list = field(default_factory=list)
 
     def as_dict(self) -> dict:
         from dataclasses import asdict

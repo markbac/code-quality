@@ -717,6 +717,39 @@
             "additionalProperties": false
           }
         },
+        "patterns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "scope": {
+                "enum": [
+                  "system",
+                  "subsystem"
+                ]
+              },
+              "domain": {
+                "type": "string"
+              },
+              "signals": {
+                "type": "object"
+              },
+              "thresholds": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "additionalProperties": false
+          }
+        },
         "drift_threshold": {
           "type": "number"
         }

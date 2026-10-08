@@ -41,7 +41,7 @@ def _is_static(lines: list[str], line: int, name: str) -> bool:
 
 
 def analyse(model: ProjectModel, units: Units, private_headers: list[str] | None = None):
-    """Returns (interfaces, leaks)."""
+    """Returns (interfaces, leaks, ops_headers): headers with a struct of function pointers, owned or not."""
     patterns = PRIVATE_HEADERS if private_headers is None else private_headers
     headers = sorted({norm(d) for m in model.modules for _s, d in m.all_include_edges}
                      | {norm(m.path) for m in model.modules if m.path.suffix.lower() in HEADER_SUFFIXES})
@@ -74,10 +74,13 @@ def analyse(model: ProjectModel, units: Units, private_headers: list[str] | None
         u = units.owner(table.file)
         if u:
             interfaces[u].tables.append(table.var_name)
+    ops_headers: list[str] = []
     for h, text in header_text.items():
-        u = units.owner(h)
-        if u and any(_FUNC_PTR_MEMBER.search(body) for _s, body in struct_bodies(text)):
-            interfaces[u].abstract_headers.append(h)
+        if any(_FUNC_PTR_MEMBER.search(body) for _s, body in struct_bodies(text)):
+            ops_headers.append(h)
+            u = units.owner(h)
+            if u:
+                interfaces[u].abstract_headers.append(h)
 
     includes: dict[str, set[str]] = defaultdict(set)         # unit -> headers its files include
     for m in model.modules:
@@ -117,5 +120,5 @@ def analyse(model: ProjectModel, units: Units, private_headers: list[str] | None
                 check(definition[0], owner, g.name, norm(function_file[fn]), line_of(text, at.start()) if at else 0)
     leaks.sort(key=lambda lk: (lk.source, lk.target, lk.symbol))
     unique = list({(lk.source, lk.target, lk.symbol, lk.kind): lk for lk in leaks}.values())
-    return [interfaces[u] for u in units.names], unique
+    return [interfaces[u] for u in units.names], unique, sorted(ops_headers)
 

@@ -326,6 +326,7 @@ class ArchitectureConfig:
     max_component_units: int = 40            # an IDE group larger than this is split by community detection
     domains: list = field(default_factory=list)      # more subsystem domains: [{id, name, words, includes}]
     subsystems: list = field(default_factory=list)   # pin a domain to units: [{domain, units: [path patterns]}]
+    patterns: list = field(default_factory=list)     # more pattern rules, or replacements: [{id, name, scope, signals, thresholds}]
     drift_threshold: float = 0.6             # report a unit when this share of its coupling is outside its directory's component
 
 
@@ -692,6 +693,9 @@ def load_config(config_path: Path) -> FwLensConfig:
     domains = arch_raw.get("domains") or []
     if not isinstance(domains, list) or not all(isinstance(d, dict) and d.get("id") for d in domains):
         raise ConfigError("architecture.domains must be a list of mappings, each with an 'id' and 'words' or 'includes'")
+    patterns = arch_raw.get("patterns") or []
+    if not isinstance(patterns, list) or not all(isinstance(p, dict) and p.get("id") for p in patterns):
+        raise ConfigError("architecture.patterns must be a list of mappings, each with an 'id' and 'signals'")
     pins = []
     for i, s in enumerate(arch_raw.get("subsystems") or []):
         patterns = s.get("units") if isinstance(s, dict) else None
@@ -708,7 +712,7 @@ def load_config(config_path: Path) -> FwLensConfig:
                                       components=pinned, resolution=resolution,
                                       max_component_units=int(arch_raw.get("max_component_units", 40)),
                                       drift_threshold=float(arch_raw.get("drift_threshold", 0.6)),
-                                      domains=domains, subsystems=pins)
+                                      domains=domains, subsystems=pins, patterns=patterns)
 
     cbom_raw = raw.get("cbom") or {}
     scan_scopes = [str(x) for x in cbom_raw.get("scan_scopes", ["first_party"])]
