@@ -40,6 +40,7 @@
 - [RTOS task/synchronisation analysis](#rtos-tasksynchronisation-analysis)
 - [State machine detection](#state-machine-detection)
 - [Architecture & call-graph diagrams](#architecture--call-graph-diagrams)
+- [Architecture recovery (planned)](#architecture-recovery-planned)
 - [Configuration reference](#configuration-reference)
 - [Metrics Etiquette](#metrics-etiquette)
 - [References](#references)
@@ -1954,6 +1955,32 @@ function highlighted in blue, high-structural-debt functions in red.
 > weight. The separate `architecture.md`/`dependency_graph.svg` files remain available if
 > you specifically want Mermaid's own rendering (e.g. to paste into other docs-as-code
 > tooling) or the matplotlib/networkx force-directed layout.
+
+---
+
+## Architecture recovery (planned)
+
+Not implemented yet. The design is in [`docs/ARCHITECTURE_RECOVERY.md`](docs/ARCHITECTURE_RECOVERY.md) and the work is
+tracked in issue #133. It adds a model of the architecture as implemented, named patterns at two
+levels, and checks against the intended architecture:
+
+- **As-implemented model:** typed, weighted dependencies (call, type, state, callback, include),
+  public and internal interfaces with encapsulation leaks, components inferred from build targets
+  and community detection with directory drift, and layers inferred from the cycle-free ordering.
+  Inferred components and layers are shown next to the configured `layers:`, never instead of them.
+- **Patterns, system level:** layered, HAL and ports and adapters, super-loop, RTOS task-based,
+  event-driven, table-driven state machine, pipeline, and the big-ball-of-mud and god-component
+  anti-patterns.
+- **Patterns, subsystem level:** each component is given a domain (UI, comms, storage, power,
+  metering) and tested only for the patterns that fit it, for example a screen state machine or
+  menu table for a UI, and a layered protocol stack or command dispatcher for comms.
+- **Conformance:** `architecture.intended_layers` and `architecture.rules`, drift against a saved
+  baseline, and a variant diff between build configurations.
+- **Output:** an Architecture view in the report, and PlantUML and Structurizr DSL exports.
+
+Every finding carries its evidence and a high, medium or low confidence, as the CBOM does. The new
+configuration lives under an `architecture:` section, which will be added to the schema and the
+example configuration as each step is built.
 
 ---
 
