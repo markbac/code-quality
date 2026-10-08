@@ -52,7 +52,7 @@ _ITEM_KEYS: dict[tuple[str, ...], type | tuple[str, ...]] = {
     ("architecture", "patterns"): ("id", "name", "scope", "domain", "signals", "thresholds"),
 }
 
-SUPPORTED_FORMATS = ("html", "csv", "json", "plots", "diagrams", "sarif", "sbom", "cbom")
+SUPPORTED_FORMATS = ("html", "csv", "json", "plots", "diagrams", "sarif", "sbom", "cbom", "architecture")
 
 
 def _fields(cls: type) -> list[str]:

@@ -99,6 +99,7 @@ Pass `-NoClean` to skip the automatic `.pyc` cache purge (faster re-runs when no
 | `config-schema` | Print the JSON Schema for `config.yaml` (`-o FILE` writes it) |
 | `sbom` | Write a CycloneDX 1.6 software bill of materials -- see [SBOM](#software-bill-of-materials-sbom) |
 | `cbom` | Write a CycloneDX 1.6 cryptography bill of materials -- see [CBOM](#cryptography-bill-of-materials-cbom) |
+| `architecture export` | Write the recovered architecture as PlantUML and Structurizr DSL -- see [Architecture recovery](#architecture-recovery) |
 | `compare`, `pr-comment` | Compare with the target branch; post the result -- see [PR / MR quality check](#pr--mr-quality-check) |
 | `standards list\|validate\|report` | MISRA C, CERT C, BARR-C and Power of 10 rules, deviations, compliance matrix |
 | `dump-ast` | Print the libclang AST for one file (see below) |
@@ -138,7 +139,7 @@ NAME` searches every in-scope file for functions that reference a global.
 
 An unknown key (for example `cyclomatic_complexty` under `thresholds`) produces a warning that
 names it and suggests the closest known key; the run continues. Unsupported values in
-`output.formats` (`html`, `csv`, `json`, `plots`, `diagrams`, `sarif`, `sbom`, `cbom`) and `scope.analyse` stop the
+`output.formats` (`html`, `csv`, `json`, `plots`, `diagrams`, `sarif`, `sbom`, `cbom`, `architecture`) and `scope.analyse` stop the
 run with the list of valid values. If `config.yaml` is not in the working directory, FWLens looks
 for `config.yaml`, `.fwlens.yaml` or `fwlens.yaml` in each parent directory.
 
@@ -2109,6 +2110,23 @@ others (storage, power, metering, cross-cutting) can be added with `architecture
 
 An indexed store such as `buf[i] = x` is counted by the parse as a read, so the buffer signals look at reads and
 writes together.
+
+### Exports and the report view
+
+`fwlens architecture export` (or `architecture` in `output.formats`, so `report` writes them too) writes to
+`<output.reports_dir>/architecture/`:
+
+- `architecture.puml`: a PlantUML component diagram. Components sit in a package per inferred level (top first),
+  a component with a dispatch table or ops struct gets an interface, dependencies are labelled by kind, and the
+  upward dependencies inside a cycle are drawn in red (`<<violation: cycle>>`). A dependency the configured layer
+  order calls upward is drawn in orange.
+- `architecture.dsl`: a Structurizr DSL workspace (C4). Subsystem domains are containers and components are
+  components, with a container view and a component view per domain.
+
+The HTML report has a **Recovered architecture** section in the Architecture tab: the patterns and their evidence,
+the inferred layers, the components and subsystems with their confidence, directory drift and encapsulation leaks.
+The whole model is in the JSON export under `architecture`. With `architecture.enabled: false` there is nothing to
+export, and the command says so.
 
 ---
 

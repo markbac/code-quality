@@ -248,7 +248,8 @@
               "diagrams",
               "sarif",
               "sbom",
-              "cbom"
+              "cbom",
+              "architecture"
             ]
           }
         },

@@ -761,6 +761,9 @@ def generate_html_report(model: ProjectModel, config: FwLensConfig):
         for p in model.change_coupling
     ][:30]
 
+    from fwlens.arch.view import report_view
+    architecture_view = report_view(model.architecture)
+
     # --- Architecture-level change coupling (rolled up from change_coupling by layer) ---
     layer_coupling_rows = [
         {
@@ -1096,6 +1099,7 @@ def generate_html_report(model: ProjectModel, config: FwLensConfig):
         clone_rows=clone_rows,
         coupling_pair_rows=coupling_pair_rows,
         layer_coupling_rows=layer_coupling_rows,
+        architecture_view=architecture_view,
         churn_heatmap_grid=churn_heatmap_grid,
         coupling_heatmap_grid=coupling_heatmap_grid,
         correlation_heatmap_data=correlation_heatmap_data,

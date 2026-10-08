@@ -1015,6 +1015,93 @@
   <p style="color:var(--dim)">No cross-layer coupled file pairs.</p>
   {% endif %}
 
+  {% if architecture_view %}
+  <div class="subsection" id="architecture-recovery" style="margin-top:36px;padding-top:22px;border-top:1px solid var(--border)">
+  <div class="section-title" style="margin-top:0">Recovered architecture
+    <span style="font-size:11px;font-weight:400;color:var(--dim)">inferred from the dependencies, next to the configured layers -- every finding shows its evidence</span>
+  </div>
+
+  <h4>Patterns</h4>
+  {% if architecture_view.system_patterns or architecture_view.subsystem_patterns %}
+  <table id="arch-patterns-table">
+    <thead><tr><th>Pattern</th><th>Scope</th><th>Confidence</th><th>Evidence</th></tr></thead>
+    <tbody>
+    {% for p in architecture_view.system_patterns + architecture_view.subsystem_patterns %}
+    <tr>
+      <td>{{ p.name }}</td>
+      <td class="dim">{{ "system" if p.scope == "system" else p.component }}</td>
+      <td class="{{ 'red' if p.confidence == 'high' and 'mud' in p.id or p.id == 'god_component' else '' }}">{{ p.confidence }}</td>
+      <td class="dim">{% for s in p.signals %}{{ s.detail }}{{ "; " if not loop.last }}{% endfor %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color:var(--dim)">No architectural pattern reached its threshold.</p>
+  {% endif %}
+
+  <h4 style="margin-top:20px">Inferred layers</h4>
+  <p class="dim" style="font-size:12px">Top first. {{ "%.0f"|format(architecture_view.next_layer_share * 100) }}% of downward weight goes to the layer directly below.</p>
+  <table id="arch-layers-table">
+    <thead><tr><th>Level</th><th>Components</th></tr></thead>
+    <tbody>
+    {% for l in architecture_view.layers %}
+    <tr><td>{{ l.level }}{{ " (cycle)" if l.cycle }}</td><td class="dim">{{ l.components | join(", ") }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if architecture_view.back_edges %}
+  <p class="dim" style="font-size:12px;margin-top:8px">Upward dependencies inside cycles (the weakest to remove):
+    {% for e in architecture_view.back_edges %}{{ e.source }} to {{ e.target }} ({{ e.weight }}){{ "; " if not loop.last }}{% endfor %}</p>
+  {% endif %}
+  {% if architecture_view.disagreements %}
+  <p class="dim" style="font-size:12px;margin-top:8px">Where the configured <code>layers:</code> order and the inferred one differ:
+    {% for d in architecture_view.disagreements %}{{ d.source }} ({{ d.source_layer }}) to {{ d.target }} ({{ d.target_layer }}): {{ d.note }}{{ "; " if not loop.last }}{% endfor %}</p>
+  {% endif %}
+
+  <h4 style="margin-top:20px">Components and subsystems</h4>
+  <table id="arch-components-table">
+    <thead><tr><th>Component</th><th>Units</th><th>Found by</th><th>Cohesion</th><th>Level</th><th>Domain</th><th>Confidence</th><th>Evidence</th></tr></thead>
+    <tbody>
+    {% for c in architecture_view.components %}
+    <tr>
+      <td>{{ c.name }}</td><td>{{ c.units }}</td><td class="dim">{{ c.source }}</td><td>{{ "%.0f"|format(c.cohesion * 100) }}%</td>
+      <td>{{ c.level }}</td><td>{{ c.domain }}</td><td class="dim">{{ c.confidence }}</td><td class="dim">{{ c.evidence }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if architecture_view.differences %}
+  <p class="dim" style="font-size:12px;margin-top:8px">Differences from the configured modules:
+    {% for d in architecture_view.differences %}{{ d.kind }}: {{ d.component }} ({{ d.detail | join(", ") }}){{ "; " if not loop.last }}{% endfor %}</p>
+  {% endif %}
+
+  {% if architecture_view.drift %}
+  <h4 style="margin-top:20px">Directory drift</h4>
+  <table id="arch-drift-table">
+    <thead><tr><th>File</th><th>Directory belongs to</th><th>Coupled to</th><th>Outside</th></tr></thead>
+    <tbody>
+    {% for d in architecture_view.drift %}
+    <tr><td>{{ d.unit }}</td><td class="dim">{{ d.directory_component }}</td><td>{{ d.best_component }}</td><td>{{ "%.0f"|format(d.outside * 100) }}%</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if architecture_view.leaks %}
+  <h4 style="margin-top:20px">Encapsulation leaks</h4>
+  <table id="arch-leaks-table">
+    <thead><tr><th>From</th><th>Reaches into</th><th>Symbol</th><th>Why</th><th>Where</th></tr></thead>
+    <tbody>
+    {% for lk in architecture_view.leaks %}
+    <tr><td>{{ lk.source }}</td><td>{{ lk.target }}</td><td><code>{{ lk.symbol }}</code></td><td class="dim">{{ lk.kind }}</td><td class="dim">{{ lk.where }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  </div>
+  {% endif %}
+
   <div class="subsection" style="margin-top:36px;padding-top:22px;border-top:1px solid var(--border)">
   <div class="section-title" style="margin-top:0">Include Hygiene</div>
 

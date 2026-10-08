@@ -744,6 +744,10 @@ def report(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_e
         with phase("CBOM"):
             written = write_cbom(config, config.output.exports_dir / 'cbom.cdx.json')
         console.print(f"[cyan][fwlens][/cyan] CBOM        : [bold]{written}[/bold]")
+    if "architecture" in formats:
+        written_arch = _write_architecture_exports(model, config)
+        for path in written_arch:
+            console.print(f"[cyan][fwlens][/cyan] Architecture  : [bold]{path}[/bold]")
     if "plots" in formats:
         from fwlens.output.plots import generate_plots
         with phase("Plots"):
@@ -805,6 +809,29 @@ def sbom_cmd(config_path, output_path):
                   if any(p["name"] == "fwlens:version-source" and p["value"] == "unknown" for p in c["properties"]))
     console.print(f"[cyan][fwlens][/cyan] SBOM: [bold]{written}[/bold] ({len(doc['components'])} component(s), "
                   f"{unknown} without a version)")
+
+
+def _write_architecture_exports(model, config) -> list:
+    """PlantUML and Structurizr DSL files for the recovered architecture."""
+    from fwlens.arch.export import write_exports
+    if model.architecture is None:
+        console.print("[yellow][fwlens] Architecture model is off (architecture.enabled: false) -- nothing to export.[/yellow]")
+        return []
+    with phase("Architecture export"):
+        return write_exports(model.architecture, config.output.reports_dir / "architecture", config.config_path.parent.name or "Firmware")
+
+
+@cli.group(name="architecture")
+def architecture_group():
+    """Recovered architecture: exports, rules, baselines and comparisons (see docs/ARCHITECTURE_RECOVERY.md)."""
+
+
+@architecture_group.command(name="export")
+@click.option("--config", "config_path", default="config.yaml", type=_CONFIG_FILE, help="Path to config.yaml")
+def architecture_export(config_path):
+    """Write the recovered architecture as PlantUML (architecture.puml) and Structurizr DSL (architecture.dsl)."""
+    model, config = _run_pipeline(Path(config_path))
+    _write_architecture_exports(model, config)
 
 
 @cli.command(name="cbom")
