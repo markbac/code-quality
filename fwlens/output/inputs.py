@@ -18,6 +18,7 @@ from typing import Any
 
 from fwlens import __version__
 from fwlens.config import FwLensConfig
+from fwlens.timing import timer
 
 MAX_CONFIG_BYTES = 200_000
 _SKIP = {".git", "build", "__pycache__", ".cache", "node_modules", ".pytest_cache", "output", ".pio", ".venv"}
@@ -205,7 +206,7 @@ def inputs_view(config: FwLensConfig) -> dict[str, Any]:
         "version": __version__, "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "config_path": str(config.config_path), "config_sha": sha, "config_text": text, "config_truncated": truncated,
         "warnings": list(config.warnings), "project_files": _project_files(config, root), "settings": _settings(config),
-        "build_files": [], "files": None, "error": "",
+        "build_files": [], "files": None, "error": "", "timing": timer.as_dict() if timer.phases else None,
     }
     try:
         out["build_files"] = _discover_build_files(config, root)

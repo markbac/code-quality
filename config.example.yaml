@@ -192,6 +192,7 @@ output:
 
   # Files longer than this many lines are not embedded in the HTML source viewer.
   # source_embed_loc_limit: 10000
+  # show_timing: true                 # print where the run time went when a command ends
 
   # Number of top offenders to show in console summary.
   top_n: 20

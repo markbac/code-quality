@@ -10,6 +10,7 @@ from pathlib import Path
 
 from fwlens.config import FwLensConfig
 from fwlens.model.project import FunctionMetrics, ModuleMetrics, ProjectModel
+from fwlens.timing import timer
 
 _FUNCTION_CSV_FIELDS = [
     "name", "file", "line", "loc",
@@ -569,6 +570,7 @@ def export_json(model: ProjectModel, config: FwLensConfig) -> None:
             "module_count": len(fp_modules),
             "function_count": len(fp_funcs),
             "history_warnings": list(getattr(model, "history_warnings", []) or []),
+            "timing": timer.as_dict(),
         },
         "codebase_fingerprint": _serialise(model.codebase_fingerprint),
         "exceedance_probabilities": model.exceedance_probabilities,

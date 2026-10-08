@@ -20,6 +20,7 @@ import click
 from rich.console import Console
 
 from fwlens import __version__
+from fwlens.timing import phase, timer
 
 console = Console()
 
@@ -102,38 +103,41 @@ def _run_pipeline(config_path: Path, auto_stub: bool = False, jobs=None, timeout
             from fwlens.autostub import run_auto_stub
             run_auto_stub(config, console)
 
+    timer.reset()
+    timer.show = config.output.show_timing
     t0 = time.perf_counter()
-    model = run_pipeline(config, jobs=jobs, timeout=timeout, use_cache=False if no_cache else None)
-    from fwlens.footprint import apply_map_file
-    apply_map_file(model, config)
+    with phase("Parse project"):
+        model = run_pipeline(config, jobs=jobs, timeout=timeout, use_cache=False if no_cache else None)
+
+    def clusters(m, c):
+        m.diagnostic_clusters = compute_diagnostic_clusters(m)
+
+    def warnings_(m, c):
+        m.history_warnings = history_warnings()
+
     from fwlens.diagnostic_clusters import compute_diagnostic_clusters
-    model.diagnostic_clusters = compute_diagnostic_clusters(model)
-    run_aggregation(model, config)
-    run_graph_engine(model, config)
-    run_stats_engine(model, config)
-    compute_hotspots(model, config)
-    compute_change_coupling(model, config)
-    compute_churn_heatmap(model, config)
-    compute_commit_activity(model, config)
-    compute_architecture_coupling(model, config)
-    compute_ownership(model, config)
-    flag_hotspot_names(model)
-    compute_complexity_trends(model, config)
-    compute_effort_estimate(model, config)
-    compute_reliability_growth(model, config)
-    compute_bugfix_hotspots(model, config)
-    compute_defect_correlation(model, config)
-    model.history_warnings = history_warnings()
-    compute_cost_benefit(model, config)
-    run_rtos_analysis(model, config)
-    detect_state_machines(model)
-    run_tech_debt_scan(model)
-    detect_clones(model)
-    compute_composite_risk(model)
+    from fwlens.footprint import apply_map_file
+    steps = [
+        ("Linker map", apply_map_file), ("Diagnostic clusters", clusters), ("Aggregate metrics", run_aggregation),
+        ("Call graph", run_graph_engine), ("Statistics", run_stats_engine), ("Hotspots", compute_hotspots),
+        ("Change coupling", compute_change_coupling), ("Churn heatmap", compute_churn_heatmap),
+        ("Commit activity", compute_commit_activity), ("Architecture coupling", compute_architecture_coupling),
+        ("Ownership", compute_ownership), ("Hotspot names", lambda m, c: flag_hotspot_names(m)),
+        ("Complexity trends", compute_complexity_trends), ("Effort estimate", compute_effort_estimate),
+        ("Reliability growth", compute_reliability_growth), ("Bug-fix hotspots", compute_bugfix_hotspots),
+        ("Defect correlation", compute_defect_correlation), ("History warnings", warnings_),
+        ("Cost-benefit", compute_cost_benefit), ("RTOS analysis", run_rtos_analysis),
+        ("State machines", lambda m, c: detect_state_machines(m)), ("Technical debt", lambda m, c: run_tech_debt_scan(m)),
+        ("Clone detection", lambda m, c: detect_clones(m)), ("Composite risk", lambda m, c: compute_composite_risk(m)),
+    ]
+    for name, step in steps:
+        with phase(name):
+            step(model, config)
     elapsed = time.perf_counter() - t0
     console.print(f"[cyan][fwlens][/cyan] Analysis complete in [bold]{elapsed:.1f}s[/bold]")
 
-    post_issues = run_post_scan_preflight(config, model)
+    with phase("Post-scan checks"):
+        post_issues = run_post_scan_preflight(config, model)
     print_preflight_issues(post_issues, console)
 
     return model, config
@@ -232,10 +236,17 @@ def _keep_output_alive() -> None:
             pass
 
 
+def _print_timing() -> None:
+    if timer.show:
+        timer.render(console)
+
+
 @click.group()
-def cli():
+@click.pass_context
+def cli(ctx):
     """fwlens -- Embedded C Architecture & Static Analysis Platform."""
     _keep_output_alive()
+    ctx.call_on_close(_print_timing)          # also when a gate ends the command with exit code 1
 
 
 @cli.command()
@@ -707,30 +718,40 @@ def report(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_e
 
     formats = config.output.formats
     if "html" in formats:
-        path = generate_html_report(model, config)
+        with phase("HTML report"):
+            path = generate_html_report(model, config)
         console.print(f"[cyan][fwlens][/cyan] HTML report: [bold]{path}[/bold]")
     if "csv" in formats:
-        export_csv(model, config)
+        with phase("CSV exports"):
+            export_csv(model, config)
         console.print(f"[cyan][fwlens][/cyan] CSV exports: [bold]{config.output.exports_dir}[/bold]")
     if "json" in formats:
-        export_json(model, config)
+        with phase("JSON export"):
+            export_json(model, config)
         console.print(f"[cyan][fwlens][/cyan] JSON export: [bold]{config.output.exports_dir / 'fwlens_results.json'}[/bold]")
     if "sarif" in formats and not sarif_path:
-        _emit_sarif(model, config, config.output.exports_dir / "fwlens.sarif")
+        with phase("SARIF"):
+            _emit_sarif(model, config, config.output.exports_dir / "fwlens.sarif")
     if "sbom" in formats:
         from fwlens.sbom import write_sbom
-        console.print(f"[cyan][fwlens][/cyan] SBOM        : [bold]{write_sbom(config, config.output.exports_dir / 'sbom.cdx.json')}[/bold]")
+        with phase("SBOM"):
+            written = write_sbom(config, config.output.exports_dir / 'sbom.cdx.json')
+        console.print(f"[cyan][fwlens][/cyan] SBOM        : [bold]{written}[/bold]")
     if "cbom" in formats:
         from fwlens.cbom import write_cbom
-        console.print(f"[cyan][fwlens][/cyan] CBOM        : [bold]{write_cbom(config, config.output.exports_dir / 'cbom.cdx.json')}[/bold]")
+        with phase("CBOM"):
+            written = write_cbom(config, config.output.exports_dir / 'cbom.cdx.json')
+        console.print(f"[cyan][fwlens][/cyan] CBOM        : [bold]{written}[/bold]")
     if "plots" in formats:
         from fwlens.output.plots import generate_plots
-        plots_dir = generate_plots(model, config)
+        with phase("Plots"):
+            plots_dir = generate_plots(model, config)
         console.print(f"[cyan][fwlens][/cyan] Plots       : [bold]{plots_dir}[/bold]")
     if "diagrams" in formats:
         from fwlens.output.diagrams import generate_architecture_diagram, generate_dependency_svg
-        arch_path = generate_architecture_diagram(model, config)
-        svg_path = generate_dependency_svg(model, config)
+        with phase("Diagrams"):
+            arch_path = generate_architecture_diagram(model, config)
+            svg_path = generate_dependency_svg(model, config)
         console.print(f"[cyan][fwlens][/cyan] Architecture diagram: [bold]{arch_path}[/bold]")
         console.print(f"[cyan][fwlens][/cyan] Dependency SVG      : [bold]{svg_path}[/bold]")
 

@@ -257,6 +257,9 @@
         },
         "source_embed_loc_limit": {
           "type": "integer"
+        },
+        "show_timing": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false

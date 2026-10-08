@@ -26,6 +26,7 @@ from fwlens.model.project import (
     ProjectModel,
 )
 from fwlens.parser.ewp import parse_ewp
+from fwlens.timing import phase, timer
 
 console = Console()
 
@@ -118,6 +119,9 @@ def _worker_main(conn, config: FwLensConfig, parse_fn) -> None:
 _MAX_STARTUP_FAILURES = 3
 
 
+PARSE_SECONDS: dict[str, float] = {}      # wall time of each file's parse in its worker, for the run timing table
+
+
 class _Slot:
     def __init__(self):
         self.proc = None
@@ -126,6 +130,7 @@ class _Slot:
         self.dead = False
         self.task: Optional[dict] = None
         self.deadline: Optional[float] = None
+        self.started = 0.0
 
 
 def _start(slot: _Slot, ctx, config: FwLensConfig, parse_fn) -> None:
@@ -189,6 +194,7 @@ def _parse_parallel(tu_dicts: list[dict], config: FwLensConfig, workers: int,
                 if not s.dead and s.ready and s.task is None and pending:
                     s.task = pending.popleft()
                     s.deadline = time.monotonic() + timeout if timeout else None
+                    s.started = time.monotonic()
                     s.conn.send(s.task)
 
             now = time.monotonic()
@@ -213,6 +219,7 @@ def _parse_parallel(tu_dicts: list[dict], config: FwLensConfig, workers: int,
                 if msg is not None:
                     task, s.task, s.deadline = s.task, None, None
                     outstanding -= 1
+                    PARSE_SECONDS[task["path"]] = time.monotonic() - s.started
                     yield task, msg
                     continue
 
@@ -411,7 +418,9 @@ def run_pipeline(config: FwLensConfig, jobs: Optional[int] = None,
     `jobs`, `timeout` (seconds per file, 0 disables) and `use_cache` override
     `tool.jobs`, `tool.parse_timeout` and `tool.parse_cache` when given.
     """
-    ewp_result = read_project(config)
+    PARSE_SECONDS.clear()
+    with phase("Read project description"):
+        ewp_result = read_project(config)
 
     scope_values = set(config.scope.analyse)
     in_scope  = [tu for tu in ewp_result.source_files if tu.boundary_class.value in scope_values]
@@ -477,101 +486,104 @@ def run_pipeline(config: FwLensConfig, jobs: Optional[int] = None,
     parse_errors: list[dict] = []
     parse_ok = 0
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[cyan][fwlens][/cyan] {task.description}"),
-        BarColumn(),
-        TaskProgressColumn(),
-        console=console,
-    ) as progress:
-        task = progress.add_task("Parsing files...", total=len(in_scope))
+    with phase("Parse source files", f"{len(to_parse)} parsed, {len(cached)} cached, {workers} worker(s)"):
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[cyan][fwlens][/cyan] {task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Parsing files...", total=len(in_scope))
 
-        def _results():
-            yield from cached
-            for tu_dict, result in _parse_parallel(to_parse, config, workers, timeout, _parse_fn):
-                if cache is not None:
-                    cache.put(tu_dict, result)
-                yield tu_dict, result
+            def _results():
+                yield from cached
+                for tu_dict, result in _parse_parallel(to_parse, config, workers, timeout, _parse_fn):
+                    if cache is not None:
+                        cache.put(tu_dict, result)
+                    yield tu_dict, result
 
-        for tu_dict, result in _results():
-            path_str, func_dicts, global_dicts, include_strs, all_include_edges, bc_str, iar_group, type_decl_count, file_scope_fn_refs, dispatch_tables_raw, dispatch_table_lines, var_registrations_raw, task_table_entries_raw, diagnostics_raw, error = result
+            for tu_dict, result in _results():
+                path_str, func_dicts, global_dicts, include_strs, all_include_edges, bc_str, iar_group, type_decl_count, file_scope_fn_refs, dispatch_tables_raw, dispatch_table_lines, var_registrations_raw, task_table_entries_raw, diagnostics_raw, error = result
 
-            if error:
-                first_line = error.splitlines()[0]
-                # Classify error type from first line
-                if first_line.startswith("TimeoutError"):
-                    etype = "timeout"
-                elif first_line.startswith("WorkerCrash"):
-                    etype = "worker-crash"
-                elif "Unknown template argument kind" in first_line:
-                    etype = "libclang-unknown-kind"
-                elif "file not found" in first_line:
-                    etype = "missing-header"
-                elif "ValueError" in first_line:
-                    etype = "binding-error"
-                elif "ImportError" in first_line or "ModuleNotFound" in first_line:
-                    etype = "import-error"
+                if error:
+                    first_line = error.splitlines()[0]
+                    # Classify error type from first line
+                    if first_line.startswith("TimeoutError"):
+                        etype = "timeout"
+                    elif first_line.startswith("WorkerCrash"):
+                        etype = "worker-crash"
+                    elif "Unknown template argument kind" in first_line:
+                        etype = "libclang-unknown-kind"
+                    elif "file not found" in first_line:
+                        etype = "missing-header"
+                    elif "ValueError" in first_line:
+                        etype = "binding-error"
+                    elif "ImportError" in first_line or "ModuleNotFound" in first_line:
+                        etype = "import-error"
+                    else:
+                        etype = "parse-error"
+                    parse_errors.append({
+                        "file":       path_str,
+                        "short":      Path(path_str).name,
+                        "error_type": etype,
+                        "first_line": first_line,
+                        "full":       error,
+                    })
                 else:
-                    etype = "parse-error"
-                parse_errors.append({
-                    "file":       path_str,
-                    "short":      Path(path_str).name,
-                    "error_type": etype,
-                    "first_line": first_line,
-                    "full":       error,
-                })
-            else:
-                parse_ok += 1
+                    parse_ok += 1
 
-            path = Path(path_str)
-            boundary = BoundaryClass(bc_str)
+                path = Path(path_str)
+                boundary = BoundaryClass(bc_str)
 
-            # Reconstruct FunctionMetrics
-            functions: list[FunctionMetrics] = []
-            for fd in func_dicts:
-                fm = FunctionMetrics.__new__(FunctionMetrics)
-                fm.__dict__.update(fd)
-                # Ensure Path type
-                fm.file = Path(fd["file"]) if isinstance(fd.get("file"), str) else path
-                # Ensure list fields exist (guard against old pickled dicts)
-                for attr in ("callees", "callers", "global_reads", "global_writes",
-                             "parameters", "magic_numbers"):
-                    if not hasattr(fm, attr):
-                        setattr(fm, attr, [])
-                functions.append(fm)
+                # Reconstruct FunctionMetrics
+                functions: list[FunctionMetrics] = []
+                for fd in func_dicts:
+                    fm = FunctionMetrics.__new__(FunctionMetrics)
+                    fm.__dict__.update(fd)
+                    # Ensure Path type
+                    fm.file = Path(fd["file"]) if isinstance(fd.get("file"), str) else path
+                    # Ensure list fields exist (guard against old pickled dicts)
+                    for attr in ("callees", "callers", "global_reads", "global_writes",
+                                 "parameters", "magic_numbers"):
+                        if not hasattr(fm, attr):
+                            setattr(fm, attr, [])
+                    functions.append(fm)
 
-            # Reconstruct GlobalVarInfo
-            for gd in global_dicts:
-                gv = GlobalVarInfo.__new__(GlobalVarInfo)
-                gv.__dict__.update(gd)
-                gv.file = Path(gd["file"]) if isinstance(gd.get("file"), str) else path
-                all_globals.append(gv)
+                # Reconstruct GlobalVarInfo
+                for gd in global_dicts:
+                    gv = GlobalVarInfo.__new__(GlobalVarInfo)
+                    gv.__dict__.update(gd)
+                    gv.file = Path(gd["file"]) if isinstance(gd.get("file"), str) else path
+                    all_globals.append(gv)
 
-            includes = [Path(p) for p in include_strs]
-            include_edges = [(Path(s), Path(d)) for s, d in all_include_edges]
-            for entry in task_table_entries_raw:
-                all_task_table_entries.append({**entry, "file": path})
+                includes = [Path(p) for p in include_strs]
+                include_edges = [(Path(s), Path(d)) for s, d in all_include_edges]
+                for entry in task_table_entries_raw:
+                    all_task_table_entries.append({**entry, "file": path})
 
-            file_groups = [iar_group] if iar_group else []
-            mm = ModuleMetrics(
-                path=path,
-                boundary_class=boundary,
-                iar_groups=file_groups,
-                functions=functions,
-                function_count=len(functions),
-                includes=includes,
-                all_include_edges=include_edges,
-                loc=sum(f.loc for f in functions),
-                type_decl_count=type_decl_count,
-                file_scope_fn_refs=file_scope_fn_refs,
-                dispatch_tables=dispatch_tables_raw,
-                dispatch_table_lines=dispatch_table_lines,
-                var_registrations=var_registrations_raw,
-                indirect_call_sites=sum(f.indirect_call_count for f in functions),
-                parse_diagnostics=diagnostics_raw,
-            )
-            modules.append(mm)
-            progress.advance(task)
+                file_groups = [iar_group] if iar_group else []
+                mm = ModuleMetrics(
+                    path=path,
+                    boundary_class=boundary,
+                    iar_groups=file_groups,
+                    functions=functions,
+                    function_count=len(functions),
+                    includes=includes,
+                    all_include_edges=include_edges,
+                    loc=sum(f.loc for f in functions),
+                    type_decl_count=type_decl_count,
+                    file_scope_fn_refs=file_scope_fn_refs,
+                    dispatch_tables=dispatch_tables_raw,
+                    dispatch_table_lines=dispatch_table_lines,
+                    var_registrations=var_registrations_raw,
+                    indirect_call_sites=sum(f.indirect_call_count for f in functions),
+                    parse_diagnostics=diagnostics_raw,
+                )
+                modules.append(mm)
+                progress.advance(task)
+
+    timer.note_files(PARSE_SECONDS)
 
     # Register out-of-scope files as stub modules
     for tu in out_scope:

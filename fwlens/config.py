@@ -112,6 +112,7 @@ class OutputConfig:
     # source viewer entirely -- shown as "Source not available" rather than jumping to
     # source. A single enormous generated/vendored file isn't worth the size cost.
     source_embed_loc_limit: int = 10000
+    show_timing: bool = True        # print where the run's time went when the command ends
 
 
 @dataclass
@@ -570,6 +571,7 @@ def load_config(config_path: Path) -> FwLensConfig:
         formats=formats,
         top_n=out_raw.get("top_n", 20),
         source_embed_loc_limit=out_raw.get("source_embed_loc_limit", 10000),
+        show_timing=bool(out_raw.get("show_timing", True)),
     )
 
     entry_points = raw.get("entry_points", ["main"])

@@ -2119,6 +2119,7 @@ output:
   formats: [html, csv, json]        # also plots, diagrams, sarif, sbom, cbom
   top_n: 20
   source_embed_loc_limit: 10000
+  show_timing: true                  # print where the run time went when a command ends
 ```
 
 Listing `sbom`, `cbom` or `sarif` in `formats` also adds a readable **SBOM**, **CBOM** or **SARIF**
@@ -2166,6 +2167,18 @@ The task, semaphore, mutex, mailbox, queue, event and read-write lock creation f
 (default `Wait`, `Get`, `Receive`, `Take`, `Lock`, `Blocked`) and `signal_keywords` (default
 `Give`, `Put`, `Send`, `Unlock`, `Set`, `Pulse`) classify a called function as a wait or a signal
 when its name contains one of them, case-insensitively; signal is checked first.
+
+### Run timing
+
+Every command that analyses a project ends with a table of where the time went: the phases in
+order (nested ones indented, such as `Read project description` and `Parse source files` inside
+`Parse project`), each phase's seconds and its share of the run, and the slowest files to parse.
+Phases under 0.05 seconds are summed on one line, and files under a second are left out.
+
+The same rows are written to `fwlens_results.json` under `meta.timing` (`total_seconds`, `phases`,
+`slowest_files`) so two runs can be compared, and appear in the report's **Inputs** tab up to the
+moment the report is built. Files restored from the parse cache cost nothing and are not listed.
+`output.show_timing: false` removes the console table only.
 
 ### `sbom` and `cbom`
 

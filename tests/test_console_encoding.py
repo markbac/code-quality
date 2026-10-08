@@ -7,8 +7,9 @@ import subprocess
 import sys
 
 SNIPPET = ("import fwlens.cli.commands as c\n"
-           "c.cli.callback()\n"                     # what click runs first for every command
-           "c.console.print('[yellow]\\u26a0 a warning[/yellow]')\n")
+           "with c.cli.make_context('fwlens', ['init']):\n"
+           "    c.cli.callback()\n"                  # what click runs first for every command
+           "    c.console.print('[yellow]\\u26a0 a warning[/yellow]')\n")
 
 
 def run(extra_env):
