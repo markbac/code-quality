@@ -109,4 +109,4 @@ pip install -e .[dev]
 pytest
 ```
 
-For full documentation, see [FWLENS_GUIDE.md](FWLENS_GUIDE.md).
+For full documentation, see [FWLENS_GUIDE.md](FWLENS_GUIDE.md), which links to the guide by topic in [`docs/guide/`](docs/guide/).

@@ -12,7 +12,8 @@ import main as fwlens_main
 from fwlens import config_schema
 
 ROOT = Path(__file__).resolve().parent.parent
-GUIDE = (ROOT / "FWLENS_GUIDE.md").read_text(encoding="utf-8")
+GUIDE_FILES = [ROOT / "FWLENS_GUIDE.md", *sorted((ROOT / "docs" / "guide").glob("*.md"))]
+GUIDE = "\n".join(f.read_text(encoding="utf-8") for f in GUIDE_FILES)      # the guide is split by topic
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 EXAMPLE = (ROOT / "config.example.yaml").read_text(encoding="utf-8")
 
@@ -54,14 +55,23 @@ def test_every_config_key_is_documented(where, text):
     assert not missing, f"not in {where}: {missing}"
 
 
-def test_guide_contents_links_resolve():
+def test_guide_links_resolve():
     def slug(heading: str) -> str:
         s = re.sub(r"[^\w\s-]", "", heading.strip().lower())
         return re.sub(r"\s", "-", s)
 
-    anchors = {slug(m.group(2)) for m in re.finditer(r"^(#{1,6}) (.+?)\s*$", GUIDE, re.MULTILINE)}
-    links = set(re.findall(r"\]\(#([^)]+)\)", GUIDE))
-    assert sorted(links - anchors) == []
+    def anchors(path: Path) -> set[str]:
+        text = re.sub(r"```.*?```", "", path.read_text(encoding="utf-8"), flags=re.DOTALL)
+        return {slug(m.group(2)) for m in re.finditer(r"^(#{1,6}) (.+?)\s*$", text, re.MULTILINE)}
+
+    broken = []
+    for file in GUIDE_FILES:
+        text = re.sub(r"```.*?```", "", file.read_text(encoding="utf-8"), flags=re.DOTALL)
+        for target, anchor in re.findall(r"\]\(([^)#\s]*\.md)?#([^)]+)\)", text) + [(t, "") for t in re.findall(r"\]\(([^)#\s]+\.md)\)", text)]:
+            where = (file.parent / target).resolve() if target else file
+            if not where.exists() or (anchor and anchor not in anchors(where)):
+                broken.append(f"{file.name}: {target}#{anchor}")
+    assert broken == []
 
 
 def test_example_config_is_valid_and_shows_every_output_format():

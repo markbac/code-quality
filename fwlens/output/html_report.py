@@ -1,7 +1,7 @@
 """
 HTML report generator for fwlens.
 
-Produces a self-contained tabbed HTML report using the Jinja2 template in templates/report.html.j2.
+Produces a self-contained tabbed HTML report using the Jinja2 template in templates/report.html.j2, with its styles in report.css and its script in report.js.
 No external assets required -- everything is inlined into the output file.
 
 Tabs:
@@ -34,7 +34,11 @@ from fwlens.output.diagrams import (
 
 def _load_template() -> str:
     """The report page (Jinja2), kept as package data so it can be linted, diffed and tested on its own."""
-    return (Path(__file__).parent / "templates" / "report.html.j2").read_text(encoding="utf-8")
+    return _template_file("report.html.j2")
+
+
+def _template_file(name: str) -> str:
+    return (Path(__file__).parent / "templates" / name).read_text(encoding="utf-8")
 
 
 def _breach(value, threshold) -> bool:
@@ -1061,6 +1065,8 @@ def generate_html_report(model: ProjectModel, config: FwLensConfig):
     env = Environment(loader=BaseLoader())
     tmpl = env.from_string(_load_template())
     html = tmpl.render(
+        report_css=_template_file("report.css"),
+        report_js=_template_file("report.js"),
         meta=meta,
         functions=func_rows,
         modules=module_rows,
