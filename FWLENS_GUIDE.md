@@ -2254,6 +2254,32 @@ architecture:
 Every row is a place to look, not a verdict. Ownership uses each file's main author. Without git history only the
 shared state table is filled.
 
+### Trust boundary paths
+
+`architecture.trust_paths` (the **Trust boundaries** table in the report) shows how data that enters through a
+communication interface can reach sensitive code. For each entry point and each kind of sink, FWLens reports the
+shortest chain of calls that leaves the entry point's component, function by function, with the components it crosses.
+
+- **Entry points**: by default the functions nothing in the project calls (interrupt handlers, task bodies) inside a
+  `comms` component.
+- **Sinks**: by default any function in a `security` component (kind `crypto`), a `storage` component (`storage`) or a
+  `boot_update` component (`update`).
+- **CBOM link**: if a function on the path calls an API in the CBOM catalogue, the path lists the API, its library and
+  the catalogue entry, so it can be matched with the entries in the CBOM.
+
+To choose your own, give each item exactly one of `domain`, `component` or `function` (a name pattern). A `function`
+entry is always an entry point; a sink also has a `kind` label:
+
+```yaml
+architecture:
+  trust_entries: [{domain: comms}, {function: "*_rx_isr"}]
+  trust_sinks:
+    - {kind: crypto, domain: security}
+    - {kind: config, function: "cfg_write_*"}
+```
+
+Only direct calls are followed, up to ten calls deep. A path through a function pointer or a dispatch table is not seen.
+
 ---
 
 ## Configuration reference

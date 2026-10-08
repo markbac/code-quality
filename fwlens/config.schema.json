@@ -874,6 +874,45 @@
             "additionalProperties": false
           }
         },
+        "trust_entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "domain": {
+                "type": "string"
+              },
+              "component": {
+                "type": "string"
+              },
+              "function": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "trust_sinks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "domain": {
+                "type": "string"
+              },
+              "component": {
+                "type": "string"
+              },
+              "function": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
         "teams": {
           "type": "object"
         },

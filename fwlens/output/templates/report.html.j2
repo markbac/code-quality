@@ -1095,6 +1095,18 @@
   </table>
   {% endif %}
 
+  {% if architecture_view.trust %}
+  <h4 style="margin-top:20px">Trust boundaries</h4>
+  <table id="arch-trust-table">
+    <thead><tr><th>Entry point</th><th>Reaches</th><th>Path</th><th>Crosses</th><th>CBOM APIs</th></tr></thead>
+    <tbody>
+    {% for t in architecture_view.trust %}
+    <tr><td><code>{{ t.entry }}</code></td><td>{{ t.kind }}</td><td class="dim">{{ t.path }}</td><td>{{ t.crossings }}</td><td class="dim">{{ t.apis or "-" }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
   {% if architecture_view.activity.hotspots or architecture_view.activity.hidden_coupling or architecture_view.activity.shared_state %}
   <h4 style="margin-top:20px">Activity by component</h4>
   {% if architecture_view.activity.hotspots %}

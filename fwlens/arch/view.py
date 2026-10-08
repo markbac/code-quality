@@ -38,6 +38,9 @@ def report_view(arch: ArchModel | None) -> dict | None:
         "events": [{"event": e.event, "publishers": ", ".join(sorted({p["function"] for p in e.publishers})),
                     "subscribers": ", ".join(sorted({s["callback"] for s in e.subscribers})),
                     "broker": ", ".join(sorted({s["broker"] for s in e.subscribers}))} for e in arch.events[:ROWS]],
+        "trust": [{"entry": t["entry"], "kind": t["kind"], "sink": t["sink"], "path": " > ".join(h["function"] for h in t["path"]),
+                   "crossings": ", ".join(t["crossings"]), "apis": ", ".join(a["api"] for a in t["crypto_apis"])}
+                  for t in arch.trust_paths[:ROWS]],
         "activity": {k: v[:10] for k, v in arch.activity.items()},
         "since": since,
         "since_error": arch.since_baseline.get("error", ""),

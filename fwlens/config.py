@@ -333,6 +333,8 @@ class ArchitectureConfig:
     forbid_cycles: bool = False              # report every upward dependency inside a cycle of components
     register_calls: list = field(default_factory=list)   # registration functions: [{function, id_arg, callback_arg}] (0-based)
     publish_calls: list = field(default_factory=list)    # publish functions: [{function, id_arg}]
+    trust_entries: list = field(default_factory=list)   # entry points for trust boundary paths; default: comms domain
+    trust_sinks: list = field(default_factory=list)     # sensitive code: [{kind, domain|component|function}]
     teams: dict = field(default_factory=dict)        # team name -> author name patterns, to see components edited by several teams
     baseline: Path | None = None             # a saved architecture snapshot (architecture save) to compare each run with
     drift_threshold: float = 0.6             # report a unit when this share of its coupling is outside its directory's component
@@ -705,6 +707,8 @@ def load_config(config_path: Path) -> FwLensConfig:
     validate_rules(arch_raw.get("rules"), arch_raw.get("intended_layers"))
     from fwlens.arch.pubsub import validate as validate_events
     validate_events(arch_raw.get("register_calls"), arch_raw.get("publish_calls"))
+    from fwlens.arch.trust import validate as validate_trust
+    validate_trust(arch_raw.get("trust_entries"), arch_raw.get("trust_sinks"))
     teams = arch_raw.get("teams") or {}
     if not isinstance(teams, dict) or not all(isinstance(v, list) and v for v in teams.values()):
         raise ConfigError("architecture.teams must map each team name to a list of author name patterns")
@@ -732,6 +736,8 @@ def load_config(config_path: Path) -> FwLensConfig:
                                       intended_layers=list(arch_raw.get("intended_layers") or []),
                                       rules=list(arch_raw.get("rules") or []),
                                       teams=teams,
+                                      trust_entries=list(arch_raw.get("trust_entries") or []),
+                                      trust_sinks=list(arch_raw.get("trust_sinks") or []),
                                       register_calls=list(arch_raw.get("register_calls") or []),
                                       publish_calls=list(arch_raw.get("publish_calls") or []),
                                       baseline=resolve(str(arch_raw["baseline"])) if arch_raw.get("baseline") else None,

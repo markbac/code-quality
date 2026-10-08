@@ -371,6 +371,10 @@ output:
 #     - {function: EventBus_Hook, id_arg: 0, callback_arg: 1}
 #   publish_calls:
 #     - {function: EventBus_Kick, id_arg: 0}
+#   trust_entries: [{domain: comms}]     # where outside data enters; one of domain, component or function (a name pattern) per item
+#   trust_sinks:                        # sensitive code the paths lead to; the defaults are security, storage and boot_update
+#     - {kind: crypto, domain: security}
+#     - {kind: config, function: "cfg_write_*"}
 #   teams:                              # author name patterns per team, to see components edited by several teams
 #     web: ["ann*", "cy *"]
 #     backend: ["bob *"]

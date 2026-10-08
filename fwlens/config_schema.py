@@ -53,6 +53,8 @@ _ITEM_KEYS: dict[tuple[str, ...], type | tuple[str, ...]] = {
     ("architecture", "rules"): ("id", "from", "to", "allow", "kinds"),
     ("architecture", "register_calls"): ("function", "id_arg", "callback_arg"),
     ("architecture", "publish_calls"): ("function", "id_arg"),
+    ("architecture", "trust_entries"): ("domain", "component", "function"),
+    ("architecture", "trust_sinks"): ("kind", "domain", "component", "function"),
 }
 
 SUPPORTED_FORMATS = ("html", "csv", "json", "plots", "diagrams", "sarif", "sbom", "cbom", "architecture")
@@ -209,6 +211,11 @@ def json_schema() -> dict:
         "type": "array", "items": {"type": "object", "properties": {
             "function": {"type": "string"}, "id_arg": {"type": "integer", "minimum": 0}},
             "required": ["function", "id_arg"], "additionalProperties": False}}
+    for key, extra in (("trust_entries", {}), ("trust_sinks", {"kind": {"type": "string"}})):
+        properties["architecture"]["properties"][key] = {
+            "type": "array", "items": {"type": "object", "properties": {
+                "domain": {"type": "string"}, "component": {"type": "string"}, "function": {"type": "string"}, **extra},
+                "additionalProperties": False}}
 
     component = _section_schema(_cfg.SbomComponent)
     component["required"] = ["name", "path"]

@@ -128,6 +128,7 @@ class ArchModel:
     patterns: list = field(default_factory=list)
     violations: list = field(default_factory=list)
     events: list = field(default_factory=list)
+    trust_paths: list = field(default_factory=list)        # call chains from entry points to sensitive code
     activity: dict = field(default_factory=dict)           # git history, ownership and shared state by component
     since_baseline: dict = field(default_factory=dict)      # changes against architecture.baseline, if one is set
 
