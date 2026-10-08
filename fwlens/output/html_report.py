@@ -156,6 +156,11 @@ def _standards_context(model: ProjectModel, config: FwLensConfig) -> dict | None
     rows = build_matrix(result)
     return {"rows": rows, "summary": summarise(rows), "disclaimer": DISCLAIMER, "error": None,
             "problems": [{"id": d.id, "message": m} for d, m in result.problems],
+            "recategorised": [{"guideline": k, "from": o, "to": n, "reason": r.reason, "approved_by": r.approved_by}
+                              for k, (o, n, r) in sorted(result.recategorised.items())],
+            "triaged": [{"finding": f.id, "outcome": e.outcome, "reason": e.reason, "owner": e.owner,
+                         "date": e.date.isoformat() if e.date else ""} for f, e in result.triaged],
+            "stale_triage": result.stale_triage,
             "names": {sid: f"{s.name} ({s.revision})" for sid, s in result.standards.items()}}
 
 

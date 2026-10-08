@@ -149,7 +149,19 @@ def compute_breaches(model: ProjectModel, config: FwLensConfig) -> list[Breach]:
     _standards_findings(model, config, breaches)
     _architecture_findings(model, root, breaches)
     _assign_ordinals(breaches)
-    return breaches
+    return _apply_triage(model, config, breaches)
+
+
+def _apply_triage(model: ProjectModel, config: FwLensConfig, breaches: list[Breach]) -> list[Breach]:
+    """Record the triage outcomes on the standards result and drop findings triaged as false positives."""
+    if not getattr(config, "standards", None) or not config.standards.enabled or not config.standards.triage_file:
+        return breaches
+    from fwlens.standards import run_standards
+    from fwlens.standards.triage import apply_triage
+    result = run_standards(model, config)
+    _kept, result.triaged, result.stale_triage = apply_triage([b for b in breaches if b.kind == "rule"], result.triage)
+    dropped = {id(b) for b, e in result.triaged if e.outcome == "false_positive"}
+    return [b for b in breaches if id(b) not in dropped]
 
 
 def _architecture_findings(model: ProjectModel, root, breaches: list[Breach]) -> None:

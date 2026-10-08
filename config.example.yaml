@@ -282,6 +282,8 @@ output:
 #     - standard: fwlens             # secrets, dead code, interrupt safety
 #   extra_rule_dirs: [./standards]
 #   deviations_file: ./standards/deviations.yaml
+#   triage_file: ./standards/triage.yaml                  # outcome of investigating each finding (true_positive, false_positive, accepted)
+#   recategorisation_file: ./standards/recategorisation.yaml   # guidelines moved to another category
 #   imports:
 #     - { tool: cppcheck, path: build/cppcheck.xml }
 #     - { tool: clang-analyzer, path: build/report.plist }   # also clang-tidy, clang-tidy-yaml, sarif

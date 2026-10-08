@@ -412,6 +412,18 @@
             "null"
           ]
         },
+        "triage_file": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "recategorisation_file": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "imports": {
           "type": "array",
           "items": {

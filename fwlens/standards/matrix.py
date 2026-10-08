@@ -19,6 +19,8 @@ DISCLAIMER = ("This matrix reports what FWLens checked or imported. It is not a 
 def build_matrix(result) -> list[dict]:
     active = Counter(f.metric for f in result.findings)
     deviated = Counter(f.metric for f, _ in result.deviated)
+    triaged = Counter(f.metric for f, _ in result.triaged)
+    false_positive = Counter(f.metric for f, e in result.triaged if e.outcome == "false_positive")
     dev_ids: dict[str, set] = {}
     for f, d in result.deviated:
         dev_ids.setdefault(f.metric, set()).add(d.id)
@@ -43,12 +45,31 @@ def build_matrix(result) -> list[dict]:
             how = "imported" if imports_supplied else "import-only, no results supplied"
         rows.append({
             "standard": rule.standard, "id": rule.id, "kind": rule.kind, "title": rule.title,
-            "category": rule.category, "decidable": rule.decidable, "scope": rule.scope,
+            "category": rule.category, "original_category": result.recategorised[rule.key][0] if rule.key in result.recategorised else "",
+            "triaged": triaged[rule.key], "false_positive": false_positive[rule.key], "decidable": rule.decidable, "scope": rule.scope,
             "coverage": rule.coverage if native else "none",
             "status": status, "checked_by": how, "violations": active[rule.key],
             "deviated": deviated[rule.key], "deviations": sorted(dev_ids.get(rule.key, [])),
         })
     return rows
+
+
+def _triage_lines(result) -> list[str]:
+    out: list[str] = []
+    if result.recategorised:
+        out += ["## Recategorised guidelines", "", "| Guideline | From | To | Reason | Approved by |", "|---|---|---|---|---|"]
+        for key, (old, new, r) in sorted(result.recategorised.items()):
+            out.append(f"| {key} | {old} | {new} | {r.reason} | {r.approved_by or '-'} |")
+        out.append("")
+    if result.triaged:
+        out += ["## Triaged findings", "", "| Finding | Outcome | Reason | Owner | Date |", "|---|---|---|---|---|"]
+        for f, e in sorted(result.triaged, key=lambda t: t[0].id):
+            out.append(f"| {f.id} | {e.outcome} | {e.reason} | {e.owner} | {e.date.isoformat() if e.date else '-'} |")
+        out.append("")
+    if result.stale_triage:
+        out += ["## Stale triage entries", "", "No finding has these ids any more:", ""]
+        out += [f"- {i}" for i in result.stale_triage] + [""]
+    return out
 
 
 def summarise(rows: list[dict]) -> dict:
@@ -67,10 +88,12 @@ def render_markdown(result) -> str:
                 "|---|---|---|---|---|---|---|---|"]
         for r in sub:
             analysis = ("decidable" if r["decidable"] else "undecidable") + f", {r['scope']}"
+            category = r["category"] + (f" (was {r['original_category']})" if r["original_category"] else "")
             dev = ", ".join(r["deviations"]) or "-"
-            out.append(f"| {r['id']} | {r['category']} | {r['title']} | {analysis} | {r['status']} | "
+            out.append(f"| {r['id']} | {category} | {r['title']} | {analysis} | {r['status']} | "
                        f"{r['checked_by']} | {r['violations']} | {dev} |")
         out.append("")
+    out += _triage_lines(result)
     if result.problems:
         out += ["## Deviation problems", ""]
         out += [f"- {d.id}: {m}" for d, m in result.problems] + [""]
@@ -84,4 +107,9 @@ def render_json(result) -> str:
     rows = build_matrix(result)
     return json.dumps({"disclaimer": DISCLAIMER, "summary": summarise(rows), "guidelines": rows,
                        "deviation_problems": [{"id": d.id, "problem": m} for d, m in result.problems],
-                       "unmapped_imports": result.unmapped}, indent=2)
+                       "unmapped_imports": result.unmapped,
+                       "recategorised": [{"guideline": k, "from": o, "to": n, "reason": r.reason, "approved_by": r.approved_by}
+                                         for k, (o, n, r) in sorted(result.recategorised.items())],
+                       "triaged": [{"finding": f.id, "outcome": e.outcome, "reason": e.reason, "owner": e.owner,
+                                    "date": e.date.isoformat() if e.date else ""} for f, e in result.triaged],
+                       "stale_triage": result.stale_triage}, indent=2)

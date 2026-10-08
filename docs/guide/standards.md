@@ -123,6 +123,43 @@ A covered finding is moved out of the gate and shown as deviated in the matrix. 
 against a mandatory guideline, or one past its `expires` date, does not apply and becomes a
 finding of its own, so it fails the gate.
 
+### Triage and recategorisation
+
+Two optional YAML files record decisions that MISRA Compliance expects as process documents. They are read like the
+deviation register, and neither is a compliance claim.
+
+`standards.triage_file` records the outcome of investigating a finding, keyed by the finding's stable `id` (as in
+`--findings-json`):
+
+```yaml
+triage:
+  - id: src/app.c:run:misra-c-2012:15.1
+    outcome: false_positive      # true_positive | false_positive | accepted
+    reason: The goto leaves a nested loop and is covered by the design note.
+    owner: A. Developer
+    date: 2026-10-08
+```
+
+A `false_positive` is removed from the gate and listed as triaged. `true_positive` and `accepted` still count, since
+a finding that should stop failing needs a deviation; they are recorded so the decision can be reviewed. An entry
+whose id matches no finding is listed as stale.
+
+`standards.recategorisation_file` moves a guideline to another category the standard defines:
+
+```yaml
+recategorisations:
+  - standard: misra-c-2012
+    rule: "11.4"
+    category: required
+    reason: Pointer-to-integer conversions are errors on this product.
+    approved_by: Safety lead
+    date: 2026-10-08
+```
+
+The finding's category and severity follow the new category, and a category the standard marks as not deviable
+applies from then on. A mandatory guideline cannot be moved to a weaker category. The matrix, `standards.csv` and the
+Standards tab show the original category next to the new one, and list both files' entries.
+
 ### Compliance matrix
 
 ```bash
@@ -217,7 +254,6 @@ Limits to know about:
   built-in knowledge of `printf`, which FWLens normally turns off.
 
 Findings can also be written as a GitLab SAST report, see [GitLab SAST report](gating-and-ci.md#gitlab-sast-report).
-Message triage and recategorisation records are tracked in #88.
 
 ### Licensing of the rule data
 

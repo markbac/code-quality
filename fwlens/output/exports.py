@@ -216,7 +216,7 @@ def export_csv(model: ProjectModel, config: FwLensConfig) -> None:
         rows = build_matrix(run_standards(model, config))
         with open(exports_dir / "standards.csv", "w", newline="", encoding="utf-8") as f:
             fields = ["standard", "id", "kind", "title", "category", "decidable", "scope", "status",
-                      "checked_by", "violations", "deviated", "deviations"]
+                      "checked_by", "violations", "deviated", "deviations", "original_category", "triaged", "false_positive"]
             writer = csv.DictWriter(f, fieldnames=fields)
             writer.writeheader()
             for r in rows:

@@ -2676,7 +2676,7 @@
     <tbody>
     {% for r in meta.standards.rows %}
     <tr>
-      <td>{{ r.standard }}</td><td>{{ r.id }}</td><td>{{ r.category }}</td><td>{{ r.title }}</td>
+      <td>{{ r.standard }}</td><td>{{ r.id }}</td><td>{{ r.category }}{% if r.original_category %} <span class="dim">(was {{ r.original_category }})</span>{% endif %}</td><td>{{ r.title }}</td>
       <td>{{ 'decidable' if r.decidable else 'undecidable' }}, {{ r.scope }}</td>
       <td class="{% if r.status == 'violated' %}red{% endif %}">{{ r.status }}</td>
       <td>{{ r.checked_by }}</td><td>{{ r.violations }}</td><td>{{ r.deviations | join(', ') }}</td>
@@ -2684,6 +2684,23 @@
     {% endfor %}
     </tbody>
   </table>
+  {% if meta.standards.recategorised %}
+  <div class="section-title" style="margin-top:20px">Recategorised guidelines</div>
+  <table>
+    <thead><tr><th>Guideline</th><th>From</th><th>To</th><th>Reason</th><th>Approved by</th></tr></thead>
+    <tbody>{% for r in meta.standards.recategorised %}<tr><td>{{ r.guideline }}</td><td>{{ r.from }}</td><td>{{ r.to }}</td><td>{{ r.reason }}</td><td>{{ r.approved_by or '-' }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% endif %}
+  {% if meta.standards.triaged %}
+  <div class="section-title" style="margin-top:20px">Triaged findings</div>
+  <table>
+    <thead><tr><th>Finding</th><th>Outcome</th><th>Reason</th><th>Owner</th><th>Date</th></tr></thead>
+    <tbody>{% for t in meta.standards.triaged %}<tr><td>{{ t.finding }}</td><td>{{ t.outcome }}</td><td>{{ t.reason }}</td><td>{{ t.owner }}</td><td>{{ t.date or '-' }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% endif %}
+  {% if meta.standards.stale_triage %}
+  <p class="red" style="margin-top:12px">Stale triage entries (no finding has these ids): {{ meta.standards.stale_triage | join(', ') }}</p>
+  {% endif %}
   {% endif %}
 </div>
 {% endif %}

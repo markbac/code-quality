@@ -78,6 +78,8 @@ class Standard:
     tool_map: dict[str, dict[str, str]] = field(default_factory=dict)
     source: Path | None = None
     guideline_uri: str = ""                  # where the standard is published, when the file says so
+    undeviable_categories: list[str] = field(default_factory=list)
+    severity_map: dict[str, str] = field(default_factory=dict)
 
 
 def _fail(path, where: str, message: str):
@@ -141,7 +143,8 @@ def parse_standard(raw: dict, path: Path) -> Standard:
     undeviable = set(head.get("undeviable_categories", []))
     severity_map = head.get("severity_map", {})
     std = Standard(sid, _require(path, "standard", head, "name", str), str(head.get("revision", "")),
-                   list(categories), source=path,
+                   list(categories), source=path, undeviable_categories=sorted(undeviable),
+                   severity_map=dict(severity_map),
                    guideline_uri=str(head.get("guideline_text", "")) if str(head.get("guideline_text", "")).startswith("http") else "")
 
     for i, r in enumerate(_require(path, "file", raw, "rules", list)):

@@ -18,6 +18,7 @@ from fwlens.standards.deviations import Deviation, apply_deviations, load_deviat
 from fwlens.standards.engines import Hit, Records, run_ast_engines, run_callgraph_engine, run_system_engines
 from fwlens.standards.importers import map_to_rule, read_import
 from fwlens.standards.rules import Rule, RuleFileError, Standard, load_standards
+from fwlens.standards.triage import apply_recategorisations, load_recategorisations, load_triage
 from fwlens.standards.sourcechecks import (
     diagnostic_flags,
     analysed_modules,
@@ -41,6 +42,10 @@ class StandardsResult:
     sources: dict[str, set] = field(default_factory=dict)         # rule key -> {"native", "imported"}
     unmapped: dict[str, int] = field(default_factory=dict)        # tool -> findings not mapped to a rule
     deviations: list[Deviation] = field(default_factory=list)
+    recategorised: dict[str, tuple] = field(default_factory=dict)  # rule key -> (original, new, Recategorisation)
+    triage: list = field(default_factory=list)                    # Triage entries read from standards.triage_file
+    triaged: list[tuple] = field(default_factory=list)            # (Breach, Triage), set once finding ids exist
+    stale_triage: list[str] = field(default_factory=list)         # triage ids that match no finding
 
 
 def select_rules(standards: dict[str, Standard], selections: list[StandardSelection]) -> list[Rule]:
@@ -120,8 +125,13 @@ def run_standards(model: ProjectModel, config: FwLensConfig, today=None) -> Stan
 
     cfg = config.standards
     standards = load_standards(cfg.extra_rule_dirs)
+    recategorised = {}
+    if cfg.recategorisation_file:
+        recategorised = apply_recategorisations(standards, load_recategorisations(cfg.recategorisation_file, standards))
     rules = select_rules(standards, cfg.enabled)
-    result = StandardsResult(standards, rules)
+    result = StandardsResult(standards, rules, recategorised=recategorised)
+    if cfg.triage_file:
+        result.triage = load_triage(cfg.triage_file)
     root = project_root(config)
     rule_by_key = {r.key: r for r in rules}
     raw: list[Breach] = []
