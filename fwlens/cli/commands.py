@@ -407,6 +407,10 @@ def _parse_health_failed(model, config, fail_on_parse_error: bool) -> bool:
 
 
 def _gitlab_option(f):
+    f = click.option(
+        "--gitlab-sast", "gitlab_sast", default=None, type=click.Path(),
+        help="Write a GitLab SAST report (JSON) for coding-standard findings to this path "
+             "(artifacts: reports: sast:). Not written unless given.")(f)
     return click.option(
         "--gitlab-codequality", "gitlab_codequality", default=None, type=click.Path(),
         help="Write a GitLab Code Quality report (JSON) to this path. Defaults to "
@@ -552,6 +556,14 @@ def _emit_gitlab_report(breaches, gitlab_codequality):
                   f"({len(breaches)} finding(s))")
 
 
+def _emit_gitlab_sast(model, breaches, path):
+    if not path:
+        return
+    from fwlens.output.gitlab_sast import write_sast_report
+    written = write_sast_report(model, breaches, path)
+    console.print(f"[cyan][fwlens][/cyan] GitLab SAST report: [bold]{written}[/bold]")
+
+
 def _baseline_options(f):
     f = click.option("--github-annotations", is_flag=True, default=False,
                       help="Emit GitHub Actions workflow commands (::warning file=...::) for PR diff annotations.")(f)
@@ -581,7 +593,7 @@ def emit_github_annotations(breaches):
 
 def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
                       update_baseline_flag, accept_all, accept_ids, github_annotations=False,
-                      prune=False, gitlab_codequality=None, findings_json=None, sarif_path=None,
+                      prune=False, gitlab_codequality=None, gitlab_sast=None, findings_json=None, sarif_path=None,
                       changed_since=None, changed_scope="file", junit_path=None, markdown_summary=None,
                       record_run=False, run_label=None, ratchet=False):
     """Compute breaches and either update the baseline or gate on it. Returns True to fail the run."""
@@ -606,6 +618,7 @@ def _handle_baseline(model, config, *, baseline_path, fail_on_breach,
     if github_annotations:
         emit_github_annotations(breaches)
     _emit_gitlab_report(breaches, gitlab_codequality)
+    _emit_gitlab_sast(model, breaches, gitlab_sast)
     if sarif_path:
         _emit_sarif(model, config, sarif_path, breaches)
     _emit_ci_reports(breaches, model, junit_path, markdown_summary)
@@ -673,7 +686,7 @@ def _auto_stub_option(f):
 @_baseline_options
 def analyze(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_error, baseline_path, fail_on_breach,
             update_baseline_flag, accept_all, accept_ids, prune, github_annotations,
-            gitlab_codequality, findings_json, sarif_path, junit_path, markdown_summary,
+            gitlab_codequality, gitlab_sast, findings_json, sarif_path, junit_path, markdown_summary,
             record_run, run_label, ratchet, changed_since, changed_scope):
     """Run analysis and print breach summary to terminal."""
     _print_header("analyze", config_path)
@@ -685,7 +698,7 @@ def analyze(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_
         model, config, baseline_path=baseline_path, fail_on_breach=fail_on_breach,
         update_baseline_flag=update_baseline_flag, accept_all=accept_all, accept_ids=accept_ids,
         github_annotations=github_annotations, prune=prune,
-        gitlab_codequality=gitlab_codequality, findings_json=findings_json, sarif_path=sarif_path,
+        gitlab_codequality=gitlab_codequality, gitlab_sast=gitlab_sast, findings_json=findings_json, sarif_path=sarif_path,
         changed_since=changed_since, changed_scope=changed_scope,
         junit_path=junit_path, markdown_summary=markdown_summary,
         record_run=record_run, run_label=run_label, ratchet=ratchet,
@@ -711,7 +724,7 @@ def analyze(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_
 @_baseline_options
 def report(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_error, baseline_path, fail_on_breach,
            update_baseline_flag, accept_all, accept_ids, prune, github_annotations,
-           gitlab_codequality, findings_json, sarif_path, junit_path, markdown_summary,
+           gitlab_codequality, gitlab_sast, findings_json, sarif_path, junit_path, markdown_summary,
             record_run, run_label, ratchet, changed_since, changed_scope):
     """Run analysis and generate HTML report + exports."""
     from fwlens.output.console import print_summary
@@ -768,7 +781,7 @@ def report(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_e
         model, config, baseline_path=baseline_path, fail_on_breach=fail_on_breach,
         update_baseline_flag=update_baseline_flag, accept_all=accept_all, accept_ids=accept_ids,
         github_annotations=github_annotations, prune=prune,
-        gitlab_codequality=gitlab_codequality, findings_json=findings_json, sarif_path=sarif_path,
+        gitlab_codequality=gitlab_codequality, gitlab_sast=gitlab_sast, findings_json=findings_json, sarif_path=sarif_path,
         changed_since=changed_since, changed_scope=changed_scope,
         junit_path=junit_path, markdown_summary=markdown_summary,
         record_run=record_run, run_label=run_label, ratchet=ratchet,

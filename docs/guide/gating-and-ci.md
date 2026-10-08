@@ -198,8 +198,33 @@ The template caches pip, keeps the artifact with `when: always` (so the report i
 even when the gate fails the job) and sets `expire_in: 2 weeks`. Set `allow_failure: true` on
 the job while you introduce the gate.
 
-Not included yet: a SAST report for coding-standard findings (planned with the MISRA/CERT
-work) and an optional merge request summary note (planned with the PR/MR comparison).
+### GitLab SAST report
+
+`analyze` and `report` write a GitLab **SAST** report for coding-standard findings with `--gitlab-sast PATH`. It is
+not written unless you give the option. Declare it as `artifacts: reports: sast:` in the job:
+
+```yaml
+fwlens:
+  script:
+    - fwlens report --config config.yaml --gitlab-codequality gl-code-quality-report.json --gitlab-sast gl-sast-report.json
+  artifacts:
+    when: always
+    reports:
+      codequality: gl-code-quality-report.json
+      sast: gl-sast-report.json
+```
+
+Only findings from the coding standards (MISRA C, CERT C and the others) are written; metric breaches and
+architecture rules stay in the Code Quality report. Severity follows the guideline category: mandatory is High,
+required is Medium and advisory is Low. Each finding has the standard's guideline id as an identifier, and the CWE
+ids the rule maps to. Findings covered by a deviation are left out. The ids are stable between runs, so GitLab can
+track a finding across pipelines.
+
+Use the SAST report when you want rule findings in the security dashboard and vulnerability report (a GitLab
+Ultimate feature). Use Code Quality for everything else, and for merge request widgets on any tier. The two can be
+used together. The report follows the SAST report format 15; check it against your GitLab version.
+
+An optional merge request summary note is available through `fwlens pr-comment`.
 
 ---
 

@@ -216,8 +216,8 @@ Limits to know about:
 - The `format` and `format-security` checks (CERT FIO30-C and FIO47-C) switch on libclang's
   built-in knowledge of `printf`, which FWLens normally turns off.
 
-Not implemented yet, each tracked on its own: message triage and
-recategorisation records (#88) and a GitLab SAST report (#91).
+Findings can also be written as a GitLab SAST report, see [GitLab SAST report](gating-and-ci.md#gitlab-sast-report).
+Message triage and recategorisation records are tracked in #88.
 
 ### Licensing of the rule data
 
