@@ -2000,6 +2000,28 @@ An edge from one unit to an internal symbol of another is a **leak** (`architect
 `extern` written in the caller to dodge the header (`undeclared`), or an include of a private header
 (`private-header`). Each leak gives the source and target units, the symbol, and the file and line.
 
+### Components and directory drift
+
+Components are inferred, in this order:
+
+1. Components you pin with `architecture.components` (`name` and `units`, path patterns such as `drivers/*`).
+2. Units in the same IDE group (IAR, Keil, Eclipse). A group of more than `architecture.max_component_units`
+   (default 40) is split by community detection.
+3. Everything else, by community detection (Louvain) on the weighted dependency graph. The seed is fixed, so the
+   same input always gives the same components. `architecture.resolution` (default 1) makes them smaller when
+   raised. Units with no dependencies are grouped by directory.
+
+Each component reports its members, how it was found (`pinned`, `group`, `group+community`, `community`,
+`directory`), its cohesion (the share of its members' coupling that stays inside it) and the configured layers
+and IDE groups of its members. Where the components disagree with your configuration, `differences` lists it:
+a component that spans several configured layers, or an IDE group spread over several components. The configured
+modules and layers stay as they were.
+
+**Drift:** each directory is assigned the component most of its units belong to. A unit with at least
+`architecture.drift_threshold` (default 0.6) of its coupling outside that component is listed, with the
+component it is coupled to most. A file in `drivers/` that is coupled almost entirely to the application is the
+typical case.
+
 ---
 
 ## Configuration reference

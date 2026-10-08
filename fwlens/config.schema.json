@@ -636,6 +636,37 @@
             "array",
             "null"
           ]
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "units": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "name",
+              "units"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "resolution": {
+          "type": "number"
+        },
+        "max_component_units": {
+          "type": "integer"
+        },
+        "drift_threshold": {
+          "type": "number"
         }
       },
       "additionalProperties": false

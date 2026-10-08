@@ -321,6 +321,10 @@ class ArchitectureConfig:
     enabled: bool = True                     # recover the architecture model (docs/ARCHITECTURE_RECOVERY.md)
     weights: dict = field(default_factory=dict)   # weight per dependency kind: callback, state, type, call, include
     private_headers: list | None = None      # header patterns whose declarations are internal (default *_priv.h, */internal/* ...)
+    components: list = field(default_factory=list)   # pinned components: [{name, units: [path patterns]}]
+    resolution: float = 1.0                  # community detection resolution: higher gives smaller components
+    max_component_units: int = 40            # an IDE group larger than this is split by community detection
+    drift_threshold: float = 0.6             # report a unit when this share of its coupling is outside its directory's component
 
 
 _EDGE_KINDS = ("callback", "state", "type", "call", "include")
@@ -677,10 +681,22 @@ def load_config(config_path: Path) -> FwLensConfig:
     if not isinstance(weights, dict) or any(k not in _EDGE_KINDS for k in weights) or any(
             isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0 for v in weights.values()):
         raise ConfigError(f"architecture.weights must map {list(_EDGE_KINDS)} to numbers of zero or more")
+    pinned = []
+    for i, c in enumerate(arch_raw.get("components") or []):
+        patterns = c.get("units") if isinstance(c, dict) else None
+        if not isinstance(c, dict) or not c.get("name") or not isinstance(patterns, list) or not patterns:
+            raise ConfigError(f"architecture.components[{i}] needs 'name' and 'units' (a list of path patterns)")
+        pinned.append({"name": str(c["name"]), "units": [str(p) for p in patterns]})
+    resolution = arch_raw.get("resolution", 1.0)
+    if isinstance(resolution, bool) or not isinstance(resolution, (int, float)) or resolution <= 0:
+        raise ConfigError("architecture.resolution must be a number above 0")
     architecture = ArchitectureConfig(enabled=bool(arch_raw.get("enabled", True)),
                                       weights={k: float(v) for k, v in weights.items()},
                                       private_headers=None if arch_raw.get("private_headers") is None
-                                      else [str(x) for x in arch_raw["private_headers"]])
+                                      else [str(x) for x in arch_raw["private_headers"]],
+                                      components=pinned, resolution=resolution,
+                                      max_component_units=int(arch_raw.get("max_component_units", 40)),
+                                      drift_threshold=float(arch_raw.get("drift_threshold", 0.6)))
 
     cbom_raw = raw.get("cbom") or {}
     scan_scopes = [str(x) for x in cbom_raw.get("scan_scopes", ["first_party"])]

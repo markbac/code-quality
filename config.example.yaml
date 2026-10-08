@@ -345,3 +345,8 @@ output:
 #     call: 1                           #   a function called
 #     include: 0.5                      #   a header included
 #   private_headers: ["*_priv.h", "*/internal/*"]   # headers whose declarations are internal (default list shown in the guide)
+#   components:                         # pin components; unpinned units are found by IDE group, then community detection
+#     - {name: Comms, units: ["drivers/uart*", "drivers/spi*"]}
+#   resolution: 1.0                     # community detection: higher gives smaller components
+#   max_component_units: 40             # an IDE group larger than this is split by community detection
+#   drift_threshold: 0.6                # list a unit when this share of its coupling is outside its directory's component

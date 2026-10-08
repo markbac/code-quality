@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from fwlens.arch.components import infer
 from fwlens.arch.edges import Units, build_edges
 from fwlens.arch.interfaces import analyse as analyse_interfaces
 from fwlens.arch.model import ArchModel
@@ -14,6 +15,8 @@ def build_architecture(model, config) -> ArchModel:
     units = Units(model)
     arch.units, arch.edges = build_edges(model, cfg.weights, units)
     arch.interfaces, arch.leaks = analyse_interfaces(model, units, cfg.private_headers)
+    arch.components, arch.drift, arch.differences = infer(
+        model, arch.units, arch.edges, cfg.components, cfg.resolution, cfg.max_component_units, cfg.drift_threshold)
     model.architecture = arch
     return arch
 

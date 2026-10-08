@@ -38,12 +38,35 @@ class Leak:
 
 
 @dataclass
+class Component:
+    id: str
+    name: str
+    units: list = field(default_factory=list)
+    source: str = ""            # pinned | group | group+community | community | directory
+    cohesion: float = 0.0       # share of the members' coupling that stays inside the component
+    configured: list = field(default_factory=list)    # configured layers and IDE groups of the members
+
+
+@dataclass
+class Drift:
+    unit: str
+    directory: str
+    directory_component: str    # the component most of this directory belongs to
+    best_component: str         # the component this unit is coupled to most
+    outside: float              # share of its coupling outside the directory's component (0 to 1)
+    weight: float               # its total coupling weight
+
+
+@dataclass
 class ArchModel:
     weights: dict = field(default_factory=dict)
     units: list = field(default_factory=list)
     edges: list = field(default_factory=list)
     interfaces: list = field(default_factory=list)
     leaks: list = field(default_factory=list)
+    components: list = field(default_factory=list)
+    drift: list = field(default_factory=list)
+    differences: list = field(default_factory=list)
 
     def as_dict(self) -> dict:
         from dataclasses import asdict
