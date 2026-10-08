@@ -2022,6 +2022,26 @@ modules and layers stay as they were.
 component it is coupled to most. A file in `drivers/` that is coupled almost entirely to the application is the
 typical case.
 
+### Subsystem domains
+
+Each component is given a domain from the catalogue in `fwlens/arch/domains.yaml`: `ui`, `comms`, `storage`,
+`power`, `metering`, `security`, `boot_update`, `diagnostics`, `hal` and `os`. The domain is chosen from the names
+the component uses, with this evidence, weighted: file names (3 each), included headers (4), RTOS task names (2),
+and function names (1 each, up to 8). A word matches a whole word of an identifier split on case and underscores,
+so `key` does not match `monkey`.
+
+| Confidence | Meaning |
+| :--- | :--- |
+| `high` | a score of 12 or more from at least two kinds of evidence, or a domain you pinned |
+| `medium` | a score of 5 or more |
+| `low` | a score of 2 or more |
+| `unclassified` | nothing matched; the report says so instead of guessing |
+
+`architecture.subsystems` pins a domain to units (`domain` and `units`, path patterns; the domain applies to a
+component when most of its units match). `architecture.domains` adds your own domains, or replaces a bundled one
+with the same `id`: `id`, `name`, `words` (identifier words) and `includes` (header name patterns). The labels
+are in `architecture.subsystems` in the JSON export, each with its evidence.
+
 ---
 
 ## Configuration reference

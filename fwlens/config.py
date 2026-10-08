@@ -324,6 +324,8 @@ class ArchitectureConfig:
     components: list = field(default_factory=list)   # pinned components: [{name, units: [path patterns]}]
     resolution: float = 1.0                  # community detection resolution: higher gives smaller components
     max_component_units: int = 40            # an IDE group larger than this is split by community detection
+    domains: list = field(default_factory=list)      # more subsystem domains: [{id, name, words, includes}]
+    subsystems: list = field(default_factory=list)   # pin a domain to units: [{domain, units: [path patterns]}]
     drift_threshold: float = 0.6             # report a unit when this share of its coupling is outside its directory's component
 
 
@@ -687,6 +689,15 @@ def load_config(config_path: Path) -> FwLensConfig:
         if not isinstance(c, dict) or not c.get("name") or not isinstance(patterns, list) or not patterns:
             raise ConfigError(f"architecture.components[{i}] needs 'name' and 'units' (a list of path patterns)")
         pinned.append({"name": str(c["name"]), "units": [str(p) for p in patterns]})
+    domains = arch_raw.get("domains") or []
+    if not isinstance(domains, list) or not all(isinstance(d, dict) and d.get("id") for d in domains):
+        raise ConfigError("architecture.domains must be a list of mappings, each with an 'id' and 'words' or 'includes'")
+    pins = []
+    for i, s in enumerate(arch_raw.get("subsystems") or []):
+        patterns = s.get("units") if isinstance(s, dict) else None
+        if not isinstance(s, dict) or not s.get("domain") or not isinstance(patterns, list) or not patterns:
+            raise ConfigError(f"architecture.subsystems[{i}] needs 'domain' and 'units' (a list of path patterns)")
+        pins.append({"domain": str(s["domain"]), "units": [str(p) for p in patterns]})
     resolution = arch_raw.get("resolution", 1.0)
     if isinstance(resolution, bool) or not isinstance(resolution, (int, float)) or resolution <= 0:
         raise ConfigError("architecture.resolution must be a number above 0")
@@ -696,7 +707,8 @@ def load_config(config_path: Path) -> FwLensConfig:
                                       else [str(x) for x in arch_raw["private_headers"]],
                                       components=pinned, resolution=resolution,
                                       max_component_units=int(arch_raw.get("max_component_units", 40)),
-                                      drift_threshold=float(arch_raw.get("drift_threshold", 0.6)))
+                                      drift_threshold=float(arch_raw.get("drift_threshold", 0.6)),
+                                      domains=domains, subsystems=pins)
 
     cbom_raw = raw.get("cbom") or {}
     scan_scopes = [str(x) for x in cbom_raw.get("scan_scopes", ["first_party"])]

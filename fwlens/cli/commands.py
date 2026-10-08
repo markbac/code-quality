@@ -120,7 +120,7 @@ def _run_pipeline(config_path: Path, auto_stub: bool = False, jobs=None, timeout
     from fwlens.footprint import apply_map_file
     steps = [
         ("Linker map", apply_map_file), ("Diagnostic clusters", clusters), ("Aggregate metrics", run_aggregation),
-        ("Call graph", run_graph_engine), ("Architecture", run_architecture), ("Statistics", run_stats_engine), ("Hotspots", compute_hotspots),
+        ("Call graph", run_graph_engine), ("Statistics", run_stats_engine), ("Hotspots", compute_hotspots),
         ("Change coupling", compute_change_coupling), ("Churn heatmap", compute_churn_heatmap),
         ("Commit activity", compute_commit_activity), ("Architecture coupling", compute_architecture_coupling),
         ("Ownership", compute_ownership), ("Hotspot names", lambda m, c: flag_hotspot_names(m)),
@@ -130,6 +130,7 @@ def _run_pipeline(config_path: Path, auto_stub: bool = False, jobs=None, timeout
         ("Cost-benefit", compute_cost_benefit), ("RTOS analysis", run_rtos_analysis),
         ("State machines", lambda m, c: detect_state_machines(m)), ("Technical debt", lambda m, c: run_tech_debt_scan(m)),
         ("Clone detection", lambda m, c: detect_clones(m)), ("Composite risk", lambda m, c: compute_composite_risk(m)),
+        ("Architecture", run_architecture),
     ]
     for name, step in steps:
         with phase(name):

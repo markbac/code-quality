@@ -58,7 +58,7 @@ dev = [
 fwlens = "fwlens.cli:main"
 
 [tool.setuptools.package-data]
-fwlens = ["config.schema.json", "output/vendor/*", "output/templates/*", "standards/builtin/*.yaml", "standards/data/*.yaml", "crypto/catalog/*.yaml", "crypto/*.yaml"]
+fwlens = ["config.schema.json", "output/vendor/*", "output/templates/*", "standards/builtin/*.yaml", "standards/data/*.yaml", "crypto/catalog/*.yaml", "crypto/*.yaml", "arch/*.yaml"]
 
 [tool.setuptools.packages.find]
 where = ["."]

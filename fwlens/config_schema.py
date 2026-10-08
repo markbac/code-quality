@@ -47,6 +47,8 @@ _ITEM_KEYS: dict[tuple[str, ...], type | tuple[str, ...]] = {
     ("standards", "imports"): ("tool", "path"),
     ("sbom", "components"): _cfg.SbomComponent,
     ("architecture", "components"): ("name", "units"),
+    ("architecture", "subsystems"): ("domain", "units"),
+    ("architecture", "domains"): ("id", "name", "words", "includes"),
 }
 
 SUPPORTED_FORMATS = ("html", "csv", "json", "plots", "diagrams", "sarif", "sbom", "cbom")
@@ -165,6 +167,17 @@ def json_schema() -> dict:
         "type": "array",
         "items": {"type": "object", "properties": {"name": {"type": "string"}, "units": {"type": "array", "items": {"type": "string"}}},
                   "required": ["name", "units"], "additionalProperties": False}}
+
+    properties["architecture"]["properties"]["subsystems"] = {
+        "type": "array",
+        "items": {"type": "object", "properties": {"domain": {"type": "string"}, "units": {"type": "array", "items": {"type": "string"}}},
+                  "required": ["domain", "units"], "additionalProperties": False}}
+    properties["architecture"]["properties"]["domains"] = {
+        "type": "array",
+        "items": {"type": "object", "properties": {
+            "id": {"type": "string"}, "name": {"type": "string"},
+            "words": {"type": "array", "items": {"type": "string"}}, "includes": {"type": "array", "items": {"type": "string"}}},
+            "required": ["id"], "additionalProperties": False}}
 
     component = _section_schema(_cfg.SbomComponent)
     component["required"] = ["name", "path"]

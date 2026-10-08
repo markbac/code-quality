@@ -1,0 +1,41 @@
+# Subsystem domains. A component is given the domain whose words, includes and RTOS names match its
+# file names, function and global names, included headers and task names best. `words` match whole
+# words of an identifier split on case and underscores (uart_put -> uart, put), so "key" does not
+# match "monkey". Add your own with `architecture.domains` in config.yaml (same fields).
+domains:
+  - id: ui
+    name: User interface
+    words: [display, lcd, oled, menu, screen, button, keypad, key, touch, font, widget, gui, ui, glyph, backlight, icon, window, hmi, lvgl, emwin]
+    includes: ["lvgl*", "lv_*", "emwin*", "GUI*.h", "tft*", "u8g*"]
+  - id: comms
+    name: Communications
+    words: [uart, usart, spi, i2c, can, lin, modbus, dlms, cosem, tcp, udp, ip, mqtt, coap, http, ethernet, eth, wifi, ble, bluetooth, lora, radio, rf, modem, serial, protocol, packet, frame, socket, lwip, rs485, rs232, usb, wmbus, plc, gprs, lte, nbiot, comms, comm, link, transport]
+    includes: ["lwip*", "mqtt*", "modbus*", "coap*", "usb*", "can*"]
+  - id: storage
+    name: Storage
+    words: [flash, eeprom, nvm, nvram, fram, storage, fat, fatfs, file, filesystem, fs, sd, mmc, record, journal, wear, page, sector, parameter, param, settings, persist]
+    includes: ["ff.h", "fatfs*", "lfs*", "littlefs*", "flash*", "eeprom*"]
+  - id: power
+    name: Power management
+    words: [power, sleep, wake, wakeup, standby, lowpower, battery, charger, charge, pmic, supercap, brownout, shutdown, idle, ldo, regulator]
+  - id: metering
+    name: Metering and sensing
+    words: [meter, metering, metrology, energy, sample, sampling, adc, measure, measurement, calibrate, calibration, voltage, current, sensor, tariff, register, demand, phase, rms, flow, pressure, temperature]
+  - id: security
+    name: Security
+    words: [crypt, crypto, encrypt, decrypt, aes, sha, rsa, ecc, ecdsa, hmac, tls, ssl, cert, certificate, key, keystore, secure, auth, authenticate, signature, hash, random, rng, trng]
+    includes: ["mbedtls*", "openssl*", "wolfssl*", "cycurlib*"]
+  - id: boot_update
+    name: Boot and update
+    words: [boot, bootloader, update, upgrade, firmware, image, ota, flasher, bank, rollback, startup, reset]
+  - id: diagnostics
+    name: Diagnostics and logging
+    words: [log, logger, logging, trace, debug, diag, diagnostic, assert, fault, error, watchdog, wdt, crash, dump, monitor, health, event]
+  - id: hal
+    name: Hardware abstraction
+    words: [hal, bsp, driver, gpio, timer, clock, pin, pwm, dma, irq, interrupt, nvic, rtc, mcu, port, peripheral, cmsis, startup]
+    includes: ["stm32*", "cmsis*", "core_cm*", "nrf*", "msp430*", "samd*"]
+  - id: os
+    name: Operating system
+    words: [task, queue, mutex, semaphore, os, rtos, scheduler, kernel, thread, mailbox, event, tick, freertos, embos, threadx]
+    includes: ["FreeRTOS*", "task.h", "queue.h", "RTOS.h", "tx_api.h", "cmsis_os*"]

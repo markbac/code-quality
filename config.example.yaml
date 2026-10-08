@@ -350,3 +350,7 @@ output:
 #   resolution: 1.0                     # community detection: higher gives smaller components
 #   max_component_units: 40             # an IDE group larger than this is split by community detection
 #   drift_threshold: 0.6                # list a unit when this share of its coupling is outside its directory's component
+#   subsystems:                         # pin a domain to units when the names do not say
+#     - {domain: comms, units: ["drivers/uart*"]}
+#   domains:                            # your own domains, or replace a bundled one with the same id
+#     - {id: ble, name: Bluetooth, words: [ble, gatt, gap], includes: ["nrf_ble*"]}

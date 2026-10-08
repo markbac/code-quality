@@ -58,6 +58,17 @@ class Drift:
 
 
 @dataclass
+class Subsystem:
+    component: str              # component id
+    name: str                   # component name
+    domain: str                 # ui, comms, storage ... or unclassified
+    domain_name: str
+    confidence: str             # high, medium or low
+    evidence: list = field(default_factory=list)
+    scores: dict = field(default_factory=dict)
+
+
+@dataclass
 class ArchModel:
     weights: dict = field(default_factory=dict)
     units: list = field(default_factory=list)
@@ -67,6 +78,7 @@ class ArchModel:
     components: list = field(default_factory=list)
     drift: list = field(default_factory=list)
     differences: list = field(default_factory=list)
+    subsystems: list = field(default_factory=list)
 
     def as_dict(self) -> dict:
         from dataclasses import asdict

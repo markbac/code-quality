@@ -665,6 +665,58 @@
         "max_component_units": {
           "type": "integer"
         },
+        "domains": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "words": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "includes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "subsystems": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "domain": {
+                "type": "string"
+              },
+              "units": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "domain",
+              "units"
+            ],
+            "additionalProperties": false
+          }
+        },
         "drift_threshold": {
           "type": "number"
         }
