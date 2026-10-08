@@ -118,6 +118,8 @@ def infer(model: ProjectModel, units: list[str], edges: list[Edge], pinned: list
                 inside += data["weight"] if component_of[v] == c.id else 0.0
         c.cohesion = round(inside / total, 3) if total else 1.0
         c.configured = sorted({x for u in c.units for x in (layer_of.get(u), group_of.get(u)) if x})
+        counted = Counter(layer_of[u] for u in c.units if u in layer_of)
+        c.layer = sorted(counted.items(), key=lambda kv: (-kv[1], kv[0]))[0][0] if counted else ""
 
     by_dir: dict[str, Counter] = defaultdict(Counter)
     for u in g:

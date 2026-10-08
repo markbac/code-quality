@@ -5,6 +5,7 @@ from __future__ import annotations
 from fwlens.arch.components import infer
 from fwlens.arch.domains import label, load_domains
 from fwlens.arch.edges import Units, build_edges
+from fwlens.arch.layers import infer_layers
 from fwlens.arch.interfaces import analyse as analyse_interfaces
 from fwlens.arch.model import ArchModel
 
@@ -19,6 +20,7 @@ def build_architecture(model, config) -> ArchModel:
     arch.components, arch.drift, arch.differences = infer(
         model, arch.units, arch.edges, cfg.components, cfg.resolution, cfg.max_component_units, cfg.drift_threshold)
     arch.subsystems = label(model, arch.components, load_domains(cfg.domains), cfg.subsystems)
+    arch.layering = infer_layers(arch.components, arch.edges, [r.name for r in config.layers])
     model.architecture = arch
     return arch
 

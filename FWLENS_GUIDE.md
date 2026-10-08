@@ -2042,6 +2042,23 @@ component when most of its units match). `architecture.domains` adds your own do
 with the same `id`: `id`, `name`, `words` (identifier words) and `includes` (header name patterns). The labels
 are in `architecture.subsystems` in the JSON export, each with its evidence.
 
+### Inferred layers
+
+Components are collapsed from the unit edges, strongly connected components are condensed, and each component gets
+a **level**: 0 for one that depends on nothing else, otherwise one more than the highest level of what it depends
+on. Level numbers rise upward, the same way as the order of `layers:` (the first is the lowest). The result
+(`architecture.layering` in the JSON) has:
+
+- `layers`: the inferred stack, top first, with the components of each level
+- `cycles`: groups of components that depend on each other, which share a level, and `back_edges`: the upward
+  dependencies inside each cycle (the weakest ones to remove to break it)
+- `next_layer_share`: the share of downward weight that goes to the layer directly below. Near 1 is a strict
+  layered design, lower is a relaxed one, and `skip_edges` lists the dependencies that skip layers
+- `disagreements`: where your configured `layers:` order and the inferred one differ. A dependency that the
+  configuration calls upward is listed with a note saying whether the dependencies agree (the code breaks the
+  configured order) or not (the configured order may be wrong). Nothing is applied: the configured layers and the
+  existing layer violations are unchanged.
+
 ---
 
 ## Configuration reference

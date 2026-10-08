@@ -45,6 +45,7 @@ class Component:
     source: str = ""            # pinned | group | group+community | community | directory
     cohesion: float = 0.0       # share of the members' coupling that stays inside the component
     configured: list = field(default_factory=list)    # configured layers and IDE groups of the members
+    layer: str = ""            # the configured layer most of the members are in
 
 
 @dataclass
@@ -69,6 +70,17 @@ class Subsystem:
 
 
 @dataclass
+class LayerModel:
+    layers: list = field(default_factory=list)          # [{level, components, cycle}] top first; level 0 is the bottom
+    level_of: dict = field(default_factory=dict)        # component name -> inferred level
+    cycles: list = field(default_factory=list)          # [[component names]]
+    back_edges: list = field(default_factory=list)      # upward dependencies inside cycles
+    next_layer_share: float = 1.0                       # share of downward weight that goes to the next layer down
+    skip_edges: list = field(default_factory=list)      # downward dependencies that skip one or more layers
+    disagreements: list = field(default_factory=list)   # where the configured layer order and the inferred one differ
+
+
+@dataclass
 class ArchModel:
     weights: dict = field(default_factory=dict)
     units: list = field(default_factory=list)
@@ -79,6 +91,7 @@ class ArchModel:
     drift: list = field(default_factory=list)
     differences: list = field(default_factory=list)
     subsystems: list = field(default_factory=list)
+    layering: LayerModel = field(default_factory=LayerModel)
 
     def as_dict(self) -> dict:
         from dataclasses import asdict
