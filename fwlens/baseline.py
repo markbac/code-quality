@@ -18,6 +18,7 @@ recognised instead of being reported as one fixed and one new.
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -34,6 +35,8 @@ from fwlens.identity import (
     relative_posix,
 )
 from fwlens.model.project import ProjectModel
+
+logger = logging.getLogger(__name__)
 
 BASELINE_VERSION = 2
 
@@ -232,8 +235,8 @@ def load_baseline(path: Path) -> dict[str, dict]:
         raw = json.load(f)
     entries = raw.get("accepted", [])
     if raw.get("version", 1) < BASELINE_VERSION and entries:
-        print(f"[fwlens] NOTE: {path} uses the legacy line-based baseline format; migrated in memory. "
-              "Re-run with --update-baseline to store stable ids and fingerprints.")
+        logger.warning("%s uses the legacy line-based baseline format; migrated in memory. "
+                       "Re-run with --update-baseline to store stable ids and fingerprints.", path)
     migrated = (migrate_legacy_id(entry) for entry in entries)
     return {entry["id"]: entry for entry in migrated}
 

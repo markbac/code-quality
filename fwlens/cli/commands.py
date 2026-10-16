@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 
 import click
+from ctxlogkit import setup_logging
 from rich.console import Console
 
 from fwlens import __version__
@@ -246,11 +247,22 @@ def _print_timing() -> None:
         timer.render(console)
 
 
+def _setup_logging() -> None:
+    """
+    Send diagnostics from the fwlens.* loggers to stderr, so they stay out of reports and
+    Markdown written to stdout. LOG_LEVEL overrides the WARNING default. Records still
+    propagate, so pytest's caplog and an embedding application see them too.
+    """
+    setup_logging(name="fwlens", level=os.environ.get("LOG_LEVEL", "WARNING"), mode="compact",
+                  console_stream=sys.stderr, use_emoji=False, propagate=True)
+
+
 @click.group()
 @click.pass_context
 def cli(ctx):
     """fwlens -- Embedded C Architecture & Static Analysis Platform."""
     _keep_output_alive()
+    _setup_logging()
     ctx.call_on_close(_print_timing)          # also when a gate ends the command with exit code 1
 
 
