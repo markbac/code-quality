@@ -1,0 +1,371 @@
+# Built-in FWLens rule set for MISRA C findings that were probably hidden rather than fixed.
+#
+# A cast, a (void), a while (1), an empty default, a variable nobody reads or an analyser
+# suppression can make a checker go quiet while the hazard is still there. Each rule looks for the
+# shape one such edit leaves behind (a hide signature); ordinary uses of the same language feature
+# are not reported. The checks are in fwlens/standards/hides.py, ported from misra_hide_scan.
+#
+# The checks read source text with comments and literals blanked. They have no type information
+# and do not expand macros, so every rule is partial and every finding is a prompt to review the
+# code against the guideline's rationale, not a verdict.
+#
+# Categories are confidence that a hazard is hidden, not the MISRA category of the rule:
+#   high    the shape almost always means the hazard is present
+#   medium  often a hide, but legitimate cases need judgement
+#   low     worth a look in a deliberate sweep
+# Use include_categories: [high] in standards.enabled to see only the high ones.
+#
+# Integer-to-pointer casts, banned-function wrappers and suppressions are not reported when a
+# deviation reference (DEV-011, "Deviation 4", "deviation record") is on the line or within 15 lines
+# above. Set deviation_pattern in a rule's match to use your own reference format. Every finding
+# can also be deviated through standards.deviations_file like any other rule.
+schema_version: 1
+standard:
+  id: fwlens-hides
+  name: FWLens hidden MISRA findings
+  revision: "1"
+  language: c
+  guideline_text: https://github.com/markbac/code-quality
+  categories: [high, medium, low]
+  undeviable_categories: []
+  severity_map: { high: error, medium: warning, low: note }
+
+rules:
+  - id: "HIDE-1"
+    kind: rule
+    title: "Cast hides truncation of a calculation"
+    category: high
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-197]
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "narrowing-cast-on-arithmetic", severity: "high" } }
+    notes: "Check narrowing-cast-on-arithmetic, MISRA C:2012 10.3, 10.8. A value must not be stored in a type too small to hold it, and a calculation should not be cast to a different type after the fact. Why it looks hidden: The cast makes the type mismatch disappear, so the tool stops reporting. But the calculation is done first, in a wider type, and the cast then throws away the high bits. If the result can exceed the smaller type, it is silently wrong. Not reported: Byte extraction such as (uint8_t)(v >> 8U) or (uint8_t)(v & 0xFFU), which cannot make the value larger, and casts of a single variable."
+    help: "Widen the operands before the calculation, store the result in a type big enough for it, and range-check before narrowing."
+
+  - id: "HIDE-2"
+    kind: rule
+    title: "Cast to a wider type applied too late"
+    category: medium
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-190]
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "late-widening-cast", severity: "medium" } }
+    notes: "Check late-widening-cast, MISRA C:2012 10.8. A calculation should be done in the type you want the answer in. Why it looks hidden: The multiply or left shift happens in the operands' own, narrower type and can overflow. Casting the result to a wider type afterwards cannot bring the lost bits back. Not reported: Casting an operand before the operation."
+    help: "Cast one operand instead, for example (uint32_t)w * h, so the calculation itself is done in the wider type."
+
+  - id: "HIDE-3"
+    kind: rule
+    title: "Cast applied to the result of an addition or subtraction"
+    category: low
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "composite-cast", severity: "low" } }
+    notes: "Check composite-cast, MISRA C:2012 10.8. A calculation should be done in the type you want the answer in. Why it looks hidden: Less risky than a narrowing cast, but the cast still applies after the calculation, so any overflow or wrap-around has already happened. Not reported: Casts of operands, and casts of a single variable."
+    help: "Check the operand types. Prefer casting operands rather than results."
+
+  - id: "HIDE-4"
+    kind: rule
+    title: "Function result squeezed into a smaller type"
+    category: low
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-197]
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "narrowing-cast-on-call", severity: "low" } }
+    notes: "Check narrowing-cast-on-call, MISRA C:2012 10.3. A value must not be stored in a type too small to hold it. Why it looks hidden: The function may return a value larger than the target type. The cast silences the tool without checking that it fits. Not reported: sizeof and _Alignof, which are compile-time constants."
+    help: "Check the returned value is in range before narrowing, or use a type wide enough to hold it."
+
+  - id: "HIDE-5"
+    kind: rule
+    title: "Function result thrown away with (void) (critical-sounding function)"
+    category: high
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-252]
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "discarded-return", severity: "high" } }
+    notes: "Check discarded-return, MISRA C:2012 17.7, Dir 4.7. If a function returns a value, especially an error code, the caller must use or test it. Why it looks hidden: (void) is the accepted way to say 'I am deliberately ignoring this', so the tool stops reporting. If the function can fail, the failure is now ignored with no trace. Not reported: (void) on memcpy, memset and similar, whose result carries no error, and (void)param; for an unused parameter."
+    help: "Test the result and handle failure. Keep (void) only where failure genuinely cannot matter, and say why in a comment."
+
+  - id: "HIDE-6"
+    kind: rule
+    title: "Function result thrown away with (void) (other functions)"
+    category: low
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-252]
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "discarded-return", severity: "low" } }
+    notes: "Check discarded-return, MISRA C:2012 17.7, Dir 4.7. If a function returns a value, especially an error code, the caller must use or test it. Why it looks hidden: (void) is the accepted way to say 'I am deliberately ignoring this', so the tool stops reporting. If the function can fail, the failure is now ignored with no trace. Not reported: (void) on memcpy, memset and similar, whose result carries no error, and (void)param; for an unused parameter."
+    help: "Test the result and handle failure. Keep (void) only where failure genuinely cannot matter, and say why in a comment."
+
+  - id: "HIDE-7"
+    kind: rule
+    title: "Function result stored but never checked (critical-sounding function)"
+    category: high
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-252]
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "unchecked-result", severity: "high" } }
+    notes: "Check unchecked-result, MISRA C:2012 17.7, 2.2, Dir 4.7. If a function returns an error code, the caller must test it. Code should not contain assignments whose value is never used. Why it looks hidden: Storing the result in a variable silences 'return value not used', but if nothing ever reads the variable the outcome is still ignored. Not reported: Variables read later in the function, including by a loop condition or the return statement, and static locals."
+    help: "Test the variable and act on failure, or remove it."
+
+  - id: "HIDE-8"
+    kind: rule
+    title: "Function result stored but never checked (other functions)"
+    category: medium
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-252]
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "unchecked-result", severity: "medium" } }
+    notes: "Check unchecked-result, MISRA C:2012 17.7, 2.2, Dir 4.7. If a function returns an error code, the caller must test it. Code should not contain assignments whose value is never used. Why it looks hidden: Storing the result in a variable silences 'return value not used', but if nothing ever reads the variable the outcome is still ignored. Not reported: Variables read later in the function, including by a loop condition or the return statement, and static locals."
+    help: "Test the variable and act on failure, or remove it."
+
+  - id: "HIDE-9"
+    kind: rule
+    title: "Status value overwritten before it is checked (critical-sounding function)"
+    category: high
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-252, CWE-563]
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "overwritten-status", severity: "high" } }
+    notes: "Check overwritten-status, MISRA C:2012 15.5, 2.2, Dir 4.7. Error information must be tested. Code should not contain assignments whose value is never used. Why it looks hidden: This often comes from rewriting a function to have a single exit point (Rule 15.5). An earlier error is stored in the status variable and then overwritten by a later step, so the caller only ever sees the last result. Not reported: Writes in different branches of an if/else or switch, overwriting the initial value given at declaration, and values read by a loop condition."
+    help: "Stop at the first failure (check before continuing), or combine the results so an earlier error is not lost."
+
+  - id: "HIDE-10"
+    kind: rule
+    title: "Status value overwritten before it is checked (other values)"
+    category: medium
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-563]
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "overwritten-status", severity: "medium" } }
+    notes: "Check overwritten-status, MISRA C:2012 15.5, 2.2, Dir 4.7. Error information must be tested. Code should not contain assignments whose value is never used. Why it looks hidden: This often comes from rewriting a function to have a single exit point (Rule 15.5). An earlier error is stored in the status variable and then overwritten by a later step, so the caller only ever sees the last result. Not reported: Writes in different branches of an if/else or switch, overwriting the initial value given at declaration, and values read by a loop condition."
+    help: "Stop at the first failure (check before continuing), or combine the results so an earlier error is not lost."
+
+  - id: "HIDE-11"
+    kind: rule
+    title: "Local variable silenced with (void)"
+    category: medium
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-563]
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "discarded-local", severity: "medium" } }
+    notes: "Check discarded-local, MISRA C:2012 2.2, Dir 4.7. Code should have no operations whose result is not used. Why it looks hidden: (void)param; is the normal way to mark an unused parameter. On a local variable it usually means a value, often a function result, was computed and then thrown away to stop an 'unused' warning. Not reported: (void) on function parameters."
+    help: "Use the value (usually: check it), or remove the variable and the code that sets it."
+
+  - id: "HIDE-12"
+    kind: rule
+    title: "if statement with an empty body"
+    category: high
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-390]
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "empty-if-body", severity: "high" } }
+    notes: "Check empty-if-body, MISRA C:2012 14.3, 15.6, Dir 4.7. Conditions should lead to some action; error information must be acted on. Why it looks hidden: An if that tests a condition and then does nothing, or ends in a stray semicolon, often appears where an error check was added to satisfy a reviewer or tool without handling the error. Not reported: Nothing; an if body should always do something."
+    help: "Handle the condition, or remove the test."
+
+  - id: "HIDE-13"
+    kind: rule
+    title: "if statement with an empty body (body holds only a comment)"
+    category: medium
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-390]
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "empty-if-body", severity: "medium" } }
+    notes: "Check empty-if-body, MISRA C:2012 14.3, 15.6, Dir 4.7. Conditions should lead to some action; error information must be acted on. Why it looks hidden: An if that tests a condition and then does nothing, or ends in a stray semicolon, often appears where an error check was added to satisfy a reviewer or tool without handling the error. Not reported: Nothing; an if body should always do something."
+    help: "Handle the condition, or remove the test."
+
+  - id: "HIDE-14"
+    kind: rule
+    title: "Variable assigned to itself"
+    category: high
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-563]
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "self-assignment", severity: "high" } }
+    notes: "Check self-assignment, MISRA C:2012 2.2, 2.7. Code should have no operations without effect, and variables and parameters should be used. Why it looks hidden: x = x; does nothing. It is a known trick to silence 'unused variable' or 'unused parameter' warnings. Not reported: Nothing; self-assignment never has a purpose in portable C."
+    help: "Use the variable, remove it, or for a parameter use (void)param; with a comment."
+
+  - id: "HIDE-15"
+    kind: rule
+    title: "Local variable declared volatile"
+    category: medium
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "volatile-local", severity: "medium" } }
+    notes: "Check volatile-local, MISRA C:2012 2.2, 14.3. Code should have no dead operations, and conditions must be able to change. Why it looks hidden: volatile stops the compiler and analysers reasoning about a variable, so 'condition always true' and 'value never used' findings disappear. On an ordinary local variable it is rarely needed and usually hides the real issue. Not reported: Pointers to volatile, for example for hardware registers."
+    help: "Remove volatile and deal with the finding. Keep it only where it is needed (setjmp, a deliberate delay loop) and say why."
+
+  - id: "HIDE-16"
+    kind: rule
+    title: "Pointer cast routed through void *"
+    category: high
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-704]
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "cast-via-void-pointer", severity: "high" } }
+    notes: "Check cast-via-void-pointer, MISRA C:2012 11.3, 11.5. A pointer to one type must not be converted to a pointer to a different type, because the object may be misaligned or laid out differently. Why it looks hidden: Going through void * changes which rule the tool reports, or stops it reporting. The converted pointer is exactly the same, so every hazard remains. Not reported: A single cast to or from void *, for example when passing a pointer to memcpy."
+    help: "Do not reinterpret memory. Copy bytes into a properly typed variable with memcpy, or assemble the value from bytes."
+
+  - id: "HIDE-17"
+    kind: rule
+    title: "Memory read as a different type through a cast"
+    category: high
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-843]
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "type-punned-access", severity: "high" } }
+    notes: "Check type-punned-access, MISRA C:2012 11.3. A pointer to one type must not be converted to a pointer to a different type. Why it looks hidden: Reading, say, a 32-bit value through a cast pointer into a byte buffer can crash on cores that need aligned access, breaks C's aliasing rules so the compiler may optimise it wrongly, and gives different answers on big- and little-endian targets. Not reported: Access through a byte pointer (uint8_t *, unsigned char *), which C allows for any object."
+    help: "Assemble the value from bytes with shifts, which also fixes the byte order, or copy it with memcpy."
+
+  - id: "HIDE-18"
+    kind: rule
+    title: "Structure accessed through a cast pointer"
+    category: low
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-704]
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "cast-pointer-member-access", severity: "low" } }
+    notes: "Check cast-pointer-member-access, MISRA C:2012 11.3, 11.5. A pointer to one type must not be converted to a pointer to a different type. Why it looks hidden: Common with opaque handles and often fine, but if the object does not really have that type the access reads the wrong memory. Not reported: Reported at low severity only, because the pattern is common and usually intended."
+    help: "Confirm the object's real type. Prefer typed handles."
+
+  - id: "HIDE-19"
+    kind: rule
+    title: "Fixed address cast to a pointer with no deviation record"
+    category: low
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "int-to-pointer-undocumented", severity: "low" } }
+    notes: "Check int-to-pointer-undocumented, MISRA C:2012 11.4. Integers should not be converted to pointers. Why it looks hidden: Memory-mapped registers need this, and that is a legitimate deviation, but only if it is recorded with scope, reason and approval. Without a record it is an unreviewed exception. Not reported: The same cast with a deviation reference within 15 lines above."
+    help: "Add a deviation record (rule, scope, reason, risk, approval) next to the definition and reference it by ID."
+
+  - id: "HIDE-20"
+    kind: rule
+    title: "Comparison that is always true or always false"
+    category: high
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-570, CWE-571]
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "unsigned-invariant-compare", severity: "high" } }
+    notes: "Check unsigned-invariant-compare, MISRA C:2012 14.3. A condition must be able to change; otherwise the code does not do what it appears to. Why it looks hidden: An unsigned value is never below zero. Often a counter was made unsigned to silence a signed/unsigned finding, turning while (n >= 0U) into a loop that never ends. Not reported: Comparisons with 0 (no U suffix), and == or != 0U."
+    help: "Restructure so the condition can become false, for example count up to a limit."
+
+  - id: "HIDE-21"
+    kind: rule
+    title: "Array index can wrap below zero"
+    category: low
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-191]
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "unsigned-index-underflow", severity: "low" } }
+    notes: "Check unsigned-index-underflow, MISRA C:2012 10.4, 18.1, Dir 4.1. Operands should have the same essential type, and array access must stay within bounds. Why it looks hidden: Adding a U suffix (i - 1U) is a common way to silence a signed/unsigned mixing finding. If i can be 0, i - 1U wraps to a huge value and the access lands far outside the array. Not reported: When a check such as i > 0U or i != 0U appears in the 5 lines above."
+    help: "Check the index is above zero first, or restructure so no subtraction is needed."
+
+  - id: "HIDE-22"
+    kind: rule
+    title: "Loop condition replaced with a constant"
+    category: medium
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-835]
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "constant-loop-with-exit", severity: "medium" } }
+    notes: "Check constant-loop-with-exit, MISRA C:2012 14.3, 14.2. Loop conditions should be meaningful and loops clearly bounded. Why it looks hidden: Replacing a condition with while (1) and a break inside stops the 'condition is invariant' finding. If the break only happens on success, the loop still never ends when things keep failing. Not reported: Superloops and task bodies with no break, return or goto inside, which are meant to run for ever."
+    help: "Use a bounded loop (a for loop with a maximum count) with an explicit failure path after it."
+
+  - id: "HIDE-23"
+    kind: rule
+    title: "default case that does nothing"
+    category: medium
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    cwe: [CWE-478]
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "empty-default", severity: "medium" } }
+    notes: "Check empty-default, MISRA C:2012 16.4. Every switch needs a default so unexpected values are handled. Why it looks hidden: An empty default satisfies the rule, but nobody has decided what an unexpected value means. A newly added state, or a corrupted value, is silently ignored. Not reported: A default with any real statement in it."
+    help: "Report the unexpected value and move to a safe state, or handle it."
+
+  - id: "HIDE-24"
+    kind: rule
+    title: "Final else that does nothing"
+    category: medium
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "empty-else", severity: "medium" } }
+    notes: "Check empty-else, MISRA C:2012 15.7. An if ... else if chain must end with an else so the remaining case is considered. Why it looks hidden: An empty else satisfies the rule without anyone handling the remaining case. Not reported: Reported at low severity when the else holds an explanatory comment."
+    help: "Handle the case, or write a comment explaining why nothing is needed."
+
+  - id: "HIDE-25"
+    kind: rule
+    title: "Final else that does nothing (else holds only a comment)"
+    category: low
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "empty-else", severity: "low" } }
+    notes: "Check empty-else, MISRA C:2012 15.7. An if ... else if chain must end with an else so the remaining case is considered. Why it looks hidden: An empty else satisfies the rule without anyone handling the remaining case. Not reported: Reported at low severity when the else holds an explanatory comment."
+    help: "Handle the case, or write a comment explaining why nothing is needed."
+
+  - id: "HIDE-26"
+    kind: rule
+    title: "Wrapper or copy of a banned library function"
+    category: medium
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "banned-function-wrapper", severity: "medium" } }
+    notes: "Check banned-function-wrapper, MISRA C:2012 21.3 to 21.10. Some standard library functions are banned because their behaviour on error is undefined or unpredictable (atoi, printf, setjmp, malloc and others). Why it looks hidden: Wrapping the banned call in a project function, or writing a look-alike, means callers no longer match the rule. The hazard is unchanged and now appears in many places under a different name. Not reported: A wrapper with a deviation reference within 15 lines above."
+    help: "Replace the behaviour with a safe alternative (for example strtol with error checking instead of atoi), or raise one deviation for the wrapper."
+
+  - id: "HIDE-27"
+    kind: rule
+    title: "Home-made memory allocator"
+    category: medium
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "custom-allocator", severity: "medium" } }
+    notes: "Check custom-allocator, MISRA C:2012 21.3, Dir 4.12. Dynamic memory allocation should not be used. Why it looks hidden: Rule 21.3 bans malloc by name, so a renamed allocator silences it. Fragmentation, allocation failure and unbounded run time are all still present, and Dir 4.12 covers any dynamic allocation. Not reported: Nothing by name; a fixed-size pool may be the correct fix, so review decides."
+    help: "Use statically sized pools or fixed-size objects, with capacity decided at design time."
+
+  - id: "HIDE-28"
+    kind: rule
+    title: "Byte array that may back a home-made heap"
+    category: low
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "heap-backing-store", severity: "low" } }
+    notes: "Check heap-backing-store, MISRA C:2012 Dir 4.12. Dynamic memory allocation should not be used. Why it looks hidden: A large static byte array named heap, pool or arena is often the storage behind a hand-rolled allocator. Not reported: Reported at low severity only."
+    help: "See custom-allocator."
+
+  - id: "HIDE-29"
+    kind: rule
+    title: "Tool warning switched off with no deviation record"
+    category: high
+    decidable: false
+    scope: single-tu
+    coverage: partial
+    check: { type: "native", engine: "source", match: { name: "hidden_finding", check: "suppression-without-deviation", severity: "high" } }
+    notes: "Check suppression-without-deviation, MISRA C:2012 Compliance:2020. Any departure from a Required rule needs a deviation record: which rule, where, why, the risk, and who approved it. Why it looks hidden: A suppression comment or #pragma stops the tool reporting, but without a record nobody can see why, or check that it was agreed. Not reported: Suppressions that quote a deviation ID in the same comment or within 15 lines above."
+    help: "Raise a deviation and quote its ID in the suppression, or fix the code and remove the suppression."

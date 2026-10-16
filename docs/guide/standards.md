@@ -23,6 +23,7 @@ standards:
     - standard: autosar-cpp14                     # AUTOSAR C++14 guidelines that apply to C
     - standard: iso-ts-17961                      # ISO/IEC TS 17961 C secure coding, ids such as ptrcomp
     - standard: fwlens                            # secrets, dead code, interrupt safety
+    - standard: fwlens-hides                      # MISRA findings hidden rather than fixed
   extra_rule_dirs: [./standards]                  # your own *.yaml rule files
   deviations_file: ./standards/deviations.yaml
   imports:                                        # results from other analysers
@@ -36,7 +37,8 @@ standards:
 Findings join the normal breach list, so baseline gating (`--baseline`, `--fail-on-breach`),
 the PR/MR comment, SARIF and the GitLab Code Quality report all include them. SARIF uses the
 standard's own id (`misra-c-2012:15.1`) with levels from the category (mandatory is an error,
-required a warning, advisory a note). GitLab severities follow the same categories.
+required a warning, advisory a note; for `fwlens-hides`, high is an error, medium a warning and
+low a note). GitLab severities follow the same categories.
 
 ### Rules are YAML, not Python
 
@@ -191,6 +193,7 @@ guideline text. Point your own tooling at your licensed copy for the official wo
 | AUTOSAR C++14, C subset (`autosar-cpp14`) | 81 | 79 | 26 | 1 | 1 |
 | ISO/IEC TS 17961 (`iso-ts-17961`) | 43 | 24 | 21 | 6 | 13 |
 | FWLens checks (`fwlens`) | 24 | 21 | 13 | 3 | 0 |
+| Hidden MISRA findings (`fwlens-hides`) | 29 | 29 | 29 | 0 | 0 |
 
 The MISRA rule sets are in the `misra` plugin (see Plugins below). Six decidable single-file guidelines that were manual are now partial lexical checks (7.5, 8.16, 8.17, 11.10, 17.10 and 23.3). Most of what is still manual is undecidable, needs the whole program, or concerns C11 threads and atomics. `misra-c-2012` already includes Amendments 1 to 4. `misra-c-2023` is the same set plus the
 concurrency directives 5.1 to 5.3, with the same checks behind the shared guidelines, so choose
@@ -233,8 +236,40 @@ whole-program taint analysis, so they are manual: import an analyser that does i
   land when no enabled standard maps them to a rule. A standard's own `tool_map` entry wins, and
   `tool_map` keys may end in `*` (`"clang-analyzer-*": IMP-1`).
 
+**Hidden MISRA findings.** The `fwlens-hides` standard looks for code where a MISRA C finding was
+probably silenced rather than fixed: the edit made the checker go quiet but left the hazard in
+place. Run it next to a MISRA rule set, not instead of one. The MISRA checks report the original
+violation; these report the edit that cleared it, which the MISRA checks pass by design (a `(void)`
+cast satisfies 17.7). Examples:
+
+- `(uint8_t)(a + b)`: the cast silences 10.3 but the sum is still truncated
+- `(void)Flash_Write(...)`, or `rc = Nvm_Write(...);` with `rc` never read: the failure is still ignored
+- `ret = Step_A(); ret = Step_B();`: the first error is lost
+- `*(uint32_t *)(void *)&rx[1]`: the misaligned, punned read is unchanged
+- `default: break;`, `if (err) { }`, `x = x;`, `volatile` on a local, `while (1) { if (ok) break; }`
+- `Str_ToInt()` wrapping `atoi`, `App_Alloc()` standing in for `malloc`
+- `/* cppcheck-suppress ... */` or `#pragma GCC diagnostic ignored` with no deviation reference
+
+Ordinary uses of the same features are not reported: `(void)param;`, `(void)memcpy(...)`,
+`(uint8_t)(v >> 8U)`, a superloop with no `break`, a `default` that reports the value. The
+categories are confidence that a hazard is hidden, not the MISRA category: `high` almost always
+means the hazard is there, `medium` needs judgement, `low` is for a deliberate sweep. Use
+`include_categories: [high]` to start with the ones worth reading every time. Each rule's notes
+name the check and the MISRA guidelines it relates to.
+
+The checks read source text with comments and literals blanked, so they have no type information,
+do not expand macros and scan inactive `#if` branches; every rule is partial. Integer-to-pointer
+casts, banned-function wrappers and suppressions are not reported when a deviation reference
+(`DEV-011`, `Deviation 4`, `deviation record`) is on the line or within 15 lines above; set
+`deviation_pattern` in a rule's `match` (in your own copy of the rule) for another format.
+Findings can also be deviated through `standards.deviations_file` like any other rule.
+
+With `fwlens-hides` enabled, the HTML report has a **Hidden Findings** tab: one section per kind of
+issue, most severe first, each explaining the issue once and listing every file, line, function,
+finding and source line.
+
 **CWE.** Rules carry CWE ids (`cwe-map.yaml` for MISRA, CERT, Barr, Power of 10 and AUTOSAR, the
-rule files themselves for TS 17961 and FWLens). SARIF writes them as rule tags
+rule files themselves for TS 17961, `fwlens` and `fwlens-hides`). SARIF writes them as rule tags
 (`external/cwe/cwe-476`), a `CWE` taxonomy, and a summary in `run.properties.fwlens.cwe` that says
 which of the CWE Top 25 (2024) have a rule that checks for them, which have findings, and the
 findings per CWE. The HTML SARIF tab shows the same. A guideline can relate to several CWEs: use

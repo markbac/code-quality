@@ -22,7 +22,7 @@ from fwlens.output.sarif import rule_info
 
 SCHEMA_VERSION = "15.0.7"
 DEFAULT_SAST_REPORT = "gl-sast-report.json"
-SEVERITY = {"mandatory": "High", "required": "Medium", "advisory": "Low"}
+SEVERITY = {"mandatory": "High", "required": "Medium", "advisory": "Low", "high": "High", "medium": "Medium", "low": "Low"}
 _NAMESPACE = uuid.UUID("5a1d3c52-5f0e-4a43-9a5a-7e2f4f0f6d11")
 _VENDOR = {"name": "FWLens"}
 

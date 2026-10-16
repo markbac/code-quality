@@ -350,6 +350,7 @@ from fwlens.standards import (  # noqa: E402,F401
     expressions,
     extra,
     functions,
+    hides,
     library,
     pointers,
     sourcechecks,

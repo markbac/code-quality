@@ -98,7 +98,7 @@ Both write to `output.exports_dir`, or `output.formats: [sbom, cbom]` makes `rep
 
 - **Baselines**: `--baseline baseline.json` with `--fail-on-breach` fails only on new or worsened breaches; `--update-baseline` records the current state. Findings follow code that moves or is renamed; matching is heuristic, so a function that is largely rewritten shows as one resolved and one new finding, and `diff-breach` on exports without fingerprints matches by key only. Tune it with the `match:` section (see the guide, "Moved and renamed code").
 - **GitHub and GitLab**: `--github-annotations`, `--gitlab-codequality`, `--findings-json`, and `fwlens pr-comment` for pull and merge requests. See the guide for the GitHub Action and GitLab template.
-- **Coding standards**: `fwlens standards list`, `validate` and `report` check MISRA C, CERT C, BARR-C, AUTOSAR, TS 17961, Power of 10 and FWLens rules, with CWE ids, deviations and a compliance matrix.
+- **Coding standards**: `fwlens standards list`, `validate` and `report` check MISRA C, CERT C, BARR-C, AUTOSAR, TS 17961, Power of 10 and FWLens rules, with CWE ids, deviations and a compliance matrix. `fwlens-hides` finds MISRA findings that were hidden rather than fixed, shown in the report's Hidden Findings tab.
 
 Git-history metrics (hotspots, coupling, ownership) need full history; use `fetch-depth: 0` with `actions/checkout`.
 

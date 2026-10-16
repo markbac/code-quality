@@ -26,7 +26,8 @@ def tool_version() -> str:
         return "0.0.0"
 
 
-CATEGORY_LEVEL = {"mandatory": "error", "required": "warning", "advisory": "note"}
+CATEGORY_LEVEL = {"mandatory": "error", "required": "warning", "advisory": "note",
+                  "high": "error", "medium": "warning", "low": "note"}     # fwlens-hides confidence levels
 
 
 def rule_id(metric: str) -> str:
