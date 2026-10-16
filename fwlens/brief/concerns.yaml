@@ -1,0 +1,137 @@
+# Cross-cutting concerns for the architecture brief (fwlens/brief). A concern has roles, and a
+# function takes a role when:
+#   calls  it calls one of these functions (exact names, or globs with *)
+#   names  its own name is one of these (exact names, or globs with *)
+#   words  its name holds one of these words, after splitting on case and underscores
+#          (uartSend -> uart, send); "get tick" needs both words, so "ota" never matches "rotate"
+#   text   its body matches one of these regular expressions (comments and strings blanked)
+# Findings are evidence for a reader, not proof: "not found" means not detected.
+concerns:
+  - id: time
+    name: Clock and time
+    roles:
+      clock_config:
+        calls: [SystemClock_Config, SystemCoreClockUpdate, SystemInit, "HAL_RCC_*", "LL_RCC_*", "RCC_*", "CLOCK_*", "CMU_*"]
+        words: ["clock config", "clock init", "clk init", "clock setup", pll, oscillator]
+        text: ['\bRCC->', '\bSystemCoreClock\s*=']
+      tick_source:
+        calls: [SysTick_Config, HAL_InitTick, HAL_IncTick, xTaskIncrementTick, k_cycle_get_32]
+        names: [SysTick_Handler, vApplicationTickHook, "TIM*_IRQHandler", "*Tick_Handler"]
+        words: ["tick isr", "tick handler", "tick irq", "tick inc", "systick"]
+      time_read:
+        calls: [HAL_GetTick, xTaskGetTickCount, xTaskGetTickCountFromISR, OS_GetTime, OS_GetTime32, OS_GetTime_us, OS_TIME_GetTicks, osKernelGetTickCount, k_uptime_get, k_uptime_get_32, tx_time_get, clock, time, gettimeofday, clock_gettime, millis, micros, esp_timer_get_time]
+        words: ["get tick", "get ms", "get us", uptime, millis, timestamp, "time now", "now ms", "get time"]
+      rtc:
+        calls: ["HAL_RTC_*", "LL_RTC_*", "RTC_*", "rtc_*"]
+        words: [rtc, "real time clock"]
+        text: ['\bRTC->']
+      calendar:
+        calls: [mktime, gmtime, gmtime_r, localtime, localtime_r, strftime, difftime, timegm, asctime, ctime]
+        words: [epoch, calendar, "date time", datetime, timezone, dst, leap, unix]
+      time_sync:
+        calls: ["sntp_*", "SNTP_*", "esp_sntp_*", "ntp_*"]
+        words: [sntp, ntp, "time sync", timesync, "sync time", pps, "gps time", "set time", settime, "clock sync"]
+      sw_timer:
+        calls: [xTimerCreate, xTimerCreateStatic, xTimerStart, xTimerStop, xTimerReset, xTimerChangePeriod, OS_CreateTimer, OS_TIMER_Create, OS_StartTimer, OS_RetriggerTimer, osTimerNew, osTimerStart, k_timer_init, k_timer_start, tx_timer_create, "HAL_TIM_Base_Start*", "HAL_LPTIM_*", "app_timer_*"]
+        words: ["timer start", "timer create", "timeout start", "soft timer", "sw timer"]
+      delay:
+        calls: [HAL_Delay, vTaskDelay, vTaskDelayUntil, xTaskDelayUntil, OS_Delay, OS_DelayUntil, OS_TASK_Delay, osDelay, osDelayUntil, k_sleep, k_msleep, k_usleep, k_busy_wait, tx_thread_sleep, usleep, nanosleep, sleep, delay, delay_ms, delay_us]
+        names: [HAL_Delay, "*_delay", "*_Delay", "*_delay_ms", "*_delay_us", "*_DelayMs", "*_DelayUs"]
+        words: ["delay ms", "delay us", "busy wait", "wait ms", "wait us"]
+
+  - id: update
+    name: Firmware update and boot
+    roles:
+      bootloader:
+        words: [bootloader, bootload, "jump app", "jump application", "jump to", "boot app", "start app", "run app", "launch app"]
+        text: ['\bSCB->VTOR\s*=', '__set_MSP\s*\(']
+      image_receive:
+        calls: ["esp_ota_begin", "esp_https_ota*", "OTA_*", "otaPal_*", "dfu_*"]
+        words: [ota, dfu, fota, "fw update", "firmware update", fwupdate, "image write", "image recv", "image receive", "update chunk", "update block", upgrade, xmodem, ymodem, download]
+      flash_erase:
+        calls: ["HAL_FLASH_Erase*", "HAL_FLASHEx_Erase*", "FLASH_Erase*", "nrf_nvmc_page_erase", "flash_erase*", flash_area_erase, flash_area_erase_sector, "*_flash_erase*", esp_partition_erase_range, "spi_flash_erase*"]
+        words: ["flash erase", "erase sector", "erase page", "erase bank", "erase flash"]
+      flash_write:
+        calls: ["HAL_FLASH_Program*", "FLASH_Program*", "nrf_nvmc_write*", "flash_write*", "flash_program*", flash_area_write, "*_flash_write*", esp_partition_write, esp_ota_write, "spi_flash_write*"]
+        words: ["flash write", "flash program", "write flash", "program flash"]
+      verify_integrity:
+        calls: ["*crc32*", "*crc16*", "*Crc32*", "*CRC32*", "HAL_CRC_*", "*sha256*", "mbedtls_sha*", "mbedtls_md*", "psa_hash_*", "wc_Sha*", "SHA256*"]
+        words: ["verify image", "image crc", "check crc", "crc check", "image valid", "validate image", checksum, "verify crc"]
+      verify_signature:
+        calls: [mbedtls_pk_verify, mbedtls_ecdsa_verify, mbedtls_rsa_pkcs1_verify, psa_verify_hash, psa_verify_message, "wc_ecc_verify*", "wc_RsaSSL_Verify*", uECC_verify, ed25519_verify, bootutil_img_validate]
+        words: ["verify sig", "verify signature", "signature verify", "sig check", "check sig", "check signature", "authenticate image"]
+      version_check:
+        words: ["fw version", "firmware version", "image version", "version check", "check version", "anti rollback", "security counter", downgrade]
+      activate:
+        calls: [esp_ota_set_boot_partition, "boot_set_pending*", "boot_request_upgrade*", HAL_FLASHEx_OBProgram, HAL_FLASH_OB_Launch]
+        words: ["swap bank", "bank swap", "set boot", "boot flag", "activate image", "mark pending", "switch bank", "select bank", "boot partition"]
+      confirm_rollback:
+        calls: [esp_ota_mark_app_valid_cancel_rollback, esp_ota_mark_app_invalid_rollback_and_reboot, "boot_set_confirmed*", "boot_write_img_confirmed*"]
+        words: [rollback, "confirm image", "image confirm", "mark valid", "boot count", bootcount, "boot attempt"]
+      reset:
+        calls: [NVIC_SystemReset, HAL_NVIC_SystemReset, esp_restart, sys_reboot]
+        words: ["reset reason", "reset cause", reboot, "system reset", "soft reset"]
+        text: ['RCC->CSR', '__HAL_RCC_GET_FLAG\s*\(\s*RCC_FLAG_']
+
+  - id: power
+    name: Power management
+    roles:
+      low_power:
+        calls: ["HAL_PWR_Enter*", "HAL_PWREx_Enter*", "LL_PWR_*", __WFI, __WFE, "esp_light_sleep_*", "esp_deep_sleep*", sd_app_evt_wait, vPortSuppressTicksAndSleep, "OS_POWER_*"]
+        words: [sleep, "low power", lowpower, standby, "stop mode", hibernate, "power down", powerdown]
+        text: ['__WFI\s*\(', '__WFE\s*\(']
+      wake:
+        words: [wakeup, wake]
+      supply:
+        words: [battery, brownout, bor, pvd, supercap, charger, "power fail", powerfail, vbat]
+
+  - id: watchdog
+    name: Watchdog and faults
+    roles:
+      watchdog:
+        calls: ["HAL_IWDG_*", "HAL_WWDG_*", "LL_IWDG_*", "IWDG_*", "WDT_*", "wdt_*", "nrf_wdt_*", "esp_task_wdt_*", "OS_WD_*"]
+        words: [watchdog, wdog, wdt, iwdg, wwdg, "kick dog", "feed dog"]
+        text: ['\bIWDG->', '\bWDT->']
+      fault_handler:
+        names: [HardFault_Handler, MemManage_Handler, BusFault_Handler, UsageFault_Handler, NMI_Handler, Error_Handler, assert_failed, vApplicationStackOverflowHook, vApplicationMallocFailedHook]
+        words: ["fault handler", hardfault, crash, panic]
+
+  - id: storage
+    name: Persistent storage
+    roles:
+      nvm:
+        calls: ["HAL_FLASH_*", "HAL_FLASHEx_*", "EE_*", "eeprom_*", "nvs_*", "nvm_*", "fram_*", "lfs_*", f_open, f_read, f_write, f_close, f_mount, "esp_partition_*"]
+        words: [eeprom, nvm, nvram, fram, "flash read", persist, journal, wear, nvs, littlefs, lfs, fatfs]
+      parameters:
+        words: [param, params, parameter, parameters, setting, settings, "config load", "config save", "cfg load", "cfg save", "load config", "save config", defaults, factory]
+
+  - id: comms
+    name: Communications
+    roles:
+      serial:
+        calls: ["HAL_UART_*", "HAL_USART_*", "LL_USART_*", "HAL_SPI_*", "HAL_I2C_*", "HAL_CAN_*", "HAL_FDCAN_*"]
+        words: [uart, usart, serial, rs485, rs232, spi, i2c, can, lin, modbus]
+      network:
+        calls: ["lwip_*", "netconn_*", "tcp_*", "udp_*", socket, connect, sendto, recvfrom, "mqtt_*", "MQTT*", "coap_*", "esp_http_*", "esp_wifi_*", "esp_mqtt_*", "ble_*", "sd_ble_*"]
+        words: [mqtt, coap, http, https, socket, wifi, ble, bluetooth, modem, lte, gprs, nbiot, lora, wmbus, dlms, cosem, tcp, udp, ethernet]
+      protocol:
+        words: ["parse frame", "frame parse", packet, protocol, command, cmd, rx, tx, receive, transmit]
+
+  - id: security
+    name: Security
+    roles:
+      crypto:
+        calls: ["mbedtls_*", "psa_*", "wc_*", "wolfSSL_*", "EVP_*", "SSL_*", "AES_*", "HAL_CRYP_*", "HAL_HASH_*", "HAL_RNG_*", "uECC_*"]
+        words: [encrypt, decrypt, crypto, cipher, aes, hmac, rng, trng, random, keystore, sha, ecdsa, rsa, tls]
+      authentication:
+        words: [auth, authenticate, login, password, credential, certificate, cert]
+
+  - id: logging
+    name: Logging and diagnostics
+    roles:
+      log_sink:
+        calls: [printf, vprintf, puts, putchar, "SEGGER_RTT_*", ITM_SendChar, "ESP_LOG*", "LOG_*", "NRF_LOG_*"]
+        words: [log, logger, logging, trace, "debug print", dbg]
+      assertion:
+        calls: [assert, configASSERT, "__assert*", "OS_ASSERT*", "ASSERT*", "__ASSERT*"]
+        words: [assert]

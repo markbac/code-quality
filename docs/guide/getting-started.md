@@ -55,6 +55,7 @@ Pass `-NoClean` to skip the automatic `.pyc` cache purge (faster re-runs when no
 | `architecture save`, `architecture diff` | Save the recovered architecture, and compare a run with a snapshot or a git revision -- see [Architecture recovery](architecture-recovery.md#architecture-recovery) |
 | `architecture adopt` | Write the recovered components, domains and layers as a starting point for the intended architecture -- see [Architecture recovery](architecture-recovery.md#architecture-recovery) |
 | `architecture export` | Write the recovered architecture as PlantUML and Structurizr DSL -- see [Architecture recovery](architecture-recovery.md#architecture-recovery) |
+| `architecture brief` | Write one JSON file describing the code base for a reader or an LLM -- see [Architecture brief](architecture-brief.md#architecture-brief) |
 | `compare`, `pr-comment` | Compare with the target branch; post the result -- see [PR / MR quality check](gating-and-ci.md#pr--mr-quality-check) |
 | `standards list\|validate\|report` | MISRA C, CERT C, BARR-C and Power of 10 rules, deviations, compliance matrix |
 | `dump-ast` | Print the libclang AST for one file (see below) |
