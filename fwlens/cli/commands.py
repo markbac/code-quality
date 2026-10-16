@@ -764,6 +764,9 @@ def report(config_path: str, auto_stub, jobs, timeout, no_cache, fail_on_parse_e
         written_arch = _write_architecture_exports(model, config)
         for path in written_arch:
             console.print(f"[cyan][fwlens][/cyan] Architecture  : [bold]{path}[/bold]")
+    if "brief" in formats:
+        written_brief = _write_brief(model, config, config.output.exports_dir / "fwlens_brief.json")
+        console.print(f"[cyan][fwlens][/cyan] Brief       : [bold]{written_brief}[/bold]")
     if "plots" in formats:
         from fwlens.output.plots import generate_plots
         with phase("Plots"):
@@ -848,6 +851,25 @@ def architecture_export(config_path):
     """Write the recovered architecture as PlantUML (architecture.puml) and Structurizr DSL (architecture.dsl)."""
     model, config = _run_pipeline(Path(config_path))
     _write_architecture_exports(model, config)
+
+
+@architecture_group.command(name="brief")
+@click.option("--config", "config_path", default="config.yaml", type=_CONFIG_FILE, help="Path to config.yaml")
+@click.option("--output", "output_path", default=None, type=click.Path(),
+              help="Where to write the JSON (default: <exports_dir>/fwlens_brief.json).")
+def architecture_brief(config_path, output_path):
+    """Write one JSON file describing the code base for a reader or an LLM: files, components, entry points,
+    start-up order, state machines, clock and time, firmware update, interrupts, types, symbols and more."""
+    model, config = _run_pipeline(Path(config_path))
+    target = Path(output_path) if output_path else config.output.exports_dir / "fwlens_brief.json"
+    written = _write_brief(model, config, target)
+    console.print(f"[cyan][fwlens][/cyan] Brief: [bold]{written}[/bold]")
+
+
+def _write_brief(model, config, target: Path) -> Path:
+    from fwlens.brief import write_brief
+    with phase("Architecture brief"):
+        return write_brief(model, config, target)
 
 
 @architecture_group.command(name="save")

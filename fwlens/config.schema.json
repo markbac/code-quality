@@ -249,7 +249,8 @@
               "sarif",
               "sbom",
               "cbom",
-              "architecture"
+              "architecture",
+              "brief"
             ]
           }
         },

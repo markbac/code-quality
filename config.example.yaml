@@ -187,7 +187,9 @@ output:
 
   # Formats to produce on 'report' command. Add 'plots' for standalone PNG charts,
   # 'diagrams' for Mermaid architecture + dependency SVG, 'sarif' for SARIF findings,
-  # 'sbom' for a CycloneDX software bill of materials, 'cbom' for a cryptography bill of materials.
+  # 'sbom' for a CycloneDX software bill of materials, 'cbom' for a cryptography bill of materials,
+  # 'architecture' for PlantUML and Structurizr exports, 'brief' for the architecture brief
+  # (exports/fwlens_brief.json, one JSON file describing the code base for a reader or an LLM).
   formats: [html, csv, json]
 
   # Files longer than this many lines are not embedded in the HTML source viewer.

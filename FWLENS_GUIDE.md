@@ -68,6 +68,7 @@ The guide is split by topic. Each section below opens the file that holds it.
 ### Architecture recovery
 
 - [Architecture recovery](docs/guide/architecture-recovery.md#architecture-recovery)
+- [Architecture brief](docs/guide/architecture-brief.md#architecture-brief)
 
 ### Reference
 

@@ -13,6 +13,7 @@
 - **Standards and Quality Gates**: MISRA C:2012 and C:2023, CERT C, BARR-C, AUTOSAR (C subset), ISO/IEC TS 17961 and NASA/JPL Power of 10 checks, plus secrets, dead code and interrupt safety checks (over 600 guidelines checked natively, mapped to CWE) with a deviation register and compliance matrix; baselines, a pull-request check, Flash and RAM growth limits from the linker map, and run history.
 - **SBOM and CBOM**: `fwlens sbom` writes a CycloneDX 1.6 software bill of materials from the source tree, and `fwlens cbom` a cryptography bill of materials of the algorithms, protocols, libraries, certificates and keys the code names, with keyword autodetection and your own API names from the config (detected usage only, not a complete inventory).
 - **Architecture recovery**: a model of the architecture as implemented, system and subsystem patterns (layered, HAL, super-loop, RTOS, event-driven; UI and comms patterns), conformance rules, drift, variants, event flows, git activity, trust boundary paths, footprint per component, cycle-breaking advice and PlantUML and Structurizr export. Design in [`docs/ARCHITECTURE_RECOVERY.md`](docs/ARCHITECTURE_RECOVERY.md), tracked in #133.
+- **Architecture brief**: `fwlens architecture brief` writes one JSON file for a reader or an LLM: files with their header comments, components, entry points, start-up order, state machines, clock and time handling, firmware update flow, interrupts, peripherals, memory regions, types, constants, log strings and every function with its signature, comment and callers.
 - **Rich Reporting**: Outputs summary console tables, CSV data exports, JSON metrics, Mermaid dependency diagrams, and self-contained interactive HTML dashboards.
 
 ## Quick Start
@@ -90,6 +91,7 @@ fwlens architecture export --config config.yaml   # recovered architecture as Pl
 fwlens architecture diff --config config.yaml --revision origin/main   # what changed in the architecture
 fwlens architecture variants --config config.yaml --configuration G460 --configuration G480   # two variants side by side
 fwlens architecture adopt --config config.yaml    # recovered architecture as a start for architecture.intended_layers and rules
+fwlens architecture brief --config config.yaml    # one JSON file describing the code base for a reader or an LLM
 ```
 
 Both write to `output.exports_dir`, or `output.formats: [sbom, cbom]` makes `report` write them. Versions and licences come only from the source tree and are marked unknown when absent. The CBOM is a static scan: it reports what the code names and cannot see runtime configuration, negotiated protocols or keys. See the guide for details.
