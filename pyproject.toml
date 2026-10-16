@@ -36,6 +36,7 @@ dependencies = [
     "networkx>=3.0",
     "scipy>=1.11",
     "numpy>=1.24",
+    "ctxlogkit @ git+https://github.com/markbac/py-logkit",
 ]
 
 [project.optional-dependencies]
