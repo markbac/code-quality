@@ -57,7 +57,7 @@ _ITEM_KEYS: dict[tuple[str, ...], type | tuple[str, ...]] = {
     ("architecture", "trust_sinks"): ("kind", "domain", "component", "function"),
 }
 
-SUPPORTED_FORMATS = ("html", "csv", "json", "plots", "diagrams", "sarif", "sbom", "cbom", "architecture")
+SUPPORTED_FORMATS = ("html", "csv", "json", "plots", "diagrams", "sarif", "sbom", "cbom", "architecture", "brief")
 
 
 def _fields(cls: type) -> list[str]:

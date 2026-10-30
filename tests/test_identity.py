@@ -190,7 +190,7 @@ def test_fingerprints_are_deterministic_across_calls():
 
 # --- baseline file: version, migration, prune -------------------------------------
 
-def test_legacy_line_based_baseline_is_migrated_on_load(tmp_path, capsys):
+def test_legacy_line_based_baseline_is_migrated_on_load(tmp_path, caplog):
     path = tmp_path / "baseline.json"
     path.write_text(json.dumps({"accepted": [{
         "id": "src/a.c:42:process:cyclomatic_complexity", "kind": "function", "file": "src/a.c",
@@ -198,7 +198,7 @@ def test_legacy_line_based_baseline_is_migrated_on_load(tmp_path, capsys):
     loaded = load_baseline(path)
     assert list(loaded) == ["src/a.c:process:cyclomatic_complexity"]
     assert loaded["src/a.c:process:cyclomatic_complexity"]["line"] == 42
-    assert "legacy" in capsys.readouterr().out
+    assert "legacy" in caplog.text
     new, accepted = diff_against_baseline([fn_breach(line=99)], loaded)
     assert new == [] and len(accepted) == 1
 

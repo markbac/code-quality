@@ -10,6 +10,7 @@ jobs:
   build-and-release:
     name: Build Distribution & Publish GitHub Release
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       contents: write
 
@@ -20,7 +21,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.14"
 
       - name: Install Build Tooling & Test Dependencies
         run: |

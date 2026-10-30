@@ -36,6 +36,7 @@ dependencies = [
     "networkx>=3.0",
     "scipy>=1.11",
     "numpy>=1.24",
+    "ctxlogkit @ git+https://github.com/markbac/py-logkit",
 ]
 
 [project.optional-dependencies]
@@ -58,7 +59,7 @@ dev = [
 fwlens = "fwlens.cli:main"
 
 [tool.setuptools.package-data]
-fwlens = ["config.schema.json", "output/vendor/*", "output/templates/*", "standards/builtin/*.yaml", "standards/plugins/*/*.yaml", "standards/data/*.yaml", "crypto/catalog/*.yaml", "crypto/*.yaml", "arch/*.yaml"]
+fwlens = ["config.schema.json", "output/vendor/*", "output/templates/*", "standards/builtin/*.yaml", "standards/plugins/*/*.yaml", "standards/data/*.yaml", "crypto/catalog/*.yaml", "crypto/*.yaml", "arch/*.yaml", "brief/*.yaml"]
 
 [tool.setuptools.packages.find]
 where = ["."]
