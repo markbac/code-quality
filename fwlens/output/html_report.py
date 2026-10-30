@@ -164,6 +164,46 @@ def _standards_context(model: ProjectModel, config: FwLensConfig) -> dict | None
             "names": {sid: f"{s.name} ({s.revision})" for sid, s in result.standards.items()}}
 
 
+def _hidden_context(model: ProjectModel, config: FwLensConfig) -> dict | None:
+    """Findings of the fwlens-hides rules for the Hidden findings tab, grouped by rule, most severe first.
+    None unless that standard is enabled."""
+    if not (getattr(config, "standards", None) and any(s.standard == "fwlens-hides" for s in config.standards.enabled)):
+        return None
+    from fwlens.identity import project_root
+    from fwlens.standards import _enclosing_function, run_standards
+    from fwlens.standards.hides import DEFAULT_DEVIATION, analyse
+    from fwlens.standards.sourcechecks import SourceFile
+    try:
+        result = run_standards(model, config)
+    except Exception as e:      # reported in the Standards tab; do not lose the report
+        return {"error": str(e), "groups": [], "total": 0, "deviated": 0}
+    root = project_root(config)
+    rules = {r.key: r for r in result.rules if r.standard == "fwlens-hides"}
+    sources: dict[str, SourceFile | None] = {}
+    groups: dict[str, dict] = {}
+    for f in result.findings:
+        rule = rules.get(f.metric)
+        if rule is None:
+            continue
+        if f.file not in sources:
+            sources[f.file] = SourceFile.read(root / f.file)
+        sf = sources[f.file]
+        check = rule.match["check"]
+        found = analyse(sf, rule.match.get("deviation_pattern", DEFAULT_DEVIATION)) if sf else []
+        messages = [h.message for h in found if h.line == f.line and h.check == check]
+        group = groups.setdefault(rule.key, {"id": rule.id, "title": rule.title, "severity": rule.category,
+                                             "check": check, "notes": rule.notes, "help": rule.help, "findings": []})
+        function = f.function or _enclosing_function(model, root / f.file, f.line or 0) or ""
+        group["findings"].append({"file": f.file, "line": f.line, "function": function,
+                                  "message": " ".join(messages), "source": sf.line_text(f.line) if sf else ""})
+    order = {"high": 0, "medium": 1, "low": 2}
+    ordered = sorted(groups.values(), key=lambda g: (order.get(g["severity"], 3), -len(g["findings"]), g["id"]))
+    for g in ordered:
+        g["findings"].sort(key=lambda x: (x["file"], x["line"] or 0))
+    return {"error": None, "groups": ordered, "total": sum(len(g["findings"]) for g in ordered),
+            "deviated": sum(1 for b, _ in result.deviated if b.metric in rules)}
+
+
 def _supply_chain_context(model: ProjectModel, config: FwLensConfig) -> dict | None:
     """Readable SBOM, CBOM and SARIF views, for each of those formats listed in output.formats (#97)."""
     wanted = set(config.output.formats) & {"sbom", "cbom", "sarif"}
@@ -1001,6 +1041,7 @@ def generate_html_report(model: ProjectModel, config: FwLensConfig):
     meta["diag_error_module_count"] = len(error_diag_modules)
     meta["history"] = _history_rows(model, config)
     meta["standards"] = _standards_context(model, config)
+    meta["hidden"] = _hidden_context(model, config)
     meta["supply_chain"] = _supply_chain_context(model, config)
     try:
         from fwlens.output.inputs import inputs_view

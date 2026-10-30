@@ -49,6 +49,7 @@
   <button type="button" class="tab" role="tab" id="tab-defects" aria-controls="pane-defects" aria-selected="false" tabindex="-1" onclick="show('defects', this)">Defects &amp; Estimation</button>
   <button type="button" class="tab" role="tab" id="tab-parsediag" aria-controls="pane-parsediag" aria-selected="false" tabindex="-1" onclick="show('parsediag', this)">Parse Diagnostics</button>
   {% if meta.standards %}<button type="button" class="tab" role="tab" id="tab-standards" aria-controls="pane-standards" aria-selected="false" tabindex="-1" onclick="show('standards', this)">Standards</button>{% endif %}
+  {% if meta.hidden %}<button type="button" class="tab" role="tab" id="tab-hidden" aria-controls="pane-hidden" aria-selected="false" tabindex="-1" onclick="show('hidden', this)">Hidden Findings</button>{% endif %}
   {% for key, label in (('sbom', 'SBOM'), ('cbom', 'CBOM'), ('sarif', 'SARIF')) %}{% if meta.supply_chain and meta.supply_chain[key] %}<button type="button" class="tab" role="tab" id="tab-{{ key }}" aria-controls="pane-{{ key }}" aria-selected="false" tabindex="-1" onclick="show('{{ key }}', this)">{{ label }}</button>{% endif %}{% endfor %}
   <button type="button" class="tab" role="tab" id="tab-reference" aria-controls="pane-reference" aria-selected="false" tabindex="-1" onclick="show('reference', this)">Metrics Reference</button>
 </div>
@@ -2701,6 +2702,45 @@
   {% if meta.standards.stale_triage %}
   <p class="red" style="margin-top:12px">Stale triage entries (no finding has these ids): {{ meta.standards.stale_triage | join(', ') }}</p>
   {% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+{% if meta.hidden %}
+{% set h = meta.hidden %}
+<!-- HIDDEN FINDINGS -->
+<div class="pane" id="pane-hidden" role="tabpanel" aria-labelledby="tab-hidden">
+  <div class="section-title">Hidden findings</div>
+  <p style="color:var(--dim);font-size:12px;margin-bottom:12px;max-width:900px">
+    Code where a MISRA C finding looks silenced rather than fixed: a cast, a <code>(void)</code>, an unread result, an empty
+    <code>default</code> or a suppression that makes the checker go quiet while the hazard is still there (the fwlens-hides rules).
+    The checks read source text and have no type information, so treat each one as a prompt to review the code, not a verdict.
+    Severity is confidence that a hazard is hidden.
+  </p>
+  {% if h.error %}
+  <p class="red">The rules could not be run: {{ h.error }}</p>
+  {% elif not h.groups %}
+  <p class="green">No hidden findings{% if h.deviated %} ({{ h.deviated }} deviated){% endif %}.</p>
+  {% else %}
+  <p style="margin-bottom:16px">{{ h.total }} finding(s) in {{ h.groups | length }} kind(s) of issue{% if h.deviated %}, plus {{ h.deviated }} deviated{% endif %}.</p>
+  {% for g in h.groups %}
+  <details {% if g.severity == 'high' %}open{% endif %} style="margin-bottom:14px">
+    <summary style="cursor:pointer">
+      <span class="badge {{ {'high': 'badge-red', 'medium': 'badge-yellow'}.get(g.severity, 'badge-blue') }}">{{ g.severity | upper }}</span>
+      <strong>{{ g.title }}</strong> <span class="dim">({{ g.findings | length }}) {{ g.id }}, {{ g.check }}</span>
+    </summary>
+    <p style="font-size:12px;max-width:900px;margin:8px 0 4px">{{ g.notes }}</p>
+    <p style="font-size:12px;max-width:900px;margin:0 0 8px"><strong>What to do:</strong> {{ g.help }}</p>
+    <table>
+      <thead><tr><th>File</th><th>Line</th><th>Function</th><th>Finding</th><th>Source</th></tr></thead>
+      <tbody>
+      {% for f in g.findings %}
+      <tr><td class="dim">{{ f.file }}</td><td>{{ f.line }}</td><td>{{ f.function or '-' }}</td><td>{{ f.message }}</td><td><code>{{ f.source }}</code></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </details>
+  {% endfor %}
   {% endif %}
 </div>
 {% endif %}

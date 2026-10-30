@@ -27,7 +27,8 @@ def severity_for(b: Breach) -> str:
     Note-level metrics are one step quieter: within 25 % over the threshold they are info.
     """
     if b.category:
-        return {"mandatory": "critical", "required": "major", "advisory": "minor"}.get(b.category, "major")
+        return {"mandatory": "critical", "required": "major", "advisory": "minor",
+                "high": "critical", "medium": "major", "low": "minor"}.get(b.category, "major")
     ratio = (b.value / b.threshold) if b.threshold else float("inf")
     quiet = METRIC_INFO.get(b.metric, ("", "", "warning"))[2] == "note"
     if ratio < 1.25:

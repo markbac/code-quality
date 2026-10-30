@@ -282,6 +282,7 @@ output:
 #     - standard: autosar-cpp14      # AUTOSAR C++14 guidelines that apply to C
 #     - standard: iso-ts-17961       # ISO/IEC TS 17961 C secure coding
 #     - standard: fwlens             # secrets, dead code, interrupt safety
+#     - standard: fwlens-hides       # MISRA findings hidden rather than fixed; adds the Hidden Findings report tab
 #   extra_rule_dirs: [./standards]
 #   disable_plugins: [misra]                              # leave the MISRA rule sets out where they are not licensed
 #   deviations_file: ./standards/deviations.yaml
